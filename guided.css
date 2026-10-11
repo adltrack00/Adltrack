@@ -83,3 +83,10 @@ button.flow-tab:focus-visible{outline:2px solid #111;outline-offset:2px}
 /* Easy to notice: the store prompt and Add photo read like the item name. */
 .plan-line input::placeholder{color:#111;font-weight:600;opacity:1}
 .pick-photo-hint{color:#111;font-weight:600}
+/* Phones: Back sits in the empty left side of the header so the steps and scan box move up. */
+@media(max-width:600px){
+.flow-active .guided-flow{margin-top:-52px}
+.flow-active .guided-top{position:relative;z-index:21;width:fit-content;height:40px;margin-bottom:6px}
+.flow-active .guided-top button{padding:10px 0}
+.flow-active .flow-tabs{margin:0 0 14px}
+}
