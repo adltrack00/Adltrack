@@ -1,4 +1,4 @@
-/* HTTP handler: account API under /api and the static app files. */
+/* HTTP handler: account API under /api, owner-only files under /api/files, and the static app files. */
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -11,6 +11,7 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=
 // Only top-level app files and assets/ are public; server/, tests/, scripts/, data/ and package files never are.
 const STATIC_DIRS = new Set(['', 'assets']);
 const SERVER_ONLY = new Set(['server.js']);
+const FILE_CSP = "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox";
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
 
 /* Passwords: scrypt with a per-user salt. */
@@ -74,7 +75,7 @@ function parseCookies(header) {
   return out;
 }
 
-function createApp({ store, production = false, policies = null }) {
+function createApp({ store, data, production = false, policies = null }) {
   const authLimit = limiter(20, 15 * 60 * 1000);
   // Locks an email for 15 minutes after 10 wrong passwords, checked before the password is tried.
   const loginFailures = (() => {
@@ -176,7 +177,7 @@ function createApp({ store, production = false, policies = null }) {
       const ok = await verifyPassword(String(body.password || ''), user ? user.passwordHash : await DUMMY_HASH);
       if (!user || !ok) { loginFailures.fail(email); throw new HttpError(401, 'Email or password is incorrect.'); }
       loginFailures.clear(email);
-      return startSession(req, res, user, 200, { data: await store.getData(user.id) });
+      return startSession(req, res, user, 200, { data: await data.getData(user.id) });
     }
 
     if (route === '/api/logout' && method === 'POST') {
@@ -190,18 +191,65 @@ function createApp({ store, production = false, policies = null }) {
     if (!user) throw new HttpError(401, 'Please sign in.');
 
     if (route === '/api/me' && method === 'GET') return send(res, 200, { user: { email: user.email, name: user.name } });
-    if (route === '/api/data' && method === 'GET') return send(res, 200, { data: await store.getData(user.id) });
+    if (route === '/api/data' && method === 'GET') return send(res, 200, { data: await data.getData(user.id) });
+    // The whole account in one document, kept for older versions of the app.
     if (route === '/api/data' && method === 'PUT') {
       checkWrite(req);
       const payload = cleanPayload(await readBody(req, 12 * 1024 * 1024));
-      return send(res, 200, { updatedAt: await store.putData(user.id, payload) });
+      return send(res, 200, { updatedAt: await data.putData(user.id, payload) });
+    }
+
+    // Owner-only file, such as an item photo. Anyone else gets the same 404 as a file that doesn't exist.
+    const fileMatch = /^\/api\/files\/([0-9a-f-]{36})$/i.exec(route);
+    if (fileMatch && method === 'GET') {
+      const file = await data.readFile(user.id, fileMatch[1].toLowerCase());
+      if (!file) throw new HttpError(404, 'Not found.');
+      res.writeHead(200, { 'Content-Type': file.contentType, 'Content-Length': file.body.length, 'Cache-Control': 'private, max-age=31536000, immutable', 'Content-Disposition': 'inline', 'Content-Security-Policy': FILE_CSP });
+      return res.end(file.body);
+    }
+
+    // Per-item sync: the app creates, updates and deletes one item at a time.
+    await data.migrate(user.id);
+    if (route === '/api/items' && method === 'GET') {
+      const raw = await data.getData(user.id);
+      return send(res, 200, { items: raw ? raw.purchases : [], updatedAt: raw ? raw.updatedAt : null });
+    }
+    if (route === '/api/items' && method === 'POST') {
+      checkWrite(req);
+      return send(res, 201, await data.saveItem(user.id, await readBody(req, 12 * 1024 * 1024), { mustBeNew: true }));
+    }
+    const itemMatch = /^\/api\/items\/([^/]+)$/.exec(route);
+    if (itemMatch && (method === 'PUT' || method === 'DELETE')) {
+      checkWrite(req);
+      let id; try { id = decodeURIComponent(itemMatch[1]); } catch { throw new HttpError(400, 'Invalid item.'); }
+      if (method === 'DELETE') {
+        const r = await data.deleteItem(user.id, id);
+        if (!r.deleted) throw new HttpError(404, 'Not found.');
+        return send(res, 200, { ok: true, updatedAt: r.updatedAt });
+      }
+      const body = await readBody(req, 12 * 1024 * 1024);
+      if (!body || typeof body !== 'object' || Array.isArray(body)) throw new HttpError(400, 'Invalid item.');
+      return send(res, 200, await data.saveItem(user.id, { ...body, id }));
+    }
+    if (route === '/api/settings' && method === 'PUT') {
+      checkWrite(req);
+      const { settings, profile } = cleanPayload({ purchases: [], ...(await readBody(req, 12 * 1024 * 1024)) });
+      return send(res, 200, await data.putSettings(user.id, { settings, profile }));
+    }
+    if (route === '/api/purchases' && method === 'GET') return send(res, 200, { purchases: await data.listPurchases(user.id) });
+    const receiptMatch = /^\/api\/purchases\/([^/]+)\/receipt$/.exec(route);
+    if (receiptMatch && method === 'PUT') {
+      checkWrite(req);
+      let id; try { id = decodeURIComponent(receiptMatch[1]); } catch { throw new HttpError(400, 'Invalid request.'); }
+      const body = await readBody(req, 14 * 1024 * 1024);
+      return send(res, 200, await data.attachReceipt(user.id, id, body && body.data));
     }
     if (route === '/api/account' && method === 'DELETE') {
       checkWrite(req);
       const body = await readBody(req, 10_000);
       const full = await store.findUserByEmail(user.email);
       if (!full || !(await verifyPassword(String(body.password || ''), full.passwordHash))) throw new HttpError(401, 'That password isn’t right.');
-      await store.deleteUser(user.id);
+      await data.deleteAccount(user.id);
       return send(res, 200, { ok: true }, { 'Set-Cookie': cookie(req, '', 0) });
     }
     throw new HttpError(404, 'Not found.');

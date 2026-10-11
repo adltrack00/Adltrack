@@ -1,12 +1,19 @@
 const test = require('node:test'), assert = require('node:assert/strict'), http = require('node:http'), os = require('node:os'), path = require('node:path'), fs = require('node:fs');
 const { createStore } = require('../server/store');
 const { createApp, hashPassword, verifyPassword } = require('../server/app');
+const { createStorage } = require('../server/storage');
+const { createData } = require('../server/data');
+const { createJobs, defineJobs } = require('../server/jobs');
 
 async function boot() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'returnly-'));
   const store = createStore({ file: path.join(dir, 'store.json') });
   await store.init();
-  const server = http.createServer(createApp({ store }));
+  const storage = createStorage({ dir: path.join(dir, 'files') });
+  const jobs = createJobs({ store });
+  const data = createData({ store, storage, jobs });
+  defineJobs(jobs, { store, storage });
+  const server = http.createServer(createApp({ store, data }));
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const client = () => {
