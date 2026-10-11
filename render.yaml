@@ -26,6 +26,9 @@ services:
         sync: false
       - key: S3_REGION
         value: auto
+      # Sorts items into a store's policy categories. Without it the policy engine still works and uses the shortest window that could apply.
+      - key: ANTHROPIC_API_KEY
+        sync: false
 
 databases:
   # Render's free Postgres expires after 30 days. Switch to a paid plan before real users rely on it.
