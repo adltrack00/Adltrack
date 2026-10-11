@@ -1,6 +1,6 @@
 # Returnly build plan: 12 sessions
 
-Run these one at a time, in order. Each prompt stands on its own: paste it into a new session.
+Run these one at a time, in order. Each prompt stands on its own: paste it into a new session. Every prompt tells the session to keep the current design and only make things work.
 
 **Before starting the next session, merge the previous session's pull request into `main`.** New sessions start from `main`, so they only see work that has been merged.
 
@@ -26,7 +26,7 @@ Some sessions need accounts or keys that only you can create (an AI API key, an 
 ## 1. Data foundation
 
 ```
-Returnly helps US shoppers return purchases before the return window closes. It makes two promises: teach people exactly how to return each item, and remind them until the return is done and the money is back. The stack is a vanilla JS front end (app.html plus its scripts; no framework or bundler), a Node 22 server (server.js, server/app.js, server/store.js), and Postgres on Render (render.yaml). Tests run with `npm test`. Read README.md and docs/product-notes.md first and match the existing code style. Keep the four-step journey (Scan → Return → Return it → Get paid).
+Returnly helps US shoppers return purchases before the return window closes. It makes two promises: teach people exactly how to return each item, and remind them until the return is done and the money is back. Do not redesign the app: keep the current look, layout, typography, colours and screen arrangement exactly as they are. This work makes the existing screens function; add new UI only where a feature has no screen yet, built from the existing styles and components. The stack is a vanilla JS front end (app.html plus its scripts; no framework or bundler), a Node 22 server (server.js, server/app.js, server/store.js), and Postgres on Render (render.yaml). Tests run with `npm test`. Read README.md and docs/product-notes.md first and match the existing code style. Keep the four-step journey (Scan → Return → Return it → Get paid).
 
 This session lays the foundation that later sessions build on. Today each account's purchases are a single JSON document in `user_data`, and photos are stored inside it. Later work needs the server to read items on its own: reminders sent while the app is closed, email order capture, receipt reading and policy matching.
 
@@ -44,7 +44,7 @@ When done, run `npm test`, check the app in a browser at phone and desktop width
 ## 2. Retailer policy database
 
 ```
-Returnly helps US shoppers return purchases before the return window closes. It makes two promises: teach people exactly how to return each item, and remind them until the return is done and the money is back. The stack is a vanilla JS front end, a Node 22 server (server/), Postgres, and `npm test`. Read README.md and docs/ first and match the existing style.
+Returnly helps US shoppers return purchases before the return window closes. It makes two promises: teach people exactly how to return each item, and remind them until the return is done and the money is back. Do not redesign the app: keep the current look, layout, typography, colours and screen arrangement exactly as they are. This work makes the existing screens function; add new UI only where a feature has no screen yet, built from the existing styles and components. The stack is a vanilla JS front end, a Node 22 server (server/), Postgres, and `npm test`. Read README.md and docs/ first and match the existing style.
 
 Build the checked return-policy database for our 10 launch retailers: Amazon, Walmart, Target, Costco, Best Buy, Home Depot, Apple, Nike, Zara and Shein. Fashion Nova already has a researched reference in the app; fold it in as the 11th store. Policies are structured data that a person checked. The app reads facts from it and never makes them up.
 
@@ -71,7 +71,7 @@ When done, open a pull request with a table of the 11 retailers, their key windo
 ## 3. Policy engine: "Is this returnable, by when, and what do I get back?"
 
 ```
-Returnly helps US shoppers return purchases before the return window closes. It makes two promises: teach people exactly how to return each item, and remind them until the return is done and the money is back. The stack is a vanilla JS front end, a Node 22 server, Postgres, and `npm test`. Read README.md, docs/, core.js and the policies/ folder first.
+Returnly helps US shoppers return purchases before the return window closes. It makes two promises: teach people exactly how to return each item, and remind them until the return is done and the money is back. Do not redesign the app: keep the current look, layout, typography, colours and screen arrangement exactly as they are. This work makes the existing screens function; add new UI only where a feature has no screen yet, built from the existing styles and components. The stack is a vanilla JS front end, a Node 22 server, Postgres, and `npm test`. Read README.md, docs/, core.js and the policies/ folder first.
 
 Build the engine that applies a retailer's policy to a specific item and gives a clear answer.
 
@@ -93,7 +93,7 @@ When done, open a pull request with screenshots of the answer card for three dif
 ## 4. Receipt reading
 
 ```
-Returnly helps US shoppers return purchases before the return window closes. It makes two promises: teach people exactly how to return each item, and remind them until the return is done and the money is back. The stack is a vanilla JS front end, a Node 22 server, Postgres, and `npm test`. Read README.md, docs/camera-flow-notes.md, guided.js and the policy engine first.
+Returnly helps US shoppers return purchases before the return window closes. It makes two promises: teach people exactly how to return each item, and remind them until the return is done and the money is back. Do not redesign the app: keep the current look, layout, typography, colours and screen arrangement exactly as they are. This work makes the existing screens function; add new UI only where a feature has no screen yet, built from the existing styles and components. The stack is a vanilla JS front end, a Node 22 server, Postgres, and `npm test`. Read README.md, docs/camera-flow-notes.md, guided.js and the policy engine first.
 
 Make the Scan step read receipts. The user photographs a paper receipt, or uploads a screenshot or PDF of a digital one, and Returnly fills in everything.
 
@@ -112,7 +112,7 @@ When done, open a pull request with before/after screenshots of the Scan → Ret
 ## 5. How-to-return guides and drop-off finder
 
 ```
-Returnly helps US shoppers return purchases before the return window closes. It makes two promises: teach people exactly how to return each item, and remind them until the return is done and the money is back. The stack is a vanilla JS front end, a Node 22 server, Postgres, and `npm test`. Read README.md, docs/, guided.js, the policies/ folder and the policy engine first.
+Returnly helps US shoppers return purchases before the return window closes. It makes two promises: teach people exactly how to return each item, and remind them until the return is done and the money is back. Do not redesign the app: keep the current look, layout, typography, colours and screen arrangement exactly as they are. This work makes the existing screens function; add new UI only where a feature has no screen yet, built from the existing styles and components. The stack is a vanilla JS front end, a Node 22 server, Postgres, and `npm test`. Read README.md, docs/, guided.js, the policies/ folder and the policy engine first.
 
 Users don't know how to return things, and the effort of figuring it out is why they give up. Turn the "Return it" step into a clear guide for this exact item at this exact store.
 
@@ -131,7 +131,7 @@ When done, open a pull request with phone screenshots of the guide for Amazon, T
 ## 6. Unknown stores and keeping policies current
 
 ```
-Returnly helps US shoppers return purchases before the return window closes. It makes two promises: teach people exactly how to return each item, and remind them until the return is done and the money is back. The stack is a vanilla JS front end, a Node 22 server, Postgres, and `npm test`. Read README.md, the policies/ folder, the policy engine and the receipt reader first.
+Returnly helps US shoppers return purchases before the return window closes. It makes two promises: teach people exactly how to return each item, and remind them until the return is done and the money is back. Do not redesign the app: keep the current look, layout, typography, colours and screen arrangement exactly as they are. This work makes the existing screens function; add new UI only where a feature has no screen yet, built from the existing styles and components. The stack is a vanilla JS front end, a Node 22 server, Postgres, and `npm test`. Read README.md, the policies/ folder, the policy engine and the receipt reader first.
 
 Make Returnly work for any US store, and keep the checked policies accurate over time.
 
@@ -149,7 +149,7 @@ When done, open a pull request explaining the review workflow and how I get noti
 ## 7. Installable app and push notifications
 
 ```
-Returnly helps US shoppers return purchases before the return window closes. It makes two promises: teach people exactly how to return each item, and remind them until the return is done and the money is back. The stack is a vanilla JS front end, a Node 22 server, Postgres, and `npm test`. Read README.md, docs/ and the background job runner first.
+Returnly helps US shoppers return purchases before the return window closes. It makes two promises: teach people exactly how to return each item, and remind them until the return is done and the money is back. Do not redesign the app: keep the current look, layout, typography, colours and screen arrangement exactly as they are. This work makes the existing screens function; add new UI only where a feature has no screen yet, built from the existing styles and components. The stack is a vanilla JS front end, a Node 22 server, Postgres, and `npm test`. Read README.md, docs/ and the background job runner first.
 
 People forget, and someone who forgets doesn't open the app. Reminders must reach the phone while the app is closed. Today notifications only work while the app is open.
 
@@ -167,7 +167,7 @@ When done, open a pull request with steps to test on a real iPhone and Android p
 ## 8. Reminders that get it done
 
 ```
-Returnly helps US shoppers return purchases before the return window closes. It makes two promises: teach people exactly how to return each item, and remind them until the return is done and the money is back. The stack is a vanilla JS front end, a Node 22 server, Postgres, and `npm test`. Read README.md, docs/, the push notification setup, the policy engine and the how-to guides first.
+Returnly helps US shoppers return purchases before the return window closes. It makes two promises: teach people exactly how to return each item, and remind them until the return is done and the money is back. Do not redesign the app: keep the current look, layout, typography, colours and screen arrangement exactly as they are. This work makes the existing screens function; add new UI only where a feature has no screen yet, built from the existing styles and components. The stack is a vanilla JS front end, a Node 22 server, Postgres, and `npm test`. Read README.md, docs/, the push notification setup, the policy engine and the how-to guides first.
 
 Design and build the reminder system. A reminder's job is not to say "3 days left". It is to make the return effortless right now.
 
@@ -186,7 +186,7 @@ When done, open a pull request with mock-ups of each reminder type (push and ema
 ## 9. Email order capture: forwarding address
 
 ```
-Returnly helps US shoppers return purchases before the return window closes. It makes two promises: teach people exactly how to return each item, and remind them until the return is done and the money is back. The stack is a vanilla JS front end, a Node 22 server, Postgres, and `npm test`. Read README.md, docs/, the receipt reader, the policy engine and the job runner first.
+Returnly helps US shoppers return purchases before the return window closes. It makes two promises: teach people exactly how to return each item, and remind them until the return is done and the money is back. Do not redesign the app: keep the current look, layout, typography, colours and screen arrangement exactly as they are. This work makes the existing screens function; add new UI only where a feature has no screen yet, built from the existing styles and components. The stack is a vanilla JS front end, a Node 22 server, Postgres, and `npm test`. Read README.md, docs/, the receipt reader, the policy engine and the job runner first.
 
 Most online purchases already arrive with an order email. Let users add purchases without taking a photo.
 
@@ -204,7 +204,7 @@ When done, open a pull request with a short video or screenshots of forwarding a
 ## 10. Email order capture: connect your inbox
 
 ```
-Returnly helps US shoppers return purchases before the return window closes. It makes two promises: teach people exactly how to return each item, and remind them until the return is done and the money is back. The stack is a vanilla JS front end, a Node 22 server, Postgres, and `npm test`. Read README.md, docs/ and the email forwarding capture (its parser is reused here) first.
+Returnly helps US shoppers return purchases before the return window closes. It makes two promises: teach people exactly how to return each item, and remind them until the return is done and the money is back. Do not redesign the app: keep the current look, layout, typography, colours and screen arrangement exactly as they are. This work makes the existing screens function; add new UI only where a feature has no screen yet, built from the existing styles and components. The stack is a vanilla JS front end, a Node 22 server, Postgres, and `npm test`. Read README.md, docs/ and the email forwarding capture (its parser is reused here) first.
 
 Let users connect Gmail or Outlook once, so every order, delivery and refund is captured with no effort.
 
@@ -222,11 +222,11 @@ When done, open a pull request with the connect flow screenshots and the verific
 ## 11. Money dashboard and refund tracking
 
 ```
-Returnly helps US shoppers return purchases before the return window closes. It makes two promises: teach people exactly how to return each item, and remind them until the return is done and the money is back. The stack is a vanilla JS front end, a Node 22 server, Postgres, and `npm test`. Read README.md, docs/, the current totals in the app, the reminder system and the email capture first.
+Returnly helps US shoppers return purchases before the return window closes. It makes two promises: teach people exactly how to return each item, and remind them until the return is done and the money is back. Do not redesign the app: keep the current look, layout, typography, colours and screen arrangement exactly as they are. This work makes the existing screens function; add new UI only where a feature has no screen yet, built from the existing styles and components. The stack is a vanilla JS front end, a Node 22 server, Postgres, and `npm test`. Read README.md, docs/, the current totals in the app, the reminder system and the email capture first.
 
 Show users the money they've recovered and make sure every refund actually arrives.
 
-1. Dashboard: money recovered (cash and store credit shown separately), money at stake right now with the next deadline, refunds on the way, and money lost to missed windows. Show this month, this year and all time, plus a simple chart of recovered money over time (load the dataviz skill first). Breakdown by store.
+1. Dashboard: money recovered (cash and store credit shown separately), money at stake right now with the next deadline, refunds on the way, and money lost to missed windows. Show this month, this year and all time, plus a simple chart of recovered money over time in the app's existing colours and type (load the dataviz skill first). Breakdown by store.
 2. Refund tracking: after "I sent it back", expect a refund by the policy's typical timing. If no refund email or confirmation arrives by then, remind the user to check and give them the retailer's contact or refund-status link. Mark it overdue in the dashboard.
 3. Store-credit wallet: track store credit and gift card balances from returns, with expiry dates if any, and remind users to use them before they expire.
 4. "Missed it" honesty: when a window passes, record the loss, and where the policy allows, suggest options (manufacturer warranty, a price-adjustment policy, resale) without promising anything.
@@ -239,7 +239,7 @@ When done, open a pull request with dashboard screenshots using realistic sample
 ## 12. iPhone and Android apps
 
 ```
-Returnly helps US shoppers return purchases before the return window closes. It makes two promises: teach people exactly how to return each item, and remind them until the return is done and the money is back. The stack is a vanilla JS front end, a Node 22 server, Postgres, and `npm test`. Read README.md, docs/ and the installable-app and push work first.
+Returnly helps US shoppers return purchases before the return window closes. It makes two promises: teach people exactly how to return each item, and remind them until the return is done and the money is back. Do not redesign the app: keep the current look, layout, typography, colours and screen arrangement exactly as they are. This work makes the existing screens function; add new UI only where a feature has no screen yet, built from the existing styles and components. The stack is a vanilla JS front end, a Node 22 server, Postgres, and `npm test`. Read README.md, docs/ and the installable-app and push work first.
 
 Ship Returnly to the App Store and Google Play while keeping one codebase with the web app.
 
