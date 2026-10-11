@@ -90,3 +90,5 @@ button.flow-tab:focus-visible{outline:2px solid #111;outline-offset:2px}
 .flow-active .guided-top button{padding:10px 0}
 .flow-active .flow-tabs{margin:0 0 14px}
 }
+/* The camera box is narrower than its panel on phones (height-capped 3:4), so centre it. */
+.camera-window{margin-left:auto;margin-right:auto}
