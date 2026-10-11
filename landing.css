@@ -2,21 +2,23 @@
 @media(max-width:640px){.campaign h1{font-size:48px;letter-spacing:-.05em;max-width:340px}}
 .header-auth{display:flex;align-items:center;gap:24px;line-height:1}.header-signin{font-size:14px;color:inherit;text-decoration:none}.header-signin:hover{text-decoration:underline;text-underline-offset:4px}
 /* Phone header: small logo and a menu button that opens a full-screen menu. */
+@font-face{font-family:'Roboto Serif';src:url(assets/roboto-serif-light.woff2) format('woff2');font-weight:300;font-display:swap}
 .menu-toggle,.mobile-menu{display:none}
-.menu-toggle,.menu-close{width:44px;height:44px;margin-right:-10px;padding:0;border:0;background:none;color:#111;place-items:center;cursor:pointer}
+.menu-toggle,.menu-close{width:44px;height:44px;margin-right:-10px;padding:0;border:0;background:none;color:#0d0d0d;place-items:center;cursor:pointer}
 .menu-toggle svg,.menu-close svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+.menu-close svg{stroke-width:1.6}
 .menu-toggle:focus-visible,.menu-close:focus-visible{outline:3px solid #2055db;outline-offset:2px}
 @media(max-width:640px){
 .site-header .brand{font-size:22px}
 .header-auth{display:none}
 .menu-toggle{display:grid}
-.mobile-menu:not([hidden]){position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:56px;padding:90px 6% 40px;background:#fff;overflow-y:auto}
+.mobile-menu:not([hidden]){position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;padding:90px 6% 40px;background:#f7f7f7;overflow-y:auto;font-family:'Roboto Serif',Georgia,'Times New Roman',serif;font-weight:300}
 .menu-close{display:grid;position:absolute;top:13px;right:6%}
 .mobile-menu-main,.mobile-menu-sub{display:flex;flex-direction:column;align-items:center;text-align:center}
-.mobile-menu-main{gap:22px}
-.mobile-menu-main a{font-size:40px;font-weight:750;letter-spacing:-.05em;line-height:1.05;color:#111}
-.mobile-menu-sub{gap:16px}
-.mobile-menu-sub a{font-size:18px;color:#777}
-.mobile-menu a:hover{text-decoration:none;color:#555}
+.mobile-menu-main a{font-size:31.5px;line-height:63.4px;letter-spacing:0;color:#646464}
+.mobile-menu-main a:first-child{color:#0a0a0a}
+.mobile-menu-sub{margin-top:20px}
+.mobile-menu-sub a{font-size:17px;line-height:35.8px;color:#949494}
+.mobile-menu a:hover{text-decoration:none;color:#0a0a0a}
 body.menu-locked{overflow:hidden}
 }
