@@ -14,6 +14,18 @@ services:
         fromDatabase:
           name: returnly-db
           property: connectionString
+      # Photos and receipts go to an S3-compatible bucket (for example Cloudflare R2). Render asks for these values;
+      # the server refuses to start in production without them. R2 endpoint: https://<account id>.r2.cloudflarestorage.com
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_REGION
+        value: auto
 
 databases:
   # Render's free Postgres expires after 30 days. Switch to a paid plan before real users rely on it.
