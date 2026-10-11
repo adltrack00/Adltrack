@@ -32,7 +32,7 @@ dialog.menu-drawer::backdrop{background:#0006;backdrop-filter:none}
 .history-list .product-photo{width:56px;height:68px;aspect-ratio:auto!important;border-radius:8px}
 .history-list strong{display:block;font-size:15px}.history-list small{font-size:13px;color:#777}
 .history-status{font-style:normal;font-size:12px;color:#555;white-space:nowrap}
-.profile-edit{text-align:center;margin:10px 0 6px}.profile-edit .profile-circle{width:104px;height:104px;font-size:34px}
+.profile-edit{text-align:center;margin:10px 0 6px}.profile-edit .profile-circle{width:104px;height:104px;font-size:34px;border-radius:50%;overflow:hidden;padding:0}
 .prose h2{font-size:18px;margin:26px 0 8px}.prose p{font-size:15px;line-height:1.65;color:#444}
 .prose details{border-bottom:1px solid #eee;padding:14px 0}.prose summary{font-size:16px;cursor:pointer}.prose details p{margin:10px 0 0}
 .prose .settings-row{margin:0 -24px;border-top:1px solid #e8e8e8}
@@ -51,17 +51,14 @@ dialog.menu-drawer{overflow-y:auto}
 .gallery-filters button{white-space:nowrap;font-size:14px}
 @media(max-width:650px){.gallery-filters button{font-size:13px}}
 /* Sign out row, styled like the other menu rows. */
-.menu-list a.menu-signout{display:flex;align-items:center;gap:22px;padding:17px 28px;font-size:17px;color:#111;text-decoration:none}
-.menu-list a.menu-signout:hover{background:#f4f3f1}.menu-list a.menu-signout:focus-visible{outline:2px solid #111;outline-offset:-2px}
-.menu-list a.menu-signout .menu-icon{width:24px;height:24px;flex:none}
 /* Lighter, narrower menu on phones. */
 @media(max-width:650px){
 dialog.menu-drawer{width:min(72vw,280px)}
 .menu-head{padding:40px 20px 14px}.menu-head h2{font-size:21px;margin-bottom:12px}
 .menu-stats>div{padding:8px 0}.menu-stats dt{font-size:13px}.menu-stats dd{font-size:15px}
 .menu-list{padding:8px 0}
-.menu-list button,.menu-list a.menu-signout{gap:16px;padding:13px 20px;font-size:15px}
-.menu-list .menu-icon,.menu-list a.menu-signout .menu-icon{width:20px;height:20px}
+.menu-list button{gap:16px;padding:13px 20px;font-size:15px}
+.menu-list .menu-icon{width:20px;height:20px}
 .menu-foot{padding:18px 20px 24px}.menu-foot strong{font-size:18px}
 }
 .menu-email{font-size:13px;color:#999;margin:-8px 0 14px;overflow-wrap:anywhere}

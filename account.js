@@ -67,9 +67,12 @@ const Account = (() => {
     if (!r.data) { const p = parse(DATA_KEYS.profile, {}); if (!p.name) set(DATA_KEYS.profile, JSON.stringify({ ...p, name: r.user.name })); }
     return r.user;
   }
+  // A slow or sleeping server must never leave the user stuck signed in.
+  const within = (promise, ms) => Promise.race([promise.catch(() => {}), new Promise(r => setTimeout(r, ms))]);
+
   async function signOut() {
-    if (get(DIRTY_KEY)) await flush().catch(() => {});
-    await api('POST', '/api/logout', {}).catch(() => {});
+    if (get(DIRTY_KEY)) await within(flush(), 8000);
+    await within(api('POST', '/api/logout', {}), 8000);
     clearLocal();
     location.href = 'index.html';
   }

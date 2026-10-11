@@ -21,3 +21,8 @@ button.profile-circle{border:0;color:#111;cursor:pointer;font-family:inherit}
 @media(max-width:650px){.profile-hero .profile-circle{width:96px;height:96px;font-size:31px}}
 /* Larger profile tab buttons. */
 .profile-tools{gap:12px}.profile-tools button{width:46px;height:46px}.profile-tools .icon{width:20px;height:20px}
+/* Dashboard masonry (columns are built in precision.js): no gaps under short photos. */
+.photo-gallery.masonry{columns:auto;display:flex;align-items:flex-start;gap:24px}
+.gallery-col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:32px}
+.gallery-col .visual-card{margin:0;min-width:0}
+@media(max-width:650px){.photo-gallery.masonry{gap:14px}.gallery-col{gap:22px}}
