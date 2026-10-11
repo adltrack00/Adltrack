@@ -1,0 +1,45 @@
+{
+  "id": "costco",
+  "name": "Costco",
+  "version": 1,
+  "country": "US",
+  "status": "checked",
+  "checked": "2026-10-11",
+  "aliases": {
+    "names": ["costco", "costco wholesale", "costco com", "costco whse", "costco warehouse"],
+    "prefixes": ["costco whse", "costco wholesale", "costco com", "costco"]
+  },
+  "item": {
+    "window": { "value": "none", "note": "Satisfaction guarantee on merchandise with no fixed window, except the categories listed (for example 90 days for most electronics).", "source": "https://customerservice.costco.com/app/answers/detail/a_id/1191/~/what-is-costcos-return-policy", "checked": "2026-10-11" },
+    "basis": { "value": "delivery", "note": "Where a window applies, it counts from the date the member received the merchandise.", "source": "https://customerservice.costco.com/app/answers/detail/a_id/1191/~/what-is-costcos-return-policy", "checked": "2026-10-11" },
+    "outcome": { "value": "refund", "note": "Costco refunds the purchase price.", "source": "https://customerservice.costco.com/app/answers/detail/a_id/1191/~/what-is-costcos-return-policy", "checked": "2026-10-11" },
+    "requirement": { "value": "unknown", "source": "https://customerservice.costco.com/app/answers/detail/a_id/1191/~/what-is-costcos-return-policy", "checked": "2026-10-11" },
+    "url": { "value": "https://customerservice.costco.com/app/answers/detail/a_id/1191/~/what-is-costcos-return-policy", "source": "https://customerservice.costco.com/app/answers/detail/a_id/1191/~/what-is-costcos-return-policy", "checked": "2026-10-11" },
+    "conditions": { "value": "Satisfaction guarantee on merchandise, with exceptions. Televisions, projectors, major appliances, computers, tablets, smart wearables, cameras, drones, camcorders, MP3 players and cell phones: 90 days from receipt. Custom-made products can't be returned.", "source": "https://customerservice.costco.com/app/answers/detail/a_id/1191/~/what-is-costcos-return-policy", "checked": "2026-10-11" },
+    "processing": { "value": "Immediate refund, including shipping and handling, when returned at a warehouse", "source": "https://customerservice.costco.com/app/answers/detail/a_id/6874", "checked": "2026-10-11" }
+  },
+  "categories": [
+    { "id": "electronics", "label": "Electronics", "examples": ["Televisions", "Projectors", "Computers", "Touchscreen tablets", "Smart wearables", "Cameras", "Drones", "Camcorders", "MP3 players", "Cell phones"], "returnable": true, "window": 90, "basis": "delivery", "note": "Cell phone returns also depend on the carrier contract.", "source": "https://customerservice.costco.com/app/answers/detail/a_id/1191/~/what-is-costcos-return-policy", "checked": "2026-10-11" },
+    { "id": "major-appliances", "label": "Major appliances", "examples": ["Refrigerators above 10 cu. ft.", "Freezers", "Ranges", "Cooktops", "Over-the-range and under-counter microwaves", "Range hoods", "Dishwashers", "Water heaters", "Washers and dryers"], "returnable": true, "window": 90, "basis": "delivery", "source": "https://customerservice.costco.com/app/answers/answer_view/a_id/1213/~/what-is-costco%E2%80%99s-major-appliance-return-policy", "checked": "2026-10-11" },
+    { "id": "custom", "label": "Custom products made to your specifications", "returnable": false, "note": "Only warranty repair or replacement.", "source": "https://customerservice.costco.com/app/answers/detail/a_id/1191/~/what-is-costcos-return-policy", "checked": "2026-10-11" },
+    { "id": "limited-life", "label": "Items with a limited useful life", "examples": ["Tires", "Batteries"], "returnable": "unknown", "note": "May carry product-specific limited warranties instead.", "source": "https://customerservice.costco.com/app/answers/detail/a_id/1191/~/what-is-costcos-return-policy", "checked": "2026-10-11" }
+  ],
+  "membership": [
+    { "program": "Costco membership", "effect": "The membership fee itself is refunded at any time if you're dissatisfied.", "source": "https://customerservice.costco.com/app/answers/detail/a_id/1191/~/what-is-costcos-return-policy", "checked": "2026-10-11" }
+  ],
+  "holiday": [],
+  "receipt": { "value": { "required": "unknown", "without": "unknown" }, "source": "https://customerservice.costco.com/app/answers/answer_view/a_id/712/~/how-can-i-return-an-item-purchased-in-a-costco-warehouse", "checked": "2026-10-11" },
+  "refund": {
+    "timing": { "value": "Immediate refund, including shipping and handling, when returned at a warehouse", "source": "https://customerservice.costco.com/app/answers/detail/a_id/6874", "checked": "2026-10-11" },
+    "fees": []
+  },
+  "methods": [
+    { "type": "store", "label": "Return at any Costco warehouse", "needs": { "label": false, "box": false, "qr": false, "printer": false, "receipt": "unknown" }, "steps": ["Bring the item to the returns counter at any Costco warehouse"], "note": "Works for warehouse and Costco.com purchases.", "source": "https://customerservice.costco.com/app/answers/answer_view/a_id/712/~/how-can-i-return-an-item-purchased-in-a-costco-warehouse", "checked": "2026-10-11" },
+    { "type": "mail", "label": "Start the return on Costco.com", "needs": { "label": "unknown", "box": "unknown", "qr": "unknown", "printer": "unknown" }, "steps": ["Open Orders & Returns on Costco.com", "Choose the item and start a return"], "note": "Some items, such as special-order kiosk items, can't be returned online.", "source": "https://customerservice.costco.com/app/answers/detail/a_id/6874", "checked": "2026-10-11" }
+  ],
+  "unknowns": [
+    { "topic": "Receipt", "note": "Whether a receipt is needed wasn't confirmed in this check.", "source": "https://customerservice.costco.com/app/answers/answer_view/a_id/712/~/how-can-i-return-an-item-purchased-in-a-costco-warehouse", "checked": "2026-10-11" },
+    { "topic": "Holiday returns", "note": "No holiday extension found.", "source": "https://customerservice.costco.com/app/answers/detail/a_id/1191/~/what-is-costcos-return-policy", "checked": "2026-10-11" }
+  ],
+  "research": "Official US pages read through web-search excerpts on 2026-10-11 (direct page downloads were blocked from the build environment). Spot-check before launch."
+}

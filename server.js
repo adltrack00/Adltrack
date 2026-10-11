@@ -7,6 +7,7 @@ const { createStorage, s3Config } = require('./server/storage');
 const { createData } = require('./server/data');
 const { createJobs, defineJobs } = require('./server/jobs');
 const { createApp } = require('./server/app');
+const { loadPolicies } = require('./server/policies');
 
 const production = process.env.NODE_ENV === 'production';
 const databaseUrl = process.env.DATABASE_URL || '';
@@ -29,11 +30,14 @@ const port = Number(process.env.PORT || 4174);
 const host = process.env.HOST || (production ? '0.0.0.0' : '127.0.0.1');
 
 store.init().then(async () => {
+  // Invalid policy files stop the server rather than serve unchecked facts.
+  const policies = loadPolicies();
+  await store.syncPolicies(policies.versions());
   // Accounts still saved as one document (with photos inside) move into the purchases and items tables.
   const migrated = await data.migrateAll();
   if (migrated) console.log(`Moved ${migrated} account${migrated === 1 ? '' : 's'} to the items tables.`);
   await jobs.start();
-  const server = http.createServer(createApp({ store, data, production })).listen(port, host, () =>
+  const server = http.createServer(createApp({ store, data, production, policies })).listen(port, host, () =>
     console.log(`Returnly running on http://${host === '0.0.0.0' ? 'localhost' : host}:${port} (${databaseUrl ? 'Postgres' : 'local file store'}, ${storage.kind === 's3' ? 'S3 file storage' : 'local file storage'})`));
   const shutdown = () => { server.close(); jobs.stop().finally(() => store.close().finally(() => process.exit(0))); };
   process.on('SIGTERM', shutdown);

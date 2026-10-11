@@ -1,0 +1,74 @@
+{
+  "id": "amazon",
+  "name": "Amazon",
+  "version": 1,
+  "country": "US",
+  "status": "checked",
+  "checked": "2026-10-11",
+  "aliases": {
+    "names": ["amazon", "amazon com", "amazon us", "amazon marketplace", "amazon mktplace", "amazon prime", "amazon retail", "amzn", "amzn com"],
+    "prefixes": ["amzn mktp", "amazon mktp", "amazon com", "amzn com", "amazon marketplace", "amazon mktplace"]
+  },
+  "item": {
+    "window": { "value": 30, "note": "Most items, within 30 days of delivery.", "source": "https://www.amazon.com/gp/help/customer/display.html?nodeId=GKM69DUUYKQWKWX7", "checked": "2026-10-11" },
+    "basis": { "value": "delivery", "source": "https://www.amazon.com/gp/help/customer/display.html?nodeId=GKM69DUUYKQWKWX7", "checked": "2026-10-11" },
+    "outcome": { "value": "refund", "note": "You choose the refund method in the Online Returns Center; if the original payment can't be used, the refund goes to your Amazon account balance.", "source": "https://www.amazon.com/gp/help/customer/display.html?nodeId=GKQNFKFK5CF3C54B", "checked": "2026-10-11" },
+    "requirement": { "value": "unknown", "note": "The official page says to return within 30 days through the Online Returns Center but doesn't say whether starting the return is enough or the item must also be shipped by then.", "source": "https://www.amazon.com/gp/help/customer/display.html?nodeId=GKM69DUUYKQWKWX7", "checked": "2026-10-11" },
+    "url": { "value": "https://www.amazon.com/gp/help/customer/display.html?nodeId=GKM69DUUYKQWKWX7", "source": "https://www.amazon.com/gp/help/customer/display.html?nodeId=GKM69DUUYKQWKWX7", "checked": "2026-10-11" },
+    "conditions": { "value": "Most items can be returned within 30 days of delivery through the Online Returns Center. Returns after the return-by date may be charged a late fee.", "source": "https://www.amazon.com/gp/help/customer/display.html?nodeId=GKM69DUUYKQWKWX7", "checked": "2026-10-11" },
+    "processing": { "value": "Up to 30 days, depending on order type, return shipping, processing and payment method", "source": "https://www.amazon.com/gp/help/customer/display.html?nodeId=GKQNFKFK5CF3C54B", "checked": "2026-10-11" }
+  },
+  "categories": [
+    { "id": "opened-collectibles", "label": "Opened collectible cards, board games and certain figurines", "returnable": true, "note": "A 100% restocking fee applies once opened, so nothing comes back.", "source": "https://www.amazon.com/gp/help/customer/display.html?nodeId=GKQNFKFK5CF3C54B", "checked": "2026-10-11" },
+    { "id": "apple-products", "label": "Apple-branded products (holiday season)", "returnable": true, "note": "Shorter holiday return-by date than other items; see holiday.", "source": "https://www.aboutamazon.com/news/retail/amazon-holiday-return-policy-2025", "checked": "2026-10-11" }
+  ],
+  "membership": [],
+  "holiday": [
+    {
+      "season": "2025",
+      "purchasedFrom": "2025-11-01",
+      "purchasedTo": "2025-12-31",
+      "dateBasis": "purchase",
+      "returnBy": "2026-01-31",
+      "appliesTo": "Most items, including Amazon retail, Fulfilled by Amazon and Fulfilled by Merchant orders. Return eligibility stays the same.",
+      "exceptions": [{ "label": "Apple-branded products", "returnBy": "2026-01-15" }],
+      "source": "https://www.aboutamazon.com/news/retail/amazon-holiday-return-policy-2025",
+      "checked": "2026-10-11"
+    }
+  ],
+  "receipt": { "value": { "required": "unknown", "without": "Returns are started from your Amazon account (Your Orders)." }, "source": "https://www.aboutamazon.com/news/operations/free-returns-with-no-box-tape-or-label-needed", "checked": "2026-10-11" },
+  "refund": {
+    "timing": { "value": "Up to 30 days, depending on order type, return shipping, processing and payment method", "source": "https://www.amazon.com/gp/help/customer/display.html?nodeId=GKQNFKFK5CF3C54B", "checked": "2026-10-11" },
+    "fees": [
+      { "label": "Late return", "amount": "20% of the item price for the first 30 days after the return-by date; 100% after that", "source": "https://www.amazon.com/gp/help/customer/display.html?nodeId=GKQNFKFK5CF3C54B", "checked": "2026-10-11" },
+      { "label": "Opened collectibles", "amount": "100% restocking fee", "appliesTo": "Opened collectible cards, board games and certain figurines", "source": "https://www.amazon.com/gp/help/customer/display.html?nodeId=GKQNFKFK5CF3C54B", "checked": "2026-10-11" },
+      { "label": "The UPS Store drop-off", "amount": "Free; a $1 fee in a small number of cases when another free option is closer", "appliesTo": "Drop-off at The UPS Store", "source": "https://www.aboutamazon.com/news/operations/free-returns-with-no-box-tape-or-label-needed", "checked": "2026-10-11" }
+    ]
+  },
+  "methods": [
+    {
+      "type": "dropoff",
+      "label": "Drop off with a QR code, no box or label",
+      "partners": ["Whole Foods Market", "Kohl's", "The UPS Store", "Staples", "FedEx Office"],
+      "cost": "Free on eligible items",
+      "needs": { "label": false, "box": false, "qr": true, "printer": false },
+      "steps": [
+        "Open Your Orders in your Amazon account and choose Return items",
+        "Choose a drop-off location near you",
+        "Get the QR code",
+        "Show the QR code at the drop-off; staff scan it and pack the item"
+      ],
+      "note": "Only eligible items; look for the Free Returns badge.",
+      "source": "https://www.aboutamazon.com/news/operations/free-returns-with-no-box-tape-or-label-needed",
+      "checked": "2026-10-11"
+    }
+  ],
+  "marketplace": { "value": "Items from third-party sellers that the seller ships go back to the seller, who chooses a US return address, a prepaid label, or a refund without a return. The seller usually refunds within two business days of receiving it. If the seller doesn't respond within 48 hours, you can ask for an A-to-z Guarantee refund.", "source": "https://www.amazon.com/gp/help/customer/display.html?nodeId=G38BHJQ25PNCLUBU", "checked": "2026-10-11" },
+  "unknowns": [
+    { "topic": "Ship-by deadline", "note": "Not confirmed whether the item must be shipped by the return-by date or only the return started. Treat the return-by date as the day it must be on its way.", "source": "https://www.amazon.com/gp/help/customer/display.html?nodeId=GKM69DUUYKQWKWX7", "checked": "2026-10-11" },
+    { "topic": "2026 holiday returns", "note": "Amazon hasn't published 2026 holiday return dates yet. Past seasons extended returns to January 31.", "source": "https://www.aboutamazon.com/news/retail/amazon-holiday-return-policy-2025", "checked": "2026-10-11" },
+    { "topic": "Prime membership", "note": "No membership-based change to the return window found on the official pages.", "source": "https://www.amazon.com/gp/help/customer/display.html?nodeId=GKM69DUUYKQWKWX7", "checked": "2026-10-11" },
+    { "topic": "Non-returnable categories", "note": "The official category list wasn't confirmed in this check.", "source": "https://www.amazon.com/gp/help/customer/display.html?nodeId=GKM69DUUYKQWKWX7", "checked": "2026-10-11" }
+  ],
+  "research": "Official US pages read through web-search excerpts on 2026-10-11 (direct page downloads were blocked from the build environment). Spot-check before launch."
+}

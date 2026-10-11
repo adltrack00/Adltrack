@@ -1,0 +1,46 @@
+{
+  "id": "nike",
+  "name": "Nike",
+  "version": 1,
+  "country": "US",
+  "status": "checked",
+  "checked": "2026-10-11",
+  "aliases": {
+    "names": ["nike", "nike com", "nike store", "nike inc", "nike app", "nike well collective"],
+    "prefixes": ["nike com", "nike store", "nike inc", "nike"]
+  },
+  "item": {
+    "window": { "value": 60, "note": "Most Nike purchases, for any reason.", "source": "https://www.nike.com/help/a/how-to-return/app", "checked": "2026-10-11" },
+    "basis": { "value": "unknown", "note": "The help page doesn't say whether 60 days counts from purchase or delivery.", "source": "https://www.nike.com/help/a/how-to-return/app", "checked": "2026-10-11" },
+    "outcome": { "value": "refund", "source": "https://www.nike.com/help/a/refund-info", "checked": "2026-10-11" },
+    "requirement": { "value": "unknown", "source": "https://www.nike.com/help/a/how-to-return/app", "checked": "2026-10-11" },
+    "url": { "value": "https://www.nike.com/help/a/how-to-return/app", "source": "https://www.nike.com/help/a/how-to-return/app", "checked": "2026-10-11" },
+    "conditions": { "value": "Most purchases can be returned or exchanged within 60 days. Items marked Final Sale are excluded. Nike By You custom sneakers are included.", "source": "https://www.nike.com/help/a/how-to-return/app", "checked": "2026-10-11" },
+    "processing": { "value": "Several business days after Nike receives it; your bank may take longer", "source": "https://www.nike.com/help/a/refund-info", "checked": "2026-10-11" }
+  },
+  "categories": [
+    { "id": "final-sale", "label": "Items marked Final Sale", "returnable": false, "outcome": "final", "source": "https://agreementservice.svs.nike.com/us/en_us/rest/agreement?requestType=redirect&agreementType=termsOfSale&country=US&language=en&uxId=com.nike", "checked": "2026-10-11" },
+    { "id": "nike-by-you", "label": "Nike By You custom sneakers", "returnable": true, "window": 60, "source": "https://www.nike.com/help/a/nike-by-you-return", "checked": "2026-10-11" },
+    { "id": "clearance-stores", "label": "Nike Clearance store purchases", "returnable": "unknown", "note": "Excluded from the 60-day Wear Test; their own terms weren't confirmed.", "source": "https://www.nike.com/membership", "checked": "2026-10-11" }
+  ],
+  "membership": [
+    { "program": "Nike Membership", "effect": "Free returns: Members can link the order to their Membership and get a prepaid shipping label. Non-members pay their own shipping when mailing a return.", "source": "https://www.nike.com/help/a/how-to-return/app", "checked": "2026-10-11" }
+  ],
+  "holiday": [],
+  "receipt": { "value": { "required": "unknown", "without": "unknown" }, "source": "https://www.nike.com/help/a/how-to-return/app", "checked": "2026-10-11" },
+  "refund": {
+    "timing": { "value": "Several business days after Nike receives it; your bank may take longer", "source": "https://www.nike.com/help/a/refund-info", "checked": "2026-10-11" },
+    "fees": [
+      { "label": "Return shipping", "amount": "Paid by non-members when mailing a return; free label for Members", "source": "https://www.nike.com/help/a/how-to-return/app", "checked": "2026-10-11" }
+    ]
+  },
+  "methods": [
+    { "type": "mail", "label": "Mail it back", "cost": "Free prepaid label for Members", "needs": { "label": true, "box": "unknown", "qr": "unknown", "printer": "unknown" }, "steps": ["Open your order in the Nike app or on nike.com and start a return", "Members: link the order to your Membership to get a prepaid label", "Pack the item and send it"], "source": "https://www.nike.com/help/a/how-to-return/app", "checked": "2026-10-11" }
+  ],
+  "unknowns": [
+    { "topic": "Start of the window", "note": "Purchase vs. delivery date not confirmed. Use the purchase date (earlier).", "source": "https://www.nike.com/help/a/how-to-return/app", "checked": "2026-10-11" },
+    { "topic": "In-store returns", "note": "Whether online orders can be returned at Nike stores wasn't confirmed.", "source": "https://www.nike.com/help/a/how-to-return/app", "checked": "2026-10-11" },
+    { "topic": "Holiday returns", "note": "No holiday extension found.", "source": "https://www.nike.com/help/a/how-to-return/app", "checked": "2026-10-11" }
+  ],
+  "research": "Official US pages read through web-search excerpts on 2026-10-11 (direct page downloads were blocked from the build environment). Spot-check before launch."
+}

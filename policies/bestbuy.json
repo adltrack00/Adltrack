@@ -1,0 +1,44 @@
+{
+  "id": "bestbuy",
+  "name": "Best Buy",
+  "version": 1,
+  "country": "US",
+  "status": "checked",
+  "checked": "2026-10-11",
+  "aliases": {
+    "names": ["best buy", "bestbuy", "bestbuy com", "best buy com", "best buy mobile"],
+    "prefixes": ["best buy", "bestbuy"]
+  },
+  "item": {
+    "window": { "value": 15, "note": "Most products for standard customers.", "source": "https://www.bestbuy.com/site/help-topics/return-exchange-policy/pcmcat260800050014.c?id=pcmcat260800050014", "checked": "2026-10-11" },
+    "basis": { "value": "unknown", "note": "Not confirmed on the policy page whether the window counts from purchase or from receiving the item.", "source": "https://www.bestbuy.com/site/help-topics/return-exchange-policy/pcmcat260800050014.c?id=pcmcat260800050014", "checked": "2026-10-11" },
+    "outcome": { "value": "unknown", "source": "https://www.bestbuy.com/site/help-topics/return-exchange-policy/pcmcat260800050014.c?id=pcmcat260800050014", "checked": "2026-10-11" },
+    "requirement": { "value": "unknown", "source": "https://www.bestbuy.com/site/help-topics/return-exchange-policy/pcmcat260800050014.c?id=pcmcat260800050014", "checked": "2026-10-11" },
+    "url": { "value": "https://www.bestbuy.com/site/help-topics/return-exchange-policy/pcmcat260800050014.c?id=pcmcat260800050014", "source": "https://www.bestbuy.com/site/help-topics/return-exchange-policy/pcmcat260800050014.c?id=pcmcat260800050014", "checked": "2026-10-11" },
+    "conditions": { "value": "15 days for most products; 14 days for activatable devices. My Best Buy Plus and Total members get 60 days on most products.", "source": "https://www.bestbuy.com/site/help-topics/return-exchange-policy/pcmcat260800050014.c?id=pcmcat260800050014", "checked": "2026-10-11" },
+    "processing": { "value": "unknown", "source": "https://www.bestbuy.com/site/help-topics/return-exchange-policy/pcmcat260800050014.c?id=pcmcat260800050014", "checked": "2026-10-11" }
+  },
+  "categories": [
+    { "id": "activatable-devices", "label": "Activatable devices", "examples": ["Cell phones", "Cellular tablets", "Mobile hotspots", "Cellular wearables"], "returnable": true, "window": 14, "note": "Stays 14 days for members too (except items bought with a third-party contract).", "source": "https://www.bestbuy.com/site/help-topics/return-exchange-policy/pcmcat260800050014.c?id=pcmcat260800050014", "checked": "2026-10-11" },
+    { "id": "holiday-decorations", "label": "Holiday decorations", "returnable": true, "window": 15, "note": "15 days for everyone, members included.", "source": "https://www.bestbuy.com/site/help-topics/return-exchange-policy/pcmcat260800050014.c?id=pcmcat260800050014", "checked": "2026-10-11" }
+  ],
+  "membership": [
+    { "program": "My Best Buy Plus", "effect": "60 days on most products; activatable devices stay 14 days. Not for Marketplace purchases.", "window": 60, "excludes": ["Activatable devices", "Marketplace purchases", "Holiday decorations"], "source": "https://www.bestbuy.com/site/help-topics/return-exchange-policy/pcmcat260800050014.c?id=pcmcat260800050014", "checked": "2026-10-11" },
+    { "program": "My Best Buy Total", "effect": "60 days on most products; activatable devices stay 14 days. Not for Marketplace purchases.", "window": 60, "excludes": ["Activatable devices", "Marketplace purchases", "Holiday decorations"], "source": "https://www.bestbuy.com/site/help-topics/return-exchange-policy/pcmcat260800050014.c?id=pcmcat260800050014", "checked": "2026-10-11" }
+  ],
+  "holiday": [],
+  "receipt": { "value": { "required": "unknown", "without": "unknown" }, "source": "https://www.bestbuy.com/site/help-topics/return-exchange-policy/pcmcat260800050014.c?id=pcmcat260800050014", "checked": "2026-10-11" },
+  "refund": {
+    "timing": { "value": "unknown", "source": "https://www.bestbuy.com/site/help-topics/return-exchange-policy/pcmcat260800050014.c?id=pcmcat260800050014", "checked": "2026-10-11" },
+    "fees": []
+  },
+  "methods": [],
+  "marketplace": { "value": "My Best Buy Plus and Total extended return windows don't apply to Marketplace purchases.", "source": "https://www.bestbuy.com/site/help-topics/return-exchange-policy/pcmcat260800050014.c?id=pcmcat260800050014", "checked": "2026-10-11" },
+  "unknowns": [
+    { "topic": "Start of the window", "note": "Purchase vs. receipt date not confirmed on the consumer policy page. Use the purchase date (earlier).", "source": "https://www.bestbuy.com/site/help-topics/return-exchange-policy/pcmcat260800050014.c?id=pcmcat260800050014", "checked": "2026-10-11" },
+    { "topic": "Restocking fees", "note": "The business returns page lists a 15% fee on opened drones, cameras, lenses and camcorders and $45 on activatable devices; not confirmed for consumer purchases.", "source": "https://www.bestbuy.com/site/help-topics/business-returns-exchanges/pcmcat1599841190375.c?id=pcmcat1599841190375", "checked": "2026-10-11" },
+    { "topic": "2026 holiday returns", "note": "No 2026 holiday return extension published yet.", "source": "https://www.bestbuy.com/site/help-topics/return-exchange-policy/pcmcat260800050014.c?id=pcmcat260800050014", "checked": "2026-10-11" },
+    { "topic": "Return methods, refund method and timing", "note": "Not confirmed in this check.", "source": "https://www.bestbuy.com/site/help-topics/return-exchange-policy/pcmcat260800050014.c?id=pcmcat260800050014", "checked": "2026-10-11" }
+  ],
+  "research": "Official US pages read through web-search excerpts on 2026-10-11 (direct page downloads were blocked from the build environment). Spot-check before launch."
+}

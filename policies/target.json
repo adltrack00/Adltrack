@@ -1,0 +1,51 @@
+{
+  "id": "target",
+  "name": "Target",
+  "version": 1,
+  "country": "US",
+  "status": "checked",
+  "checked": "2026-10-11",
+  "aliases": {
+    "names": ["target", "target com", "target store", "super target", "supertarget"],
+    "prefixes": ["target com", "target store", "target"]
+  },
+  "item": {
+    "window": { "value": 90, "note": "Most unopened items sold by Target, in new condition.", "source": "https://www.target.com/help/articles/returns-exchanges/returns", "checked": "2026-10-11" },
+    "basis": { "value": "purchase", "note": "The official page doesn't say whether online orders count from delivery; the purchase date is the earlier one.", "source": "https://www.target.com/help/articles/returns-exchanges/returns", "checked": "2026-10-11" },
+    "outcome": { "value": "refund", "note": "Refund or exchange.", "source": "https://www.target.com/help/articles/returns-exchanges/returns", "checked": "2026-10-11" },
+    "requirement": { "value": "unknown", "note": "The page says items must be returned within the window but doesn't say how that applies to mail returns.", "source": "https://www.target.com/help/articles/returns-exchanges/returns", "checked": "2026-10-11" },
+    "url": { "value": "https://www.target.com/returns", "source": "https://www.target.com/returns", "checked": "2026-10-11" },
+    "conditions": { "value": "Most unopened items in new condition within 90 days. Electronics and entertainment 30 days; Apple, Beats and mobile phones 14 days; Target Owned Brands up to one year with a receipt.", "source": "https://www.target.com/help/article/000061982", "checked": "2026-10-11" },
+    "processing": { "value": "Up to 2 days after approval to a Target Circle Card, up to 5 days to another card; mail returns take about 7–10 business days before approval", "source": "https://www.target.com/help/articles/returns-exchanges/returns", "checked": "2026-10-11" }
+  },
+  "categories": [
+    { "id": "electronics", "label": "Electronics and entertainment (not Apple or Beats)", "returnable": true, "window": 30, "basis": "purchase", "source": "https://www.target.com/help/article/000061982", "checked": "2026-10-11" },
+    { "id": "apple-beats", "label": "Apple and Beats products, including mobile phones", "returnable": true, "window": 14, "basis": "purchase", "source": "https://www.target.com/help/article/000061982", "checked": "2026-10-11" },
+    { "id": "mobile-phones", "label": "Mobile phones", "returnable": true, "window": 14, "basis": "purchase", "note": "Phones on a carrier contract must be returned in a Target store with a Target Tech Rep and may trigger early termination fees.", "source": "https://www.target.com/help/article/000061982", "checked": "2026-10-11" },
+    { "id": "owned-brands", "label": "Target Owned Brands", "returnable": true, "window": 365, "basis": "purchase", "conditions": "With a receipt.", "note": "The Target Circle Card extra 30 days doesn't apply.", "source": "https://www.target.com/help/article/000184831", "checked": "2026-10-11" },
+    { "id": "non-returnable", "label": "Non-returnable items", "examples": ["Gift cards", "Trading cards", "Digital downloads", "Opened breast pumps"], "returnable": false, "source": "https://www.target.com/returns", "checked": "2026-10-11" }
+  ],
+  "membership": [
+    { "program": "Target Circle Card", "effect": "An extra 30 days on most items bought with the card at Target and Target.com.", "extraDays": 30, "excludes": ["Target Optical", "Non-returnable items", "Contract mobile phones", "SNAP/EBT online orders", "Target Owned Brands"], "source": "https://www.target.com/c/target-circle-card-program-rules/-/N-4tgj0", "checked": "2026-10-11" },
+    { "program": "Target Circle 360", "effect": "An extra 30 days to return items.", "extraDays": 30, "source": "https://www.target.com/l/target-circle-360/-/N-2rguk", "checked": "2026-10-11" }
+  ],
+  "holiday": [
+    { "season": "2025", "purchasedFrom": "2025-11-01", "purchasedTo": "2025-12-24", "dateBasis": "purchase", "returnBy": "unknown", "appliesTo": "Electronics and entertainment items", "note": "Extended holiday window for electronics; the return-by date wasn't confirmed.", "source": "https://www.target.com/help/article/000061982", "checked": "2026-10-11" }
+  ],
+  "receipt": { "value": { "required": false, "without": "Stores can look up receipts for store and online purchases with certain cards, including Target Circle Card. Without proof of purchase, the refund may be a merchandise return card, and returns may be limited." }, "source": "https://www.target.com/help/article/000062164", "checked": "2026-10-11" },
+  "refund": {
+    "timing": { "value": "Up to 2 days after approval to a Target Circle Card, up to 5 days to another card; mail returns take about 7–10 business days before approval", "source": "https://www.target.com/help/articles/returns-exchanges/returns", "checked": "2026-10-11" },
+    "fees": []
+  },
+  "methods": [
+    { "type": "store", "label": "Drive Up return", "cost": "Free for purchases made with a Target.com account", "needs": { "label": false, "box": false, "qr": "unknown", "printer": false }, "steps": ["Open the Target app and start a Drive Up return", "Drive to the store's Drive Up spots", "Hand the item to the team member"], "source": "https://corporate.target.com/press/fact-sheet/2023/04/fast-and-free-all-the-facts-on-returns-with-drive-up", "checked": "2026-10-11" },
+    { "type": "store", "label": "Return in store", "needs": { "label": false, "box": false, "qr": false, "printer": false, "receipt": false }, "steps": ["Open Wallet in the Target app to show your return barcode, or bring the receipt", "Bring the item to Guest Services"], "source": "https://www.target.com/help/articles/returns-exchanges/returns", "checked": "2026-10-11" },
+    { "type": "mail", "label": "Mail it back", "cost": "Free return label", "needs": { "label": true, "box": "unknown", "qr": false, "printer": "unknown" }, "steps": ["Start the return from the order in your Target account", "Use the free return label Target emails and shows on the order page", "Pack the item and send it"], "source": "https://www.target.com/help/article/000062920", "checked": "2026-10-11" }
+  ],
+  "marketplace": { "value": "Target Plus partner items: most unopened items in new condition within 30 days, in store or by mail. Bring the receipt or original payment method for lookup; in-store returns without an eligible receipt are denied.", "source": "https://www.target.com/help/articles/returns-exchanges/returns", "checked": "2026-10-11" },
+  "unknowns": [
+    { "topic": "Circle Card and electronics", "note": "Not confirmed whether the extra 30 days applies to electronics' 30-day window. Use the shorter window.", "source": "https://www.target.com/c/target-circle-card-program-rules/-/N-4tgj0", "checked": "2026-10-11" },
+    { "topic": "2026 holiday returns", "note": "No 2026 holiday return extension published yet.", "source": "https://www.target.com/help/article/000061982", "checked": "2026-10-11" }
+  ],
+  "research": "Official US pages read through web-search excerpts on 2026-10-11 (direct page downloads were blocked from the build environment). Spot-check before launch."
+}

@@ -1,0 +1,43 @@
+{
+  "id": "homedepot",
+  "name": "The Home Depot",
+  "version": 1,
+  "country": "US",
+  "status": "checked",
+  "checked": "2026-10-11",
+  "aliases": {
+    "names": ["home depot", "the home depot", "homedepot", "homedepot com", "home depot com"],
+    "prefixes": ["the home depot", "home depot", "homedepot"]
+  },
+  "item": {
+    "window": { "value": 90, "note": "Most items, with proof of purchase.", "source": "https://www.homedepot.com/c/Return_Policy", "checked": "2026-10-11" },
+    "basis": { "value": "purchase", "source": "https://www.homedepot.com/c/refund-policy", "checked": "2026-10-11" },
+    "outcome": { "value": "unknown", "note": "Store returns are credited at the time of return; the form of the credit wasn't confirmed.", "source": "https://www.homedepot.com/c/refund-policy", "checked": "2026-10-11" },
+    "requirement": { "value": "unknown", "source": "https://www.homedepot.com/c/Return_Policy", "checked": "2026-10-11" },
+    "url": { "value": "https://www.homedepot.com/c/Return_Policy", "source": "https://www.homedepot.com/c/Return_Policy", "checked": "2026-10-11" },
+    "conditions": { "value": "Most items within 90 days with proof of purchase. Furniture, gas-powered tools, TVs, computers, paint sprayers, tractors and framing and roofing compressors: 30 days, unused in original factory-sealed packaging. Gas generators: 7 days.", "source": "https://www.homedepot.com/c/Return_Policy", "checked": "2026-10-11" },
+    "processing": { "value": "About 7 business days to process, then up to 10 business days for your bank", "source": "https://www.homedepot.com/c/refund-policy", "checked": "2026-10-11" }
+  },
+  "categories": [
+    { "id": "thirty-day", "label": "30-day items", "examples": ["Furniture", "Tractors", "Framing and roofing compressors", "Televisions", "Computers", "Paint sprayers", "Gas-powered trimmers, blowers, chain saws, mowers and tillers"], "returnable": true, "window": 30, "basis": "purchase", "conditions": "Unused, in original factory-sealed packaging.", "source": "https://www.homedepot.com/c/Return_Policy", "checked": "2026-10-11" },
+    { "id": "gas-generators", "label": "Gas generators (not whole-house or stationary)", "returnable": true, "window": 7, "basis": "purchase", "note": "Another Home Depot page says 30 days; the shorter 7 days is used.", "source": "https://www.homedepot.com/c/Return_Policy", "checked": "2026-10-11" },
+    { "id": "stationary-generators", "label": "Whole-house and stationary generators", "returnable": false, "source": "https://www.homedepot.com/c/Return_Policy", "checked": "2026-10-11" }
+  ],
+  "membership": [],
+  "holiday": [],
+  "receipt": { "value": { "required": true, "without": "Stores can look up the purchase with the debit, credit or gift card or check used: within 90 days for check, credit or debit, or 365 days for Home Depot credit cards." }, "source": "https://www.homedepot.com/c/customer-service", "checked": "2026-10-11" },
+  "refund": {
+    "timing": { "value": "About 7 business days to process, then up to 10 business days for your bank", "source": "https://www.homedepot.com/c/refund-policy", "checked": "2026-10-11" },
+    "fees": []
+  },
+  "methods": [
+    { "type": "store", "label": "Return at a Home Depot store", "needs": { "label": false, "box": false, "qr": false, "printer": false, "receipt": true }, "steps": ["Bring the item to the store's Service Desk", "For online orders, bring the shipment confirmation email or the card you paid with"], "note": "Credit is issued at the time of return.", "source": "https://www.homedepot.com/c/refund-policy", "checked": "2026-10-11" },
+    { "type": "mail", "label": "Mail it back", "needs": { "label": "unknown", "box": "unknown", "qr": "unknown", "printer": "unknown" }, "steps": ["Start the return from your online order", "Ship the item back"], "note": "Credit is issued after the warehouse receives and processes it. Items that use flammable fuel can't be mailed.", "source": "https://www.homedepot.com/c/refund-policy", "checked": "2026-10-11" }
+  ],
+  "unknowns": [
+    { "topic": "Generator window", "note": "Home Depot pages disagree (7 vs 30 days). The shorter window is used.", "source": "https://www.homedepot.com/c/Return_Policy", "checked": "2026-10-11" },
+    { "topic": "Refund form", "note": "Whether store returns refund to the original payment wasn't confirmed.", "source": "https://www.homedepot.com/c/refund-policy", "checked": "2026-10-11" },
+    { "topic": "Holiday returns", "note": "No holiday extension found.", "source": "https://www.homedepot.com/c/Return_Policy", "checked": "2026-10-11" }
+  ],
+  "research": "Official US pages read through web-search excerpts on 2026-10-11 (direct page downloads were blocked from the build environment). Spot-check before launch."
+}

@@ -80,7 +80,24 @@ create table if not exists jobs (
   created_at timestamptz not null default now()
 );
 create index if not exists jobs_due_idx on jobs(run_at) where status in ('queued', 'running');
-create unique index if not exists jobs_unique_active_idx on jobs(unique_key) where status in ('queued', 'running');`;
+create unique index if not exists jobs_unique_active_idx on jobs(unique_key) where status in ('queued', 'running');
+create table if not exists retailers (
+  id text primary key,
+  name text not null,
+  status text not null,
+  current_version integer not null,
+  checked date not null,
+  aliases jsonb not null,
+  updated_at timestamptz not null default now()
+);
+create table if not exists retailer_policies (
+  retailer_id text not null references retailers(id) on delete cascade,
+  version integer not null,
+  checked date not null,
+  policy jsonb not null,
+  loaded_at timestamptz not null default now(),
+  primary key (retailer_id, version)
+);`;
 
 const PURCHASE_COLUMNS = 'id, store, channel, order_number as "orderNumber", purchased, delivered, source, retailer_id as "retailerId", receipt_file_id as "receiptFileId"';
 const JOB_COLUMNS = 'id, name, payload, unique_key as "uniqueKey", status, run_at as "runAt", attempts, max_attempts as "maxAttempts", last_error as "lastError"';
@@ -88,6 +105,8 @@ const FILE_COLUMNS = 'id, user_id as "userId", kind, storage_key as "storageKey"
 const iso = d => new Date(d).toISOString();
 const dateOrNull = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
 const cleanPurchase = p => ({ id: p.id, store: p.store ?? null, channel: p.channel ?? null, orderNumber: p.orderNumber ?? null, purchased: dateOrNull(p.purchased), delivered: dateOrNull(p.delivered), source: p.source || 'manual', retailerId: p.retailerId ?? null, receiptFileId: p.receiptFileId ?? null });
+
+const versionChanged = (id, version) => Object.assign(new Error(`policies/${id}.json changed but is still version ${version}. Move the old file to policies/history/${id}.v${version}.json and raise the version.`), { code: 'POLICY_VERSION' });
 
 function pgStore(connectionString) {
   const { Pool, types } = require('pg');
@@ -117,6 +136,27 @@ function pgStore(connectionString) {
     async deleteSession(tokenHash) { await pool.query('delete from sessions where token_hash=$1', [tokenHash]); },
     async deleteExpiredSessions() { return (await pool.query('delete from sessions where expires_at < now()')).rowCount; },
     async deleteUser(userId) { await pool.query('delete from users where id=$1', [userId]); },
+    // Loads every policy version from policies/ into Postgres. Past versions are kept; a changed file must get a new version.
+    async syncPolicies(versions) {
+      const client = await pool.connect();
+      try {
+        await client.query('begin');
+        const latest = new Map();
+        for (const p of versions) if (!latest.has(p.id) || latest.get(p.id).version < p.version) latest.set(p.id, p);
+        for (const p of latest.values()) await client.query(`insert into retailers (id, name, status, current_version, checked, aliases, updated_at) values ($1,$2,$3,$4,$5,$6,now())
+          on conflict (id) do update set name=excluded.name, status=excluded.status, current_version=excluded.current_version, checked=excluded.checked, aliases=excluded.aliases, updated_at=now()`,
+          [p.id, p.name, p.status, p.version, p.checked, JSON.stringify(p.aliases)]);
+        for (const p of versions) {
+          const row = (await client.query('select policy = $3::jsonb as same from retailer_policies where retailer_id=$1 and version=$2', [p.id, p.version, JSON.stringify(p)])).rows[0];
+          if (row && !row.same) throw versionChanged(p.id, p.version);
+          if (!row) await client.query('insert into retailer_policies (retailer_id, version, checked, policy) values ($1,$2,$3,$4)', [p.id, p.version, p.checked, JSON.stringify(p)]);
+        }
+        await client.query('commit');
+      } catch (err) { await client.query('rollback'); throw err; } finally { client.release(); }
+    },
+    async policyVersions(retailerId) {
+      return (await pool.query('select version, checked::text as checked from retailer_policies where retailer_id=$1 order by version desc', [retailerId])).rows;
+    },
 
     /* Settings and profile (and, before migration, the whole old payload). */
     async getRawData(userId) {
@@ -211,7 +251,7 @@ function fileStore(file) {
     if (db) return db;
     try { db = JSON.parse(await fs.readFile(file, 'utf8')); } catch { db = {}; }
     // Files written before the data foundation only have users, sessions and data.
-    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, ...db };
+    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, ...db };
     return db;
   };
   // Serialise writes so concurrent requests can't interleave partial files.
@@ -252,6 +292,19 @@ function fileStore(file) {
       for (const [k, s] of Object.entries(db.sessions)) if (s.userId === userId) delete db.sessions[k];
       for (const [k, f] of Object.entries(db.files)) if (f.userId === userId) delete db.files[k];
       await persist();
+    },
+    async syncPolicies(versions) {
+      await load();
+      for (const p of versions) {
+        const saved = db.policies[`${p.id}@${p.version}`];
+        if (saved && JSON.stringify(saved.policy) !== JSON.stringify(p)) throw versionChanged(p.id, p.version);
+      }
+      for (const p of versions) db.policies[`${p.id}@${p.version}`] ||= { policy: p, loadedAt: new Date().toISOString() };
+      await persist();
+    },
+    async policyVersions(retailerId) {
+      await load();
+      return Object.values(db.policies).map(v => v.policy).filter(p => p.id === retailerId).sort((a, b) => b.version - a.version).map(p => ({ version: p.version, checked: p.checked }));
     },
 
     async getRawData(userId) {

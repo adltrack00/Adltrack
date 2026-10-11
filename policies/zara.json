@@ -1,0 +1,40 @@
+{
+  "id": "zara",
+  "name": "Zara",
+  "version": 1,
+  "country": "US",
+  "status": "checked",
+  "checked": "2026-10-11",
+  "aliases": {
+    "names": ["zara", "zara usa", "zara com", "zara us", "zara usa inc"],
+    "prefixes": ["zara usa", "zara com", "zara"]
+  },
+  "item": {
+    "window": { "value": 30, "source": "https://www.zara.com/us/en/help-center/HowToReturn", "checked": "2026-10-11" },
+    "basis": { "value": "shipment", "note": "Online orders: 30 days from the shipment date. Store purchases: 30 days from purchase.", "source": "https://www.zara.com/us/en/help-center/HowToReturn", "checked": "2026-10-11" },
+    "outcome": { "value": "refund", "note": "Refunded to the original payment method; drop-off costs are deducted.", "source": "https://www.zara.com/us/en/help-center/Refund", "checked": "2026-10-11" },
+    "requirement": { "value": "unknown", "source": "https://www.zara.com/us/en/help-center/HowToReturn", "checked": "2026-10-11" },
+    "url": { "value": "https://www.zara.com/us/en/help-center/HowToReturn", "source": "https://www.zara.com/us/en/help-center/HowToReturn", "checked": "2026-10-11" },
+    "conditions": { "value": "Original condition with all labels, returned in the same country where you bought it.", "source": "https://www.zara.com/us/en/help-center/HowToReturn", "checked": "2026-10-11" },
+    "processing": { "value": "Processed within 72 hours of reaching Zara's facility; banks can take up to 14 days", "source": "https://www.zara.com/us/en/help-center/Refund", "checked": "2026-10-11" }
+  },
+  "categories": [],
+  "membership": [],
+  "holiday": [],
+  "receipt": { "value": { "required": true, "without": "In store, show your Zara QR code or the receipt." }, "source": "https://www.zara.com/us/en/help-center/HowToReturn", "checked": "2026-10-11" },
+  "refund": {
+    "timing": { "value": "Processed within 72 hours of reaching Zara's facility; banks can take up to 14 days", "source": "https://www.zara.com/us/en/help-center/Refund", "checked": "2026-10-11" },
+    "fees": [
+      { "label": "Drop-off return", "amount": "$4.95 per return request, deducted from the refund", "appliesTo": "Online orders returned at a drop-off point", "source": "https://www.zara.com/us/en/help-center/HowToReturn", "checked": "2026-10-11" }
+    ]
+  },
+  "methods": [
+    { "type": "store", "label": "Return at a Zara store", "cost": "Free", "needs": { "label": false, "box": false, "qr": true, "printer": false, "receipt": true }, "steps": ["Bring the items to a Zara store in the US", "Show your Zara QR code or the receipt"], "note": "The QR code or the receipt works.", "source": "https://www.zara.com/us/en/help-center/HowToReturn", "checked": "2026-10-11" },
+    { "type": "dropoff", "label": "Drop-off point", "cost": "$4.95, deducted from the refund", "needs": { "label": "unknown", "box": "unknown", "qr": "unknown", "printer": "unknown" }, "steps": ["Start a return from your order on zara.com", "Choose drop-off point", "Take the package to the drop-off point"], "note": "Online orders only.", "source": "https://www.zara.com/us/en/help-center/HowToReturn", "checked": "2026-10-11" }
+  ],
+  "unknowns": [
+    { "topic": "Final sale and non-returnable items", "note": "Not confirmed in this check.", "source": "https://www.zara.com/us/en/help-center/HowToReturn", "checked": "2026-10-11" },
+    { "topic": "Holiday returns", "note": "No holiday extension found.", "source": "https://www.zara.com/us/en/help-center/HowToReturn", "checked": "2026-10-11" }
+  ],
+  "research": "Official US pages read through web-search excerpts on 2026-10-11 (direct page downloads were blocked from the build environment). Spot-check before launch."
+}
