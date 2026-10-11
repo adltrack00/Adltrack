@@ -1,0 +1,39 @@
+{
+  "id": "apple",
+  "name": "Apple",
+  "version": 1,
+  "country": "US",
+  "status": "checked",
+  "checked": "2026-10-11",
+  "aliases": {
+    "names": ["apple", "apple store", "apple com", "apple online store", "apple com us", "apple retail"],
+    "prefixes": ["apple store", "apple online store", "apple com us"]
+  },
+  "item": {
+    "window": { "value": 14, "note": "14 calendar days from the day you receive the product.", "source": "https://www.apple.com/legal/sales-support/sales-policies/retail_us.html", "checked": "2026-10-11" },
+    "basis": { "value": "delivery", "source": "https://www.apple.com/legal/sales-support/sales-policies/retail_us.html", "checked": "2026-10-11" },
+    "outcome": { "value": "unknown", "note": "How refunds are paid wasn't confirmed in this check.", "source": "https://www.apple.com/shop/help/returns_refund", "checked": "2026-10-11" },
+    "requirement": { "value": "unknown", "source": "https://www.apple.com/shop/help/returns_refund", "checked": "2026-10-11" },
+    "url": { "value": "https://www.apple.com/shop/help/returns_refund", "source": "https://www.apple.com/shop/help/returns_refund", "checked": "2026-10-11" },
+    "conditions": { "value": "Within 14 days of receiving it, undamaged, with the original receipt or gift receipt. Your Apple receipt shows the last return date for each item.", "source": "https://www.apple.com/legal/sales-support/sales-policies/retail_us.html", "checked": "2026-10-11" },
+    "processing": { "value": "Within 10 business days after Apple receives and inspects the item; card refunds can take longer to appear", "source": "https://www.apple.com/legal/sales-support/sales-policies/retail_us.html", "checked": "2026-10-11" }
+  },
+  "categories": [],
+  "membership": [],
+  "holiday": [],
+  "receipt": { "value": { "required": true, "without": "Original receipt or gift receipt required." }, "source": "https://www.apple.com/legal/sales-support/sales-policies/retail_us.html", "checked": "2026-10-11" },
+  "refund": {
+    "timing": { "value": "Within 10 business days after Apple receives and inspects the item; card refunds can take longer to appear", "source": "https://www.apple.com/legal/sales-support/sales-policies/retail_us.html", "checked": "2026-10-11" },
+    "fees": []
+  },
+  "methods": [
+    { "type": "store", "label": "Return at an Apple Store", "needs": { "label": false, "box": "unknown", "qr": false, "printer": false, "receipt": true }, "steps": ["Bring the item and receipt to an Apple Store"], "note": "Ten or more of the same product must go back to the store where they were bought.", "source": "https://www.apple.com/legal/sales-support/sales-policies/retail_us.html", "checked": "2026-10-11" },
+    { "type": "mail", "label": "Start the return online or by phone", "needs": { "label": "unknown", "box": "unknown", "qr": "unknown", "printer": "unknown" }, "steps": ["Sign in to your Order List on apple.com, or call 1-800-MY-APPLE", "Choose the item and start a return"], "source": "https://www.apple.com/legal/sales-support/sales-policies/retail_us.html", "checked": "2026-10-11" }
+  ],
+  "unknowns": [
+    { "topic": "Holiday returns", "note": "Apple has extended holiday returns in past years, but no official 2026 dates were found.", "source": "https://www.apple.com/shop/help/returns_refund", "checked": "2026-10-11" },
+    { "topic": "Refund method", "note": "Not confirmed whether store returns refund to the original payment.", "source": "https://www.apple.com/shop/help/returns_refund", "checked": "2026-10-11" },
+    { "topic": "Ship-by deadline", "note": "Not confirmed whether a mailed return only needs to be started within 14 days.", "source": "https://www.apple.com/shop/help/returns_refund", "checked": "2026-10-11" }
+  ],
+  "research": "Official US pages read through web-search excerpts on 2026-10-11 (direct page downloads were blocked from the build environment). Spot-check before launch."
+}

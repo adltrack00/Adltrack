@@ -1,0 +1,42 @@
+{
+  "id": "fashionnova",
+  "name": "Fashion Nova",
+  "version": 1,
+  "country": "US",
+  "status": "checked",
+  "checked": "2026-10-11",
+  "aliases": {
+    "names": ["fashion nova", "fashionnova", "fashionnova com", "fashion nova com", "fashion nova inc"],
+    "prefixes": ["fashion nova", "fashionnova"]
+  },
+  "item": {
+    "window": { "value": 30, "source": "https://www.fashionnova.com/pages/return-policy", "checked": "2026-10-11" },
+    "basis": { "value": "delivery", "source": "https://www.fashionnova.com/pages/return-policy", "checked": "2026-10-11" },
+    "outcome": { "value": "credit", "note": "Store credit as a Fashion Nova gift card.", "source": "https://www.fashionnova.com/pages/return-policy", "checked": "2026-10-11" },
+    "requirement": { "value": "start", "note": "From the existing Fashion Nova reference in the app.", "source": "https://returns.fashionnova.com/", "checked": "2026-10-08" },
+    "url": { "value": "https://returns.fashionnova.com/", "source": "https://returns.fashionnova.com/", "checked": "2026-10-08" },
+    "conditions": { "value": "Unworn, unwashed, with original tags, within 30 days of delivery. Refunds are store credit. Bodysuits, swimwear, undergarments, beauty products and accessories can't be returned.", "source": "https://www.fashionnova.com/pages/return-policy", "checked": "2026-10-11" },
+    "processing": { "value": "5–7 business days after the return reaches Fashion Nova", "source": "https://www.fashionnova.com/pages/return-policy", "checked": "2026-10-11" }
+  },
+  "categories": [
+    { "id": "non-returnable", "label": "Non-returnable items", "examples": ["Bodysuits", "Swimwear", "Undergarments", "Beauty products", "Accessories"], "returnable": false, "source": "https://www.fashionnova.com/pages/return-policy", "checked": "2026-10-11" },
+    { "id": "damaged-or-wrong", "label": "Damaged or wrong items", "returnable": true, "outcome": "refund", "conditions": "Contact customer care within 14 days of delivery.", "note": "Refunded to the original payment method instead of store credit.", "source": "https://www.fashionnova.com/pages/faq", "checked": "2026-10-11" }
+  ],
+  "membership": [],
+  "holiday": [],
+  "receipt": { "value": { "required": false, "without": "Returns are started online in the returns portal." }, "source": "https://returns.fashionnova.com/", "checked": "2026-10-08" },
+  "refund": {
+    "timing": { "value": "5–7 business days after the return reaches Fashion Nova", "source": "https://www.fashionnova.com/pages/return-policy", "checked": "2026-10-11" },
+    "fees": [
+      { "label": "Return label", "amount": "$5.99", "appliesTo": "US and Canada customers", "source": "https://www.fashionnova.com/pages/return-policy", "checked": "2026-10-11" }
+    ]
+  },
+  "methods": [
+    { "type": "mail", "label": "Mail it back", "cost": "$5.99 return label", "needs": { "label": true, "box": "unknown", "qr": "unknown", "printer": "unknown" }, "steps": ["Open returns.fashionnova.com and start a return with your order number", "Buy the return label", "Pack the item with its tags and send it"], "note": "In-store returns aren't available for online orders, and exchanges aren't offered by mail.", "source": "https://www.fashionnova.com/pages/return-policy", "checked": "2026-10-11" }
+  ],
+  "unknowns": [
+    { "topic": "Final sale prices", "note": "Fashion Nova pages disagree on which price endings (.48, .96, .97, .98, .00) mark final sale.", "source": "https://www.fashionnova.com/pages/return-policy", "checked": "2026-10-11" },
+    { "topic": "Holiday returns", "note": "The window is extended in the holiday season; the dates aren't published yet.", "source": "https://www.fashionnova.com/pages/return-policy", "checked": "2026-10-11" }
+  ],
+  "research": "Started from the app's Fashion Nova reference (researched 2026-10-08). Re-checked against official US pages through web-search excerpts on 2026-10-11 (direct page downloads were blocked from the build environment). Spot-check before launch."
+}

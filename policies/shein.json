@@ -1,0 +1,45 @@
+{
+  "id": "shein",
+  "name": "SHEIN",
+  "version": 1,
+  "country": "US",
+  "status": "checked",
+  "checked": "2026-10-11",
+  "aliases": {
+    "names": ["shein", "shein com", "us shein com", "shein us", "shein usa"],
+    "prefixes": ["shein com", "shein"]
+  },
+  "item": {
+    "window": { "value": 30, "note": "Most items.", "source": "https://us.shein.com/return-policy-a-281.html", "checked": "2026-10-11" },
+    "basis": { "value": "delivery", "source": "https://us.shein.com/return-policy-a-281.html", "checked": "2026-10-11" },
+    "outcome": { "value": "refund", "note": "To the original payment method or SHEIN Wallet, as you choose. Original shipping fees are generally not refunded.", "source": "https://us.shein.com/refund-a-1703.html", "checked": "2026-10-11" },
+    "requirement": { "value": "unknown", "source": "https://us.shein.com/return-policy-a-281.html", "checked": "2026-10-11" },
+    "url": { "value": "https://us.shein.com/return-policy-a-281.html", "source": "https://us.shein.com/return-policy-a-281.html", "checked": "2026-10-11" },
+    "conditions": { "value": "Most items within 30 days of delivery. Not returnable: bodysuits, lingerie and sleepwear, swimwear, jewelry and most accessories, and cosmetics with a broken seal.", "source": "https://help.shein.com/hc/en-us/articles/115001992612-What-is-your-return-policy-", "checked": "2026-10-11" },
+    "processing": { "value": "About 5–10 business days to a card, sometimes up to 30, depending on the bank", "source": "https://us.shein.com/refund-a-1703.html", "checked": "2026-10-11" }
+  },
+  "categories": [
+    { "id": "non-returnable", "label": "Non-returnable items", "examples": ["Bodysuits", "Lingerie and sleepwear", "Swimwear", "Jewelry", "Most accessories (scarves, bags and mermaid blankets can be returned)"], "returnable": false, "source": "https://help.shein.com/hc/en-us/articles/115001992612-What-is-your-return-policy-", "checked": "2026-10-11" },
+    { "id": "opened-cosmetics", "label": "Cosmetics with a broken seal", "returnable": false, "source": "https://help.shein.com/hc/en-us/articles/115001992612-What-is-your-return-policy-", "checked": "2026-10-11" },
+    { "id": "electronics", "label": "Electronics", "returnable": true, "window": 30, "basis": "delivery", "conditions": "New, unused, not activated, in the original packaging.", "source": "https://help.shein.com/hc/en-us/articles/115001992612-What-is-your-return-policy-", "checked": "2026-10-11" }
+  ],
+  "membership": [],
+  "holiday": [],
+  "receipt": { "value": { "required": false, "without": "Returns are started from the order in your SHEIN account." }, "source": "https://us.shein.com/return-policy-a-281.html", "checked": "2026-10-11" },
+  "refund": {
+    "timing": { "value": "About 5–10 business days to a card, sometimes up to 30, depending on the bank", "source": "https://us.shein.com/refund-a-1703.html", "checked": "2026-10-11" },
+    "fees": [
+      { "label": "First return", "amount": "Free for the first return from an order, subject to SHEIN's Fair Use Policy", "source": "https://us.shein.com/return-policy-a-281.html", "checked": "2026-10-11" },
+      { "label": "Later returns from the same order", "amount": "$6.99 shipping fee, deducted from the refund", "source": "https://us.shein.com/return-policy-a-281.html", "checked": "2026-10-11" }
+    ]
+  },
+  "methods": [
+    { "type": "mail", "label": "Mail it back", "cost": "First return per order free", "needs": { "label": "unknown", "box": "unknown", "qr": "unknown", "printer": "unknown" }, "steps": ["Open the order in your SHEIN account and request a return", "Follow the return instructions SHEIN gives you"], "source": "https://us.shein.com/return-policy-a-281.html", "checked": "2026-10-11" }
+  ],
+  "marketplace": { "value": "Items from third-party sellers can have different return windows; check the order's return policy in your account.", "source": "https://us.shein.com/return-policy-a-281.html", "checked": "2026-10-11" },
+  "unknowns": [
+    { "topic": "Window wording", "note": "An older SHEIN page said 30 days from receipt or 45 days from purchase; the current page says 30 days from delivery.", "source": "https://us.shein.com/return-policy-a-281.html", "checked": "2026-10-11" },
+    { "topic": "Holiday returns", "note": "No holiday extension found.", "source": "https://us.shein.com/return-policy-a-281.html", "checked": "2026-10-11" }
+  ],
+  "research": "Official US pages read through web-search excerpts on 2026-10-11 (direct page downloads were blocked from the build environment). Spot-check before launch."
+}

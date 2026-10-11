@@ -2,6 +2,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const { itemFields, summary } = require('./policies');
 
 const ROOT = path.resolve(__dirname, '..');
 const COOKIE = 'rl_session';
@@ -73,7 +74,7 @@ function parseCookies(header) {
   return out;
 }
 
-function createApp({ store, production = false }) {
+function createApp({ store, production = false, policies = null }) {
   const authLimit = limiter(20, 15 * 60 * 1000);
   // Locks an email for 15 minutes after 10 wrong passwords, checked before the password is tried.
   const loginFailures = (() => {
@@ -133,6 +134,23 @@ function createApp({ store, production = false }) {
   async function api(req, res, route) {
     const method = req.method;
     if (route === '/api/health' && method === 'GET') return send(res, 200, { ok: true });
+
+    // Retailer return policies are public facts, so no sign-in is needed to read them.
+    if (route === '/api/retailers' && method === 'GET') {
+      if (!policies) throw new HttpError(503, 'Retailer policies aren’t loaded.');
+      const q = new URL(req.url, 'http://localhost').searchParams;
+      if (q.has('match')) {
+        const name = q.get('match').slice(0, 200), hit = policies.match(name);
+        return send(res, 200, { match: hit && { ...hit, ...summary(policies.get(hit.id)) } });
+      }
+      return send(res, 200, { retailers: policies.list().map(summary) });
+    }
+    const retailer = /^\/api\/retailers\/([a-z0-9-]+)$/.exec(route);
+    if (route.startsWith('/api/retailers/') && method === 'GET') {
+      const policy = retailer && policies && policies.get(retailer[1]);
+      if (!policy) throw new HttpError(404, 'We don’t have that store’s policy yet.');
+      return send(res, 200, { retailer: policy, item: itemFields(policy), versions: await store.policyVersions(policy.id) });
+    }
 
     if (route === '/api/signup' && method === 'POST') {
       checkWrite(req);

@@ -1,0 +1,46 @@
+{
+  "id": "walmart",
+  "name": "Walmart",
+  "version": 1,
+  "country": "US",
+  "status": "checked",
+  "checked": "2026-10-11",
+  "aliases": {
+    "names": ["walmart", "wal mart", "walmart com", "walmart supercenter", "walmart neighborhood market", "wm supercenter", "walmart store"],
+    "prefixes": ["wal mart", "walmart", "wm supercenter", "wm superc"]
+  },
+  "item": {
+    "window": { "value": 90, "note": "Most items.", "source": "https://www.walmart.com/help/article/walmart-standard-return-policy/adc0dfb692954e67a4de206fb8d9e03a", "checked": "2026-10-11" },
+    "basis": { "value": "purchase", "note": "Walmart counts 90 days after purchase or upon receipt. The purchase date is the earlier of the two, so it's used.", "source": "https://www.walmart.com/help/article/walmart-standard-return-policy/adc0dfb692954e67a4de206fb8d9e03a", "checked": "2026-10-11" },
+    "outcome": { "value": "refund", "note": "Refund timing depends on the payment method used.", "source": "https://www.walmart.com/help/article/refunds/a86a0400e237444cb9a5f3c3ce500d1b", "checked": "2026-10-11" },
+    "requirement": { "value": "unknown", "note": "The official page doesn't say whether a mail return must be started, shipped or received by the deadline.", "source": "https://www.walmart.com/help/article/walmart-standard-return-policy/adc0dfb692954e67a4de206fb8d9e03a", "checked": "2026-10-11" },
+    "url": { "value": "https://www.walmart.com/cp/returns/1231920", "source": "https://www.walmart.com/cp/returns/1231920", "checked": "2026-10-11" },
+    "conditions": { "value": "Most items within 90 days. Shorter windows: consumer electronics 30 days, most wireless phones 14 days, major appliances 2 days.", "source": "https://www.walmart.com/cp/returns/1231920", "checked": "2026-10-11" },
+    "processing": { "value": "unknown", "note": "Depends on the payment method; exact consumer timing not confirmed on the official page.", "source": "https://www.walmart.com/help/article/refunds/a86a0400e237444cb9a5f3c3ce500d1b", "checked": "2026-10-11" }
+  },
+  "categories": [
+    { "id": "electronics", "label": "Consumer electronics", "returnable": true, "window": 30, "basis": "purchase", "source": "https://www.walmart.com/cp/returns/1231920", "checked": "2026-10-11" },
+    { "id": "wireless-phones", "label": "Wireless phones", "returnable": true, "window": 14, "basis": "purchase", "note": "Most wireless phones.", "source": "https://www.walmart.com/cp/returns/1231920", "checked": "2026-10-11" },
+    { "id": "major-appliances", "label": "Major appliances", "returnable": true, "window": 2, "basis": "purchase", "source": "https://www.walmart.com/cp/returns/1231920", "checked": "2026-10-11" }
+  ],
+  "membership": [],
+  "holiday": [],
+  "receipt": { "value": { "required": false, "without": "A photo ID can be used for a return without a receipt if it matches Walmart's records." }, "source": "https://www.walmart.com/help/article/refunds/a86a0400e237444cb9a5f3c3ce500d1b", "checked": "2026-10-11" },
+  "refund": {
+    "timing": { "value": "unknown", "note": "Depends on the payment method; not confirmed on the consumer page.", "source": "https://www.walmart.com/help/article/refunds/a86a0400e237444cb9a5f3c3ce500d1b", "checked": "2026-10-11" },
+    "fees": [
+      { "label": "Marketplace restocking fee", "amount": "Up to 20%, at the seller's choice", "appliesTo": "Items sold by Marketplace sellers", "source": "https://www.walmart.com/help/article/walmart-marketplace-return-policy/63c3566a9d3546858582acae2fbfdb7e", "checked": "2026-10-11" }
+    ]
+  },
+  "methods": [
+    { "type": "store", "label": "Return at a Walmart store", "needs": { "label": false, "box": false, "qr": "unknown", "printer": false, "receipt": false, "id": "unknown" }, "steps": ["Bring the item to the customer service desk at any Walmart store"], "source": "https://www.walmart.com/cp/returns/1231920", "checked": "2026-10-11" },
+    { "type": "mail", "label": "Start the return online", "needs": { "label": "unknown", "box": "unknown", "qr": "unknown", "printer": "unknown" }, "steps": ["Open Purchase history in your Walmart account", "Choose the item and start a return", "Pick one of the return options offered for that item"], "note": "Which options are offered depends on the item.", "source": "https://www.walmart.com/cp/returns/1231920", "checked": "2026-10-11" }
+  ],
+  "marketplace": { "value": "Items from Marketplace sellers: 30 days for most items and 14 days for listed electronics (tablets, computers, digital cameras, prepaid and post-paid phones). The seller may charge a restocking fee of up to 20%.", "source": "https://www.walmart.com/help/article/walmart-marketplace-return-policy/63c3566a9d3546858582acae2fbfdb7e", "checked": "2026-10-11" },
+  "unknowns": [
+    { "topic": "Walmart+", "note": "No Walmart+ change to the return window found on the official pages.", "source": "https://www.walmart.com/cp/returns/1231920", "checked": "2026-10-11" },
+    { "topic": "2026 holiday returns", "note": "No 2026 holiday return extension published yet.", "source": "https://www.walmart.com/cp/returns/1231920", "checked": "2026-10-11" },
+    { "topic": "Non-returnable categories", "note": "The full non-returnable list wasn't confirmed in this check.", "source": "https://www.walmart.com/help/article/walmart-standard-return-policy/adc0dfb692954e67a4de206fb8d9e03a", "checked": "2026-10-11" }
+  ],
+  "research": "Official US pages read through web-search excerpts on 2026-10-11 (direct page downloads were blocked from the build environment). Spot-check before launch."
+}
