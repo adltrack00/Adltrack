@@ -6,38 +6,42 @@ const MAX_PAGES = 4;
 const MAX_ITEMS = 20;
 
 const SYSTEM = `You read shopping receipts and order confirmations for a returns tracker. The user will check and fix what you return, so an empty field is always better than a guess.
-- Use null for anything you can't read clearly or that isn't printed. Never infer a store from the products, a date from context, or a price you can't see.
+- Leave a field empty ("" for text, null for numbers, "unknown" or "none" for choices) when you can't read it clearly or it isn't printed. Never infer a store from the products, a date from context, or a price you can't see.
 - The pages are photos or screenshots of one receipt, in order (a long receipt may be split across several). Don't list a line twice where pages overlap.
-- items: only products the customer bought. Leave out tax, totals, discounts, coupons, bag fees, deposits, shipping, tips and gift-card loads. price is the amount paid for that line after a discount printed directly under it; quantity is the count printed for that line (null if none is printed).
+- items: only products the customer bought. Leave out tax, totals, discounts, coupons, bag fees, deposits, shipping, tips and gift-card loads. price is the amount paid for that line after a discount printed directly under it; quantity is the count printed for that line (1 if none is printed).
 - store.name is the store or brand as printed (for example "TARGET" or "Amazon.com"), without slogans. location is the store's address or city as printed.
-- purchase_date is YYYY-MM-DD and purchase_time is 24-hour HH:MM, as printed. If a date could be read two ways (03/04/26), use null.
-- channel is "online" for an order confirmation, invoice or email, "store" for a register receipt, null if unclear.
+- purchase_date is YYYY-MM-DD and purchase_time is 24-hour HH:MM, as printed. If a date could be read two ways (03/04/26), leave it empty.
+- channel is "online" for an order confirmation, invoice or email, "store" for a register receipt, "unknown" if unclear.
 - payment_type is the kind of payment only. Never write any part of a card number, account number, authorization code or the cardholder's name anywhere.
-- return_policy_text is any return or exchange policy printed on the receipt, copied word for word, or null if none is printed.
-- problem: "blurry", "dark", "cropped" (part of the receipt is cut off) or "not_receipt" when that stops you reading something; otherwise null.`;
+- return_policy_text is any return or exchange policy printed on the receipt, copied word for word, or "" if none is printed.
+- problem: "blurry", "dark", "cropped" (part of the receipt is cut off) or "not_receipt" when that stops you reading something; otherwise "none".`;
 
+// Text fields use "" and choices use "unknown"/"none" for "not sure"; only numbers are nullable. Structured outputs limit how
+// many fields may be a union (anyOf), so the schema keeps those to the five numbers that need one.
 const nullable = schema => ({ anyOf: [schema, { type: 'null' }] });
+const str = { type: 'string' };
+const PAYMENTS = ['credit', 'debit', 'cash', 'gift_card', 'store_credit', 'mobile_wallet', 'paypal', 'buy_now_pay_later', 'check', 'other'];
 const SCHEMA = {
   type: 'object',
   properties: {
-    problem: nullable({ type: 'string', enum: ['blurry', 'dark', 'cropped', 'not_receipt'] }),
-    store: { type: 'object', properties: { name: nullable({ type: 'string' }), location: nullable({ type: 'string' }) }, required: ['name', 'location'], additionalProperties: false },
-    purchase_date: nullable({ type: 'string' }),
-    purchase_time: nullable({ type: 'string' }),
-    order_number: nullable({ type: 'string' }),
-    channel: nullable({ type: 'string', enum: ['online', 'store'] }),
+    problem: { type: 'string', enum: ['none', 'blurry', 'dark', 'cropped', 'not_receipt'] },
+    store: { type: 'object', properties: { name: str, location: str }, required: ['name', 'location'], additionalProperties: false },
+    purchase_date: str,
+    purchase_time: str,
+    order_number: str,
+    channel: { type: 'string', enum: ['online', 'store', 'unknown'] },
     items: {
       type: 'array',
       items: {
         type: 'object',
-        properties: { name: nullable({ type: 'string' }), quantity: nullable({ type: 'number' }), price: nullable({ type: 'number' }), item_code: nullable({ type: 'string' }) },
+        properties: { name: str, quantity: { type: 'integer' }, price: nullable({ type: 'number' }), item_code: str },
         required: ['name', 'quantity', 'price', 'item_code'],
         additionalProperties: false
       }
     },
     totals: { type: 'object', properties: { subtotal: nullable({ type: 'number' }), tax: nullable({ type: 'number' }), total: nullable({ type: 'number' }) }, required: ['subtotal', 'tax', 'total'], additionalProperties: false },
-    payment_type: nullable({ type: 'string', enum: ['credit', 'debit', 'cash', 'gift_card', 'store_credit', 'mobile_wallet', 'paypal', 'buy_now_pay_later', 'check', 'other'] }),
-    return_policy_text: nullable({ type: 'string' })
+    payment_type: { type: 'string', enum: [...PAYMENTS, 'unknown'] },
+    return_policy_text: str
   },
   required: ['problem', 'store', 'purchase_date', 'purchase_time', 'order_number', 'channel', 'items', 'totals', 'payment_type', 'return_policy_text'],
   additionalProperties: false
@@ -111,7 +115,7 @@ function clean(raw, { today = new Date().toISOString().slice(0, 10) } = {}) {
     channel: ['online', 'store'].includes(r.channel) ? r.channel : null,
     items,
     totals: { subtotal: money(totals.subtotal), tax: money(totals.tax), total: money(totals.total) },
-    payment: SCHEMA.properties.payment_type.anyOf[0].enum.includes(r.payment_type) ? r.payment_type : null,
+    payment: PAYMENTS.includes(r.payment_type) ? r.payment_type : null,
     policyText: text(r.return_policy_text, 2000)
   };
   receipt.notes = notes(receipt);

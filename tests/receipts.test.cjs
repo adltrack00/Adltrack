@@ -66,6 +66,12 @@ test('anything the model was unsure about stays empty and is named, never guesse
   assert.equal(clean({ ...answers['target-store'], purchase_date: '2026-02-30' }, { today: TODAY }).purchased, null);
 });
 
+test('the model’s "not sure" values (empty text, "unknown", "none") come back empty', () => {
+  const r = clean({ problem: 'none', store: { name: '', location: '' }, purchase_date: '', purchase_time: '', order_number: '', channel: 'unknown', items: [{ name: 'Lamp', quantity: 1, price: 20, item_code: '' }], totals: { subtotal: null, tax: null, total: null }, payment_type: 'unknown', return_policy_text: '' }, { today: TODAY });
+  assert.deepEqual({ ...r, notes: undefined }, { problem: null, store: null, location: null, purchased: null, time: null, orderNumber: null, channel: null, items: [{ name: 'Lamp', quantity: 1, price: 20, code: null }], totals: { subtotal: null, tax: null, total: null }, payment: null, policyText: null, notes: undefined });
+  assert.equal(receiptDraft(r, null).products.length, 1, 'quantity 1 stays one card');
+});
+
 test('blurry, dark, cropped and non-receipt photos explain what went wrong', () => {
   const blurry = clean(answers.blurry, { today: TODAY });
   assert.equal(blurry.items.length, 0);
@@ -117,6 +123,7 @@ test('the reader sends every page to a vision model with structured output and t
   assert.equal(req.output_config.format.type, 'json_schema');
   assert.ok(req.output_config.format.schema.required.includes('return_policy_text'));
   assert.ok(!JSON.stringify(req.output_config.format.schema).includes('card_number'));
+  assert.ok((JSON.stringify(req.output_config.format.schema).match(/anyOf/g) || []).length <= 8, 'few union fields: structured outputs limit them');
   const content = req.messages[0].content;
   assert.deepEqual(content.map(b => b.type), ['image', 'image', 'document', 'text']);
   assert.equal(content[0].source.media_type, 'image/jpeg');
