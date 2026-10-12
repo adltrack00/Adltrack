@@ -76,6 +76,9 @@ function createData({ store, storage, jobs = null }) {
     item.purchaseId = input.purchaseId || existing?.item.purchaseId || crypto.randomUUID();
     const { fileId, keep } = await photoFile(userId, 'item', item.photo, existing?.photoFileId);
     if (!keep) delete item.photo;
+    // The QR code or label changes only through setLabel, so a sync from a copy made before it was added never drops it.
+    delete item.label; delete item.labelFileId;
+    if (existing?.item.labelFileId) item.labelFileId = existing.item.labelFileId;
     await store.savePurchase(userId, { id: item.purchaseId, store: typeof item.retailer === 'string' ? item.retailer : null, channel: typeof item.channel === 'string' ? item.channel : null, purchased: item.purchased, delivered: item.delivered });
     const saved = await store.saveItem(userId, item, { photoFileId: fileId, position });
     if (existing?.photoFileId && existing.photoFileId !== fileId) await deleteFile(userId, existing.photoFileId);
@@ -86,8 +89,26 @@ function createData({ store, storage, jobs = null }) {
     const removed = await store.deleteItem(userId, id);
     if (!removed) return { deleted: false, updatedAt: null };
     if (removed.photoFileId) await deleteFile(userId, removed.photoFileId);
+    if (removed.item.labelFileId) await deleteFile(userId, removed.item.labelFileId);
     await cleanupPurchase(userId, removed.item.purchaseId);
     return { deleted: true, updatedAt: touch ? await store.touch(userId) : null };
+  }
+  /* The QR code or return label the retailer gave for one item (photo, screenshot or PDF), or null to remove it. */
+  async function setLabel(userId, itemId, dataUrl) {
+    const existing = await store.getItem(userId, itemId);
+    if (!existing) throw new DataError(404, 'Not found.');
+    let labelFileId = null;
+    if (dataUrl !== null) {
+      const parsed = parseDataUrl(dataUrl, 'label');
+      if (!parsed) throw new DataError(400, 'Use a photo, screenshot or PDF.');
+      labelFileId = await saveFile(userId, 'label', parsed);
+    }
+    const item = { ...existing.item };
+    delete item.photo; delete item.label; delete item.labelFileId;
+    if (labelFileId) item.labelFileId = labelFileId;
+    const saved = await store.saveItem(userId, item, { photoFileId: existing.photoFileId });
+    if (existing.item.labelFileId && existing.item.labelFileId !== labelFileId) await deleteFile(userId, existing.item.labelFileId);
+    return { item: saved, updatedAt: await store.touch(userId) };
   }
   /* The whole list at once, as older apps send it: same order, and items missing from the list are removed. */
   async function replaceItems(userId, list) {
@@ -209,7 +230,7 @@ function createData({ store, storage, jobs = null }) {
     await removeStorage(files.map(f => f.storageKey));
   }
 
-  return { getData, putData, saveItem, deleteItem, listItems: userId => store.listItems(userId), putSettings, listPurchases, attachReceipt, receiptPages, saveReceipt, describeReceiptPurchase, cleanupReceipts, readFile, deleteAccount, migrate, migrateAll, removeStorage };
+  return { getData, putData, saveItem, deleteItem, setLabel, listItems: userId => store.listItems(userId), putSettings, listPurchases, attachReceipt, receiptPages, saveReceipt, describeReceiptPurchase, cleanupReceipts, readFile, deleteAccount, migrate, migrateAll, removeStorage };
 }
 
 module.exports = { createData, DataError };

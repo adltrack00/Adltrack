@@ -5,6 +5,7 @@ const crypto = require('node:crypto');
 const { itemFields, summary } = require('./policies');
 const { evaluate } = require('./engine');
 const { MAX_PAGES } = require('./receipts');
+const { buildGuide, placeQueries } = require('./guide');
 
 const ROOT = path.resolve(__dirname, '..');
 const COOKIE = 'rl_session';
@@ -98,12 +99,14 @@ function receiptDraft(receipt, policy) {
   };
 }
 
-function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null }) {
+function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, places = null }) {
   const authLimit = limiter(20, 15 * 60 * 1000);
   // Each classification is an AI call, so it's limited per account.
   const classifyLimit = limiter(300, 60 * 60 * 1000);
   // Each receipt read is a larger AI call (images), so it has its own, lower limit.
   const receiptLimit = limiter(60, 60 * 60 * 1000);
+  // Each drop-off lookup can be several paid places calls.
+  const placesLimit = limiter(30, 60 * 60 * 1000);
   // Locks an email for 15 minutes after 10 wrong passwords, checked before the password is tried.
   const loginFailures = (() => {
     const fails = new Map(), WINDOW = 15 * 60 * 1000, MAX = 10;
@@ -227,7 +230,7 @@ function createApp({ store, data, production = false, policies = null, classifie
       const body = await readBody(req, 20_000);
       const raw = body && typeof body.item === 'object' && body.item ? body.item : {};
       const text = (v, n) => typeof v === 'string' ? v.slice(0, n) : '';
-      const item = { name: text(raw.name, 200), retailer: text(raw.retailer, 200), purchased: text(raw.purchased, 10), delivered: text(raw.delivered, 10), channel: text(raw.channel, 20), dateSet: !!raw.dateSet, receiptPolicy: text(raw.receiptPolicy, 2000) };
+      const item = { name: text(raw.name, 200), retailer: text(raw.retailer, 200), purchased: text(raw.purchased, 10), delivered: text(raw.delivered, 10), channel: text(raw.channel, 20), dateSet: !!raw.dateSet, receiptPolicy: text(raw.receiptPolicy, 2000), orderNumber: text(raw.orderNumber, 40) };
       const answers = {};
       for (const k of ['final', 'opened', 'member', 'damaged', 'tags', 'packaging', 'clearance']) if (typeof body.answers?.[k] === 'boolean') answers[k] = body.answers[k];
       const match = item.retailer && item.retailer !== 'Store not added' ? policies.match(item.retailer) : null;
@@ -236,7 +239,24 @@ function createApp({ store, data, production = false, policies = null, classifie
       if (policy && body.retailerId === policy.id && typeof body.category === 'string' && body.category) category = body.category.slice(0, 60);
       else if (policy && classifier && classifyLimit('user:' + user.id)) category = await classifier.classify(item.name, policy);
       const result = evaluate({ item, policy, answers, category });
-      return send(res, 200, { retailer: policy ? { id: policy.id, name: policy.name, version: policy.version, checked: policy.checked } : null, category, answers, result });
+      // How to return it: the steps for each way this store accepts returns, easiest first.
+      const guide = buildGuide(policy, item);
+      if (guide) result.fields.url = guide.url;
+      return send(res, 200, { retailer: policy ? { id: policy.id, name: policy.name, version: policy.version, checked: policy.checked } : null, category, answers, result, guide });
+    }
+    // Nearest drop-off: the closest places that accept this store's returns by the chosen way. The location is used for this
+    // request only and never saved.
+    if (route === '/api/places/nearest' && method === 'POST') {
+      checkWrite(req);
+      const body = await readBody(req, 2_000);
+      const policy = policies && typeof body.retailerId === 'string' ? policies.get(body.retailerId) : null;
+      const way = policy && Number.isInteger(body.method) ? policy.methods[body.method] : null;
+      const queries = way ? placeQueries(policy, way) : [];
+      if (!queries.length) throw new HttpError(400, 'There’s no drop-off to look up for this way of returning.');
+      if (!places || !places.available()) return send(res, 200, { places: [], reason: 'unavailable' });
+      if (!placesLimit('user:' + user.id)) return send(res, 200, { places: [], reason: 'limit' });
+      try { return send(res, 200, { places: await places.nearest(queries, Number(body.lat), Number(body.lng)) }); }
+      catch (err) { if (err.status) throw new HttpError(err.status, err.message); console.error('Places lookup failed:', err.message); return send(res, 200, { places: [], reason: 'failed' }); }
     }
     // Receipt reading: the pages of one receipt are saved privately on the scan's purchase, read by the AI model, and
     // returned as the draft the Item card opens with. Fields the model wasn't sure about come back empty.
@@ -281,6 +301,14 @@ function createApp({ store, data, production = false, policies = null, classifie
     if (route === '/api/items' && method === 'POST') {
       checkWrite(req);
       return send(res, 201, await data.saveItem(user.id, await readBody(req, 12 * 1024 * 1024), { mustBeNew: true }));
+    }
+    // The QR code or return label for one item: PUT a photo, screenshot or PDF as a data URL; DELETE removes it.
+    const labelMatch = /^\/api\/items\/([^/]+)\/label$/.exec(route);
+    if (labelMatch && (method === 'PUT' || method === 'DELETE')) {
+      checkWrite(req);
+      let id; try { id = decodeURIComponent(labelMatch[1]); } catch { throw new HttpError(400, 'Invalid item.'); }
+      const body = method === 'PUT' ? await readBody(req, 14 * 1024 * 1024) : null;
+      return send(res, 200, await data.setLabel(user.id, id, method === 'PUT' ? body && body.data : null));
     }
     const itemMatch = /^\/api\/items\/([^/]+)$/.exec(route);
     if (itemMatch && (method === 'PUT' || method === 'DELETE')) {

@@ -21,7 +21,7 @@ To run the data tests against Postgres as well, point `TEST_DATABASE_URL` at a t
 
 ## Accounts
 
-- `server.js` serves the app and a JSON API under `/api`: `signup`, `login`, `logout`, `me`, `items` (GET, POST; PUT and DELETE `/api/items/:id`), `settings` (PUT: settings and profile), `purchases` (GET; PUT `/api/purchases/:id/receipt`), `receipts/read` (POST: read a scanned receipt), `files/:id` (GET), `data` (GET/PUT, the whole account in one document, kept for older versions of the app) and `account` (DELETE, needs the password).
+- `server.js` serves the app and a JSON API under `/api`: `signup`, `login`, `logout`, `me`, `items` (GET, POST; PUT and DELETE `/api/items/:id`), `settings` (PUT: settings and profile), `purchases` (GET; PUT `/api/purchases/:id/receipt`), `receipts/read` (POST: read a scanned receipt), `files/:id` (GET), `items/:id/label` (PUT, DELETE: the QR code or return label), `places/nearest` (POST: nearest drop-offs), `data` (GET/PUT, the whole account in one document, kept for older versions of the app) and `account` (DELETE, needs the password).
 - Passwords are hashed with scrypt. Sessions are random tokens in an HttpOnly, SameSite=Lax cookie (Secure in production); only a SHA-256 of each token is stored. Sessions last 30 days.
 - The app keeps a full copy in the browser and uploads changes in the background, one item at a time (create, update, delete), plus settings and profile; the last write wins. Signing in on another device downloads the account's copy.
 - Sign-in is rate limited per IP, and an email is locked for 15 minutes after 10 wrong passwords. Writes must be same-origin JSON.
@@ -69,11 +69,23 @@ The Scan step reads the receipt and fills the Item card (`server/receipts.js`, `
 - Saved items keep `code` (item code), `orderNumber`, `payment` and `receiptPolicy` (the printed policy text). The policy engine treats printed text as a source ("Printed on your receipt"): for a store without a checked policy, a window printed on the receipt (the shortest one it states, read from the text itself) sets the date, counted from purchase; for a store we have, a shorter printed window wins.
 - Cost: about $0.02–$0.05 per one-page scan at `claude-opus-5-5` prices ($4 / $20 per million input / output tokens); each further page adds about $0.01–$0.02. The server logs the tokens each read used.
 
+## How to return it
+
+The Return card teaches how to return the item at its store, below its existing lines and above Continue (`server/guide.js`). Everything comes from the store's checked policy (`methods` in `policies/<id>.json`); nothing is made up.
+
+- Steps: the easiest way first (the policy lists its ways easiest first), as a numbered list with its cost, what it needs (QR code, return label, box, printer, receipt, photo ID; "Not confirmed" when the policy doesn't say) and the order number when known. Other ways sit in a collapsed "Other ways to return", each with "Return this way instead" (saved as the item's `returnMethod`). Stores whose steps aren't in the checked policy (Best Buy today) say so and point to the return link.
+- Return link: `/api/policy` fills `url` from the policy, so "Open retailer's return portal ↗" shows for every known store. When a policy documents an order-specific link (`item.orderUrl`, with `{order}` where the order number goes, plus its source) and the item has an order number, the link opens that order. No retailer's official pages document one yet, so none is filled in.
+- Checklist: the existing packing checklist (`packing`: receipt, condition, packed, label, proof), collapsed, worded for the chosen way. A QR-code drop-off with no label has no label line; in-store returns check the store's location and hours instead.
+- "Add your QR code or label": a photo, screenshot or PDF, saved privately on the item (`PUT /api/items/:id/label` with a data URL; `DELETE` removes it; stored as `labelFileId`, shown to the app as `label`). It changes only through that call, so a sync from an older copy never drops it, and it's deleted with the item and the account. "Show your QR code or label" opens it full-screen (a PDF opens in a new tab).
+- "Nearest drop-off" (`POST /api/places/nearest`, signed in, 30 lookups per account per hour): asks for the device's location only when tapped, then shows the three closest places that accept this store's returns by the chosen way (the drop-off partners the policy names, or the store itself for in-store returns; mail has none) with distance, today's hours, open now and a directions link. The location is used for that request only and never saved.
+- Places provider: Google Places API (New) (`server/places.js`, key in `GOOGLE_PLACES_API_KEY`). It has the most complete US store listings with opening hours, which a drop-off answer needs. Google's terms only allow keeping place ids and coordinates, for up to 30 days, so that's what's cached (`place_cache`, per store and ~1 km area, never linked to a user, cleared by `maintenance.cleanup`); the name, address and hours of the closest three are fetched fresh. Cost: a cache miss is one Text Search per store or partner (Amazon has five), and every lookup is up to three Place Details calls; see Google's pricing page for current rates and free monthly usage.
+- Returns 101: a row under "How Returnly works" on Support opens a page on receipts, store credit vs. refund, drop-off vs. mail, final sale and keeping proof.
+
 ## Deploy on Render
 
 `render.yaml` is a Blueprint for a Node web service plus a Postgres database. In Render choose **New → Blueprint**, pick this repository and apply. `DATABASE_URL` is wired from the database automatically and the server refuses to start in production without it.
 
-Photos need a bucket. With Cloudflare R2: create a bucket (keep it private), create an R2 API token with Object Read & Write on that bucket, and set `S3_ENDPOINT` (`https://<account id>.r2.cloudflarestorage.com`), `S3_BUCKET`, `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY` on the Render service. Any S3-compatible service works; set `S3_REGION` if it isn't `auto`. The server refuses to start in production without them; Render then keeps the previous version running. Render's free Postgres expires after 30 days; move it to a paid plan before real users rely on it.
+Photos need a bucket. With Cloudflare R2: create a bucket (keep it private), create an R2 API token with Object Read & Write on that bucket, and set `S3_ENDPOINT` (`https://<account id>.r2.cloudflarestorage.com`), `S3_BUCKET`, `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY` on the Render service. Any S3-compatible service works; set `S3_REGION` if it isn't `auto`. For "Nearest drop-off", create a Google Cloud project, enable **Places API (New)**, create an API key restricted to that API, and set `GOOGLE_PLACES_API_KEY`. The server refuses to start in production without them; Render then keeps the previous version running. Render's free Postgres expires after 30 days; move it to a paid plan before real users rely on it.
 
 ## Project layout
 
@@ -82,7 +94,7 @@ Photos need a bucket. With Cloudflare R2: create a bucket (keep it private), cre
 - `account.js`: sign-in gate for the app and background sync.
 - `app.html` and its scripts: `app.js`, `features.js`, `klarna.js`, `precision.js`, `guided.js` (four-step return journey), `menu.js` (side menu, History, Settings, Support).
 - `core.js`: date, eligibility and calendar logic.
-- `server.js`, `server/`: account API (`app.js`), database access (`store.js`, `items.js`), account data and photos (`data.js`), file storage (`storage.js`), background jobs (`jobs.js`) and static file server; retailer policies are loaded and matched in `policies.js`, applied to items in `engine.js` and item categories are sorted in `classify.js`, and receipts are read in `receipts.js`. Only top-level app files and `assets/` are publicly served.
+- `server.js`, `server/`: account API (`app.js`), database access (`store.js`, `items.js`), account data and photos (`data.js`), file storage (`storage.js`), background jobs (`jobs.js`) and static file server; retailer policies are loaded and matched in `policies.js`, applied to items in `engine.js` and item categories are sorted in `classify.js`, receipts are read in `receipts.js`, return guides are built in `guide.js` and nearby drop-offs found in `places.js`. Only top-level app files and `assets/` are publicly served.
 - `policies/`: retailer return policies and their JSON schema.
 - `tests/`: automated tests (`npm test`).
 - `docs/`: product and design notes.
