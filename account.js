@@ -124,8 +124,9 @@ const Account = (() => {
     remember(r.user);
     return r.user;
   }
-  async function signIn({ email, password }) {
-    const r = await api('POST', '/api/login', { email, password });
+  async function signIn({ email, password }) { return adopt(await api('POST', '/api/login', { email, password })); }
+  /* Takes in a signed-in answer (sign in, or a new password from a reset link): the account's copy and who's signed in. */
+  function adopt(r) {
     if (r.data) writeLocal(r.data); else { if (!hasRealPurchases()) [DATA_KEYS.purchases, DATA_KEYS.profile].forEach(del); set(ITEMS_KEY, '{}'); del(SETTINGS_KEY); }
     remember(r.user);
     if (!r.data) { const p = parse(DATA_KEYS.profile, {}); if (!p.name) set(DATA_KEYS.profile, JSON.stringify({ ...p, name: r.user.name })); }
@@ -179,5 +180,5 @@ const Account = (() => {
     }
   }
 
-  return { api, user, queue, flush, signUp, signIn, signOut, deleteAccount, clearLocal };
+  return { api, user, queue, flush, signUp, signIn, adopt, signOut, deleteAccount, clearLocal };
 })();

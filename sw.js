@@ -1,8 +1,8 @@
 /* Returnly service worker: keeps the app shell for offline starts, shows daily reminders sent by Web Push while the app is
-   closed, and opens the item's Return step when one is tapped. Account data (/api/) is never cached here. */
-const SHELL = 'returnly-shell-v2';
-const SHELL_FILES = ['app.html', 'index.html', 'signin.html', 'signup.html', 'style.css', 'on.css', 'klarna.css', 'precision.css', 'guided.css', 'menu.css', 'mobile.css', 'landing.css',
-  'core.js', 'account.js', 'auth.js', 'app.js', 'features.js', 'klarna.js', 'precision.js', 'guided.js', 'menu.js', 'push.js', 'landing.js', 'oracle.woff2', 'assets/roboto-serif-light.woff2',
+   closed with their action buttons, and opens the item's Return step when one is tapped. Account data (/api/) is never cached here. */
+const SHELL = 'returnly-shell-v3';
+const SHELL_FILES = ['app.html', 'index.html', 'signin.html', 'signup.html', 'forgot.html', 'reset.html', 'email.html', 'style.css', 'on.css', 'klarna.css', 'precision.css', 'guided.css', 'menu.css', 'mobile.css', 'landing.css',
+  'core.js', 'nudge.js', 'account.js', 'auth.js', 'app.js', 'features.js', 'klarna.js', 'precision.js', 'guided.js', 'menu.js', 'push.js', 'remind.js', 'landing.js', 'oracle.woff2', 'assets/roboto-serif-light.woff2',
   'manifest.webmanifest', 'assets/icon-192.png', 'assets/icon-512.png', 'assets/apple-touch-icon.png'];
 
 self.addEventListener('install', event => {
@@ -29,21 +29,39 @@ self.addEventListener('push', event => {
     body: msg.body || '',
     icon: 'assets/icon-192.png',
     tag: 'returnly-daily',
+    actions: (Array.isArray(msg.actions) ? msg.actions : []).slice(0, 4).map(a => ({ action: a.action, title: a.title })),
     data: { url: msg.url || 'app.html', itemId: msg.itemId || null }
   }));
 });
 
+const localDate = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const post = (url, body) => fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+const ACTION_DONE = { snooze: ['Snoozed until tomorrow', 'Your deadline stays the same.'], sent: ['Marked as sent back', 'We’ll stop reminding you about it.'], keep: ['Keeping it', 'We’ll stop reminding you about it.'] };
+
 // Tapping a reminder opens that item's Return step: in an open Returnly window if there is one, otherwise in a new one.
+// "Snooze until tomorrow", "I sent it back" and "I'm keeping it" are saved straight away, without opening the app;
+// "Show QR code" opens the item's QR code or label.
 self.addEventListener('notificationclick', event => {
   event.notification.close();
   const { url = 'app.html', itemId = null } = event.notification.data || {};
-  const target = new URL(url, self.registration.scope).href;
+  const action = event.action || '';
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const open = windows.find(w => new URL(w.url).pathname.endsWith('/app.html'));
+    if (itemId && ACTION_DONE[action]) {
+      const r = await post('/api/reminders/action', { itemId, action, today: localDate() }).catch(() => null);
+      if (r && r.ok) {
+        const { item = null } = await r.json().catch(() => ({}));
+        for (const w of windows) w.postMessage({ type: 'returnly-item-action', itemId, action, item });
+        await self.registration.showNotification(ACTION_DONE[action][0], { body: ACTION_DONE[action][1], icon: 'assets/icon-192.png', tag: 'returnly-daily' });
+        return;
+      }
+      // Not signed in on this device any more (or offline): open the item instead, where the same choice can be made.
+    } else post('/api/reminders/opened', {}).catch(() => {});
+    const target = new URL(url + (action === 'show-qr' ? '&show=label' : ''), self.registration.scope).href;
     if (open) {
       await open.focus();
-      if (itemId) open.postMessage({ type: 'returnly-open-item', itemId });
+      if (itemId) open.postMessage({ type: 'returnly-open-item', itemId, show: action === 'show-qr' ? 'label' : '' });
       return;
     }
     await self.clients.openWindow(target);
