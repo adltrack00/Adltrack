@@ -9,6 +9,7 @@ const { createJobs, defineJobs } = require('./server/jobs');
 const { createApp } = require('./server/app');
 const { loadPolicies } = require('./server/policies');
 const { createClassifier } = require('./server/classify');
+const { createReceiptReader } = require('./server/receipts');
 
 const production = process.env.NODE_ENV === 'production';
 const databaseUrl = process.env.DATABASE_URL || '';
@@ -25,7 +26,7 @@ const store = createStore({ databaseUrl, file: path.join(__dirname, 'data', 'dev
 const storage = createStorage({ s3, dir: path.join(__dirname, 'data', 'files') });
 const jobs = createJobs({ store });
 const data = createData({ store, storage, jobs });
-defineJobs(jobs, { store, storage });
+defineJobs(jobs, { store, storage, data });
 const port = Number(process.env.PORT || 4174);
 // Render routes traffic to 0.0.0.0; locally we stay on localhost only.
 const host = process.env.HOST || (production ? '0.0.0.0' : '127.0.0.1');
@@ -38,7 +39,7 @@ store.init().then(async () => {
   const migrated = await data.migrateAll();
   if (migrated) console.log(`Moved ${migrated} account${migrated === 1 ? '' : 's'} to the items tables.`);
   await jobs.start();
-  const server = http.createServer(createApp({ store, data, production, policies, classifier: createClassifier() })).listen(port, host, () =>
+  const server = http.createServer(createApp({ store, data, production, policies, classifier: createClassifier(), receipts: createReceiptReader() })).listen(port, host, () =>
     console.log(`Returnly running on http://${host === '0.0.0.0' ? 'localhost' : host}:${port} (${databaseUrl ? 'Postgres' : 'local file store'}, ${storage.kind === 's3' ? 'S3 file storage' : 'local file storage'})`));
   const shutdown = () => { server.close(); jobs.stop().finally(() => store.close().finally(() => process.exit(0))); };
   process.on('SIGTERM', shutdown);

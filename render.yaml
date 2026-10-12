@@ -26,7 +26,8 @@ services:
         sync: false
       - key: S3_REGION
         value: auto
-      # Sorts items into a store's policy categories. Without it the policy engine still works and uses the shortest window that could apply.
+      # Reads scanned receipts and sorts items into a store's policy categories. Without it receipts are saved but not read,
+      # and the policy engine still works and uses the shortest window that could apply.
       - key: ANTHROPIC_API_KEY
         sync: false
 

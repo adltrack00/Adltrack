@@ -1,0 +1,99 @@
+{
+  "_about": "Mocked model answers for the fixture receipts in this folder: what the receipt reader's structured output looks like for each image.",
+  "target-store": {
+    "problem": null,
+    "store": { "name": "TARGET", "location": "Brooklyn Atlantic Terminal, 139 Flatbush Ave, Brooklyn NY 11217" },
+    "purchase_date": "2026-10-04",
+    "purchase_time": "18:42",
+    "order_number": "2-5610-2287-0145-0112-4",
+    "channel": "store",
+    "items": [
+      { "name": "SONY WH1000XM5 HDPHN", "quantity": null, "price": 348, "item_code": "211-01-0587" },
+      { "name": "A NEW DAY KNIT CRDGN", "quantity": null, "price": 25, "item_code": "064-12-2205" },
+      { "name": "UP&UP PAPER TOWEL", "quantity": 2, "price": 12, "item_code": "247-05-1182" }
+    ],
+    "totals": { "subtotal": 385, "tax": 34.17, "total": 419.17 },
+    "payment_type": "credit",
+    "return_policy_text": "Most unopened items in new condition returned within 90 days will receive a refund or exchange. Some items have a modified return policy noted on receipt."
+  },
+  "corner-boutique": {
+    "problem": null,
+    "store": { "name": "MAISON LUNE", "location": "412 Valencia St, San Francisco CA" },
+    "purchase_date": "2026-10-06",
+    "purchase_time": "14:15",
+    "order_number": "7781",
+    "channel": "store",
+    "items": [
+      { "name": "Silk slip dress, champagne, S", "quantity": null, "price": 148, "item_code": null },
+      { "name": "Gold hoop earrings", "quantity": null, "price": 42, "item_code": null }
+    ],
+    "totals": { "subtotal": 190, "tax": 16.39, "total": 206.39 },
+    "payment_type": "credit",
+    "return_policy_text": "Returns accepted within 14 days with tags attached for store credit. Earrings are final sale."
+  },
+  "walmart-long": {
+    "problem": null,
+    "store": { "name": "Walmart", "location": "4200 SE 82ND AVE, PORTLAND OR 97266" },
+    "purchase_date": "2026-10-02",
+    "purchase_time": "11:08",
+    "order_number": "2849 6730 1957 2846 1093",
+    "channel": "store",
+    "items": [
+      { "name": "EQUATE ALLERGY", "quantity": null, "price": 8.97, "item_code": "081131943212" },
+      { "name": "MAINSTAYS TOWEL", "quantity": null, "price": 6.44, "item_code": "069512387102" },
+      { "name": "ONN USB-C CBL", "quantity": null, "price": 12.88, "item_code": "068113172201" },
+      { "name": "HYDRO FLASK 32", "quantity": null, "price": 44.95, "item_code": "081028043310" },
+      { "name": "TIME&TRU JEANS", "quantity": null, "price": 19.98, "item_code": "195413204812" },
+      { "name": "GV MILK 1GAL", "quantity": null, "price": 3.68, "item_code": "007874235186" },
+      { "name": "ONN EARBUDS", "quantity": null, "price": 24.88, "item_code": "068113119284" }
+    ],
+    "totals": { "subtotal": 122.78, "tax": 0, "total": 122.78 },
+    "payment_type": "debit",
+    "return_policy_text": null
+  },
+  "walmart-long-1": {
+    "problem": "cropped",
+    "store": { "name": "Walmart", "location": "4200 SE 82ND AVE, PORTLAND OR 97266" },
+    "purchase_date": null,
+    "purchase_time": null,
+    "order_number": null,
+    "channel": "store",
+    "items": [
+      { "name": "EQUATE ALLERGY", "quantity": null, "price": 8.97, "item_code": "081131943212" },
+      { "name": "MAINSTAYS TOWEL", "quantity": null, "price": 6.44, "item_code": "069512387102" },
+      { "name": "ONN USB-C CBL", "quantity": null, "price": 12.88, "item_code": "068113172201" },
+      { "name": "HYDRO FLASK 32", "quantity": null, "price": 44.95, "item_code": "081028043310" },
+      { "name": "TIME&TRU JEANS", "quantity": null, "price": 19.98, "item_code": "195413204812" }
+    ],
+    "totals": { "subtotal": null, "tax": null, "total": null },
+    "payment_type": null,
+    "return_policy_text": null
+  },
+  "amazon-order": {
+    "problem": null,
+    "store": { "name": "Amazon.com", "location": null },
+    "purchase_date": "2026-10-01",
+    "purchase_time": null,
+    "order_number": "112-4839201-6638715",
+    "channel": "online",
+    "items": [
+      { "name": "Kindle Paperwhite (16 GB)", "quantity": 1, "price": 159.99, "item_code": null },
+      { "name": "Anker 735 Charger 65W", "quantity": null, "price": 45.99, "item_code": null }
+    ],
+    "totals": { "subtotal": 205.98, "tax": 18.54, "total": 224.52 },
+    "payment_type": "credit",
+    "return_policy_text": null
+  },
+  "blurry": {
+    "problem": "blurry",
+    "store": { "name": null, "location": null },
+    "purchase_date": null,
+    "purchase_time": null,
+    "order_number": null,
+    "channel": null,
+    "items": [],
+    "totals": { "subtotal": null, "tax": null, "total": null },
+    "payment_type": null,
+    "return_policy_text": null
+  }
+}
