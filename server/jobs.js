@@ -60,7 +60,7 @@ function createJobs({ store, intervalMs = 5000, staleMs = 10 * 60 * 1000, log = 
 }
 
 /* The jobs this server runs. */
-function defineJobs(jobs, { store, storage, data = null }) {
+function defineJobs(jobs, { store, storage, data = null, reminders = null }) {
   // Example recurring job: clears expired sign-in sessions and old finished jobs.
   jobs.define('maintenance.cleanup', async () => {
     await store.deleteExpiredSessions();
@@ -70,6 +70,11 @@ function defineJobs(jobs, { store, storage, data = null }) {
   }, { every: 6 * HOUR });
   // Scanned receipts whose items were never saved (the scan was abandoned) are deleted after two days.
   if (data) jobs.define('receipts.cleanup', async () => { await data.cleanupReceipts(new Date(Date.now() - 48 * HOUR)); }, { every: 6 * HOUR });
+  // Daily reminders by Web Push: every minute, queue a send for each user whose reminder time has come in their time zone.
+  if (reminders) {
+    jobs.define('reminders.dispatch', () => reminders.dispatch(), { every: 60 * 1000 });
+    jobs.define('reminders.send', payload => reminders.send(payload));
+  }
   // Retries deleting stored files that couldn't be removed straight away (for example, after "Delete my account").
   jobs.define('files.delete', async ({ keys }) => {
     for (const key of keys || []) await storage.remove(key);

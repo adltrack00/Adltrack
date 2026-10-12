@@ -21,10 +21,11 @@ To run the data tests against Postgres as well, point `TEST_DATABASE_URL` at a t
 
 ## Accounts
 
-- `server.js` serves the app and a JSON API under `/api`: `signup`, `login`, `logout`, `me`, `items` (GET, POST; PUT and DELETE `/api/items/:id`), `settings` (PUT: settings and profile), `purchases` (GET; PUT `/api/purchases/:id/receipt`), `receipts/read` (POST: read a scanned receipt), `files/:id` (GET), `items/:id/label` (PUT, DELETE: the QR code or return label), `places/nearest` (POST: nearest drop-offs), `data` (GET/PUT, the whole account in one document, kept for older versions of the app) and `account` (DELETE, needs the password).
+- `server.js` serves the app and a JSON API under `/api`: `signup`, `login`, `logout`, `me`, `items` (GET, POST; PUT and DELETE `/api/items/:id`), `settings` (PUT: settings and profile), `purchases` (GET; PUT `/api/purchases/:id/receipt`), `receipts/read` (POST: read a scanned receipt), `files/:id` (GET), `items/:id/label` (PUT, DELETE: the QR code or return label), `places/nearest` (POST: nearest drop-offs), `push/key` (GET), `push/subscribe`, `push/unsubscribe` and `push/test` (POST: this device's Web Push subscription), `reminders/claim` (POST: the open app's daily notification), `data` (GET/PUT, the whole account in one document, kept for older versions of the app) and `account` (DELETE, needs the password).
 - Passwords are hashed with scrypt. Sessions are random tokens in an HttpOnly, SameSite=Lax cookie (Secure in production); only a SHA-256 of each token is stored. Sessions last 30 days.
 - The app keeps a full copy in the browser and uploads changes in the background, one item at a time (create, update, delete), plus settings and profile; the last write wins. Signing in on another device downloads the account's copy.
 - Sign-in is rate limited per IP, and an email is locked for 15 minutes after 10 wrong passwords. Writes must be same-origin JSON.
+- Pages are served with a strict Content Security Policy: scripts, styles, fonts, the service worker (`worker-src 'self'`) and the web app manifest (`manifest-src 'self'`) only from this site, no inline scripts, no framing. The service worker (`sw.js`) is a top-level file, so its scope is the whole site; it caches only the public app files and never `/api/` responses, so account data and private photos are never stored in its cache, and signing out clears the account from the browser as before.
 - Not built yet: password reset by email (needs an email service) and sign-in with Google or Apple.
 
 ## Data
@@ -33,7 +34,8 @@ To run the data tests against Postgres as well, point `TEST_DATABASE_URL` at a t
 - Settings and profile stay in `user_data`. Accounts saved in the old single-document format move into the tables when the server starts (and again on their next request, in case an older server wrote one meanwhile), without changing their last-updated time.
 - Items the app adds from one scan share a purchase; other items get a purchase of their own.
 - Photos (items, receipts, profile) are files, not part of the JSON (`server/storage.js`): an S3-compatible bucket such as Cloudflare R2 in production, `data/files/` in development. The app gets a private `/api/files/<id>` URL that is served only to the signed-in owner (anyone else gets 404). Files are checked to be JPEG, PNG, WebP or PDF and up to 10 MB.
-- Background jobs (`server/jobs.js`) are queued in Postgres and run inside the Node server. Jobs are retried with backoff, each job is claimed by one server at a time, and one left running by a crashed server is picked up again. `maintenance.cleanup` (the example) runs every 6 hours and clears expired sessions; `files.delete` retries deleting stored files that couldn't be removed straight away. `receipts.cleanup` (every 6 hours) deletes receipts that were scanned but never saved with an item, two days later.
+- Background jobs (`server/jobs.js`) are queued in Postgres and run inside the Node server. Jobs are retried with backoff, each job is claimed by one server at a time, and one left running by a crashed server is picked up again. `maintenance.cleanup` (the example) runs every 6 hours and clears expired sessions; `files.delete` retries deleting stored files that couldn't be removed straight away. `receipts.cleanup` (every 6 hours) deletes receipts that were scanned but never saved with an item, two days later. `reminders.dispatch` (every minute) and `reminders.send` deliver the daily reminder by Web Push (see below).
+- `push_subscriptions` (one row per browser or installed app that allowed notifications, with its time zone) and `reminder_days` (the last local date each account's daily reminder went out).
 - "Delete my account" deletes the account's rows in every table and its stored files.
 
 ## Retailer return policies
@@ -81,24 +83,41 @@ The Return card teaches how to return the item at its store, below its existing 
 - Places provider: Google Places API (New) (`server/places.js`, key in `GOOGLE_PLACES_API_KEY`). It has the most complete US store listings with opening hours, which a drop-off answer needs. Google's terms only allow keeping place ids and coordinates, for up to 30 days, so that's what's cached (`place_cache`, per store and ~1 km area, never linked to a user, cleared by `maintenance.cleanup`); the name, address and hours of the closest three are fetched fresh. Cost: a cache miss is one Text Search per store or partner (Amazon has five), and every lookup is up to three Place Details calls; see Google's pricing page for current rates and free monthly usage.
 - Returns 101: a row under "How Returnly works" on Support opens a page on receipts, store credit vs. refund, drop-off vs. mail, final sale and keeping proof.
 
+## Reminders when the app is closed
+
+- Installable: `manifest.webmanifest` (icons in `assets/`, drawn like the favicon) and a service worker, `sw.js`, which caches the app shell (network first, so a new version shows straight away; the cache is used when offline). On iPhone, web push only works once Returnly is added to the Home Screen (Share → Add to Home Screen, iOS 16.4 or later); the Reminders page says so.
+- Web Push with VAPID keys (`web-push` library). The device subscribes at the existing permission moments: "Enable browser notifications" / "Send a test notification" on Reminders, and "Start return". Each open of the app refreshes the subscription and the device's time zone. The server only sends to the browsers' push services (Google, Mozilla, Apple, Microsoft); subscriptions the push service reports as expired (404/410) are deleted. Signing out removes this device's subscription; deleting the account removes them all.
+- One rule, one reminder a day: `server/reminders.js` picks the day's reminder (the most urgent item, "Plus N other return windows", skipping examples, items sent back, kept or received, and items snoozed with `snoozeUntil`). Every minute `reminders.dispatch` finds accounts whose `settings.time` has come in their time zone (with `settings.daily` on) and queues `reminders.send`. The open app asks `POST /api/reminders/claim` instead of choosing for itself, and does so only on devices without push. Both claim the user's local date in `reminder_days` first, so the user never gets the reminder twice. If no device could be reached, the day is released and the send is retried.
+- Tapping a reminder opens that item's Return step (`app.html?remind=<item id>`, or the already open window).
+- Without VAPID keys push stays off and the open app's daily notification works as before.
+
+Generate the keys once (keep the private key secret):
+
+```sh
+npx web-push generate-vapid-keys
+```
+
+Set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (a `mailto:` address push services can contact) on the Render service, and as environment secrets for development. Changing the keys later makes every device subscribe again the next time the app is opened.
+
 ## Deploy on Render
 
 `render.yaml` is a Blueprint for a Node web service plus a Postgres database. In Render choose **New → Blueprint**, pick this repository and apply. `DATABASE_URL` is wired from the database automatically and the server refuses to start in production without it.
 
-Photos need a bucket. With Cloudflare R2: create a bucket (keep it private), create an R2 API token with Object Read & Write on that bucket, and set `S3_ENDPOINT` (`https://<account id>.r2.cloudflarestorage.com`), `S3_BUCKET`, `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY` on the Render service. Any S3-compatible service works; set `S3_REGION` if it isn't `auto`. For "Nearest drop-off", create a Google Cloud project, enable **Places API (New)**, create an API key restricted to that API, and set `GOOGLE_PLACES_API_KEY`. The server refuses to start in production without them; Render then keeps the previous version running. Render's free Postgres expires after 30 days; move it to a paid plan before real users rely on it.
+Photos need a bucket. With Cloudflare R2: create a bucket (keep it private), create an R2 API token with Object Read & Write on that bucket, and set `S3_ENDPOINT` (`https://<account id>.r2.cloudflarestorage.com`), `S3_BUCKET`, `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY` on the Render service. Any S3-compatible service works; set `S3_REGION` if it isn't `auto`. For "Nearest drop-off", create a Google Cloud project, enable **Places API (New)**, create an API key restricted to that API, and set `GOOGLE_PLACES_API_KEY`. For reminders when the app is closed, set the three `VAPID_*` values (see above). The server refuses to start in production without them; Render then keeps the previous version running. Render's free Postgres expires after 30 days; move it to a paid plan before real users rely on it.
 
 ## Project layout
 
 - `index.html`, `landing.css`: home page with Sign in / Sign up.
 - `signin.html`, `signup.html`, `auth.js`: account pages.
 - `account.js`: sign-in gate for the app and background sync.
+- `push.js`, `sw.js`, `manifest.webmanifest`: installable app, Web Push subscription and notification taps.
 - `app.html` and its scripts: `app.js`, `features.js`, `klarna.js`, `precision.js`, `guided.js` (four-step return journey), `menu.js` (side menu, History, Settings, Support).
 - `core.js`: date, eligibility and calendar logic.
-- `server.js`, `server/`: account API (`app.js`), database access (`store.js`, `items.js`), account data and photos (`data.js`), file storage (`storage.js`), background jobs (`jobs.js`) and static file server; retailer policies are loaded and matched in `policies.js`, applied to items in `engine.js` and item categories are sorted in `classify.js`, receipts are read in `receipts.js`, return guides are built in `guide.js` and nearby drop-offs found in `places.js`. Only top-level app files and `assets/` are publicly served.
+- `server.js`, `server/`: account API (`app.js`), database access (`store.js`, `items.js`), account data and photos (`data.js`), file storage (`storage.js`), background jobs (`jobs.js`) and static file server; retailer policies are loaded and matched in `policies.js`, applied to items in `engine.js` and item categories are sorted in `classify.js`, receipts are read in `receipts.js`, return guides are built in `guide.js`, nearby drop-offs found in `places.js` and daily reminders chosen and pushed in `reminders.js`. Only top-level app files and `assets/` are publicly served.
 - `policies/`: retailer return policies and their JSON schema.
 - `tests/`: automated tests (`npm test`).
 - `docs/`: product and design notes.
 
 ## Current limits
 
-Automatic return-policy research for stores outside `policies/`, SMS and background push are not connected. Deadlines for stores without a checked policy are estimates. The Terms of service page is a draft and needs review before launch.
+Automatic return-policy research for stores outside `policies/` and SMS are not connected. Reminders when the app is closed need notification permission (and, on iPhone, Returnly on the Home Screen). Deadlines for stores without a checked policy are estimates. The Terms of service page is a draft and needs review before launch.
