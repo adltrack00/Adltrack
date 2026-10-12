@@ -33,7 +33,7 @@ const jobs = createJobs({ store });
 const data = createData({ store, storage, jobs });
 // Web Push needs VAPID keys; without them reminders still arrive while the app is open.
 const push = createPush({ vapid: vapidConfig(process.env) });
-// Reminder emails and password reset links need Postmark (POSTMARK_SERVER_TOKEN, EMAIL_FROM, APP_URL).
+// Reminder emails and password reset links need Resend (RESEND_API_KEY, EMAIL_FROM, APP_URL).
 const email = createEmail({ config: emailConfig(process.env), secret: process.env.EMAIL_TOKEN_SECRET || '' });
 if (email.available() && !process.env.EMAIL_TOKEN_SECRET) console.warn('EMAIL_TOKEN_SECRET isn’t set: links in emails stop working when the server restarts.');
 const reminders = createReminders({ store, push, email, data });

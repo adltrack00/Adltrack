@@ -48,7 +48,7 @@ async function boot({ withEmail = true, withPush = true, support = '' } = {}) {
   const userId = async name => (await store.findUserByEmail(`${name.toLowerCase()}@example.com`)).id;
   return { store, jobs, data, pushed, mails, clock, reminders, email, base, client, signUp, userId, close: async () => { await jobs.stop(); await new Promise(r => server.close(r)); await store.close(); } };
 }
-const tokenFrom = (mail, pattern) => new URLSearchParams(new URL(mail.TextBody.match(pattern)[1]).hash.slice(1));
+const tokenFrom = (mail, pattern) => new URLSearchParams(new URL(mail.text.match(pattern)[1]).hash.slice(1));
 
 test('quiet hours hold the reminder until they end, including across midnight', () => {
   const s = { time: '22:30', quietStart: '22:00', quietEnd: '07:00' };
@@ -87,12 +87,13 @@ test('without push, the reminder is emailed at the user\'s time in their time zo
     }
     assert.notEqual(instantAt('2026-10-31', '09:00', 'America/Los_Angeles').getUTCHours(), instantAt('2026-11-02', '09:00', 'America/Los_Angeles').getUTCHours());
     const mail = app.mails[0];
-    assert.equal(mail.To, 'ana@example.com');
-    assert.equal(mail.Subject, 'Returnly: 10 days left');
-    assert.match(mail.TextBody, /Item0 · \$40 back · 10 days left\. Pack it\./);
-    assert.match(mail.HtmlBody, /Snooze until tomorrow/);
-    assert.deepEqual(mail.Headers.map(h => h.Name), ['List-Unsubscribe', 'List-Unsubscribe-Post']);
-    assert.equal(mail.Headers[1].Value, 'List-Unsubscribe=One-Click');
+    assert.deepEqual(mail.to, ['ana@example.com']);
+    assert.equal(mail.subject, 'Returnly: 10 days left');
+    assert.match(mail.text, /Item0 · \$40 back · 10 days left\. Pack it\./);
+    assert.match(mail.html, /Snooze until tomorrow/);
+    assert.deepEqual(Object.keys(mail.headers), ['List-Unsubscribe', 'List-Unsubscribe-Post']);
+    assert.equal(mail.headers['List-Unsubscribe-Post'], 'List-Unsubscribe=One-Click');
+    assert.deepEqual(mail.tags, [{ name: 'type', value: 'reminder-daily' }]);
   } finally { await app.close(); }
 });
 
@@ -165,8 +166,8 @@ test('a pushed reminder that isn\'t opened 3 days before the deadline is followe
     app.clock.now = () => new Date(instantAt(today, '13:00', 'UTC'));
     await app.reminders.followup({ userId: id, date: today });
     assert.equal(app.mails.length, 1);
-    assert.equal(app.mails[0].Subject, 'Returnly: Only 3 days left');
-    assert.equal(app.mails[0].Tag, 'reminder-unopened');
+    assert.equal(app.mails[0].subject, 'Returnly: Only 3 days left');
+    assert.deepEqual(app.mails[0].tags, [{ name: 'type', value: 'reminder-unopened' }]);
 
     // Opened (tapped) the next time: no email follows.
     const next = C.shift(today, 1);
@@ -202,7 +203,7 @@ test('email links: actions work without signing in, unsubscribe is one click per
     assert.equal((await stranger('POST', '/api/email/act', { token: unsub.get('t') })).status, 400);
 
     // One-click from the mail app: a form post to the List-Unsubscribe URL.
-    const oneClick = mail.Headers[0].Value.slice(1, -1);
+    const oneClick = mail.headers['List-Unsubscribe'].slice(1, -1);
     const r = await stranger('POST', new URL(oneClick).pathname + new URL(oneClick).search, 'List-Unsubscribe=One-Click', { 'Content-Type': 'application/x-www-form-urlencoded' });
     assert.deepEqual(r.body, { ok: true, kind: 'daily' });
     assert.deepEqual((await c('GET', '/api/email/prefs')).body, { available: true, daily: false, unopened: true });
@@ -229,8 +230,8 @@ test('password reset: an emailed link works once, for an hour, and signs out eve
     assert.deepEqual((await stranger('POST', '/api/password/forgot', { email: 'ANA@example.com' })).body, { ok: true });
     for (let n = 0; n < 20 && app.mails.length < 1; n++) await new Promise(r => setTimeout(r, 10));
     assert.equal(app.mails.length, 1);
-    assert.equal(app.mails[0].To, 'ana@example.com');
-    const token = new URLSearchParams(new URL(app.mails[0].TextBody.match(/(http\S+reset\.html\S+)/)[1]).hash.slice(1)).get('token');
+    assert.deepEqual(app.mails[0].to, ['ana@example.com']);
+    const token = new URLSearchParams(new URL(app.mails[0].text.match(/(http\S+reset\.html\S+)/)[1]).hash.slice(1)).get('token');
     assert.equal((await stranger('POST', '/api/password/reset', { token, password: 'short' })).status, 400);
     const r = await stranger('POST', '/api/password/reset', { token, password: 'newpassword1' });
     assert.equal(r.status, 200);
@@ -272,4 +273,26 @@ test('the new pages are served and the app loads the reminder scripts', async ()
     assert.match((await c('GET', '/app.html')).body, /<script src="nudge.js"><\/script>[\s\S]*<script src="remind.js"><\/script>/);
     assert.match(fs.readFileSync(path.join(__dirname, '..', 'auth.js'), 'utf8'), /href="forgot.html">Forgot password\?<\/a>/);
   } finally { await app.close(); }
+});
+
+test('emails go to Resend\'s API with the key, our sender, reply-to and unsubscribe headers', async () => {
+  const { emailConfig } = require('../server/email');
+  assert.equal(emailConfig({ EMAIL_FROM: 'a@b.c', APP_URL: 'https://x.test' }), null);
+  assert.equal(emailConfig({ RESEND_API_KEY: 're_x', EMAIL_FROM: 'a@b.c', APP_URL: 'not a url' }), null);
+  const config = emailConfig({ RESEND_API_KEY: 're_test', EMAIL_FROM: 'Returnly <hello@returnly.live>', APP_URL: 'https://returnly.test/', SUPPORT_EMAIL: 'hello@returnly.live' });
+  assert.equal(config.appUrl, 'https://returnly.test');
+  const calls = [];
+  const fetch = async (url, init) => { calls.push({ url, init }); return { ok: calls.length === 1, status: calls.length === 1 ? 200 : 422 }; };
+  const email = createEmail({ config, secret: 's', fetch });
+  await email.sendReminder('ana@example.com', 'u1', { title: 'Returnly · 5 days left', body: 'Dress.', itemId: 'Dress', url: 'app.html?remind=Dress', actions: [{ action: 'snooze', title: 'Snooze until tomorrow' }] }, { kind: 'daily', date: today });
+  const [{ url, init }] = calls, body = JSON.parse(init.body);
+  assert.equal(url, 'https://api.resend.com/emails');
+  assert.equal(init.headers.Authorization, 'Bearer re_test');
+  assert.equal(body.from, 'Returnly <hello@returnly.live>');
+  assert.deepEqual(body.to, ['ana@example.com']);
+  assert.equal(body.reply_to, 'hello@returnly.live');
+  assert.match(body.headers['List-Unsubscribe'], /^<https:\/\/returnly\.test\/api\/email\/unsubscribe\?t=/);
+  assert.match(body.text, /https:\/\/returnly\.test\/app\.html\?remind=Dress/);
+  // A refused send is an error, so the reminder job retries it.
+  await assert.rejects(email.sendReset('ana@example.com', 'tok'), /Email failed \(422\)/);
 });

@@ -42,11 +42,11 @@ services:
         sync: false
       - key: VAPID_SUBJECT
         sync: false
-      # Email through Postmark: the reminder email backup and password reset links. EMAIL_FROM must be on the sending domain
-      # verified in Postmark (for example "Returnly <reminders@yourdomain.com>"); APP_URL is this site's address, used in
+      # Email through Resend: the reminder email backup and password reset links. EMAIL_FROM must be on the sending domain
+      # verified in Resend (for example "Returnly <hello@yourdomain.com>"); APP_URL is this site's address, used in
       # email links. EMAIL_TOKEN_SECRET signs those links (any long random string; `openssl rand -hex 32`). Without them
       # there are no emails and "Forgot password?" says reset isn't set up.
-      - key: POSTMARK_SERVER_TOKEN
+      - key: RESEND_API_KEY
         sync: false
       - key: EMAIL_FROM
         sync: false
@@ -54,7 +54,7 @@ services:
         sync: false
       - key: EMAIL_TOKEN_SECRET
         generateValue: true
-      # The contact address shown on Support (for example support@yourdomain.com).
+      # The contact address shown on Support, and the reply-to address of emails (for example support@yourdomain.com).
       - key: SUPPORT_EMAIL
         sync: false
       # Comma-separated emails of accounts that may review policies (Settings → Policy review): looked-up stores, "Is this

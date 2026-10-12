@@ -1,12 +1,12 @@
-/* Transactional email through Postmark: the reminder email backup and password reset links.
-   Why Postmark: it only sends transactional mail (no marketing lists sharing its sending reputation), so reminders and reset
-   links land in the inbox and arrive in seconds; its plain JSON HTTP API needs no extra library; and it passes our own
-   List-Unsubscribe headers through, so mail apps can offer one-click unsubscribe (RFC 8058).
+/* Transactional email through Resend: the reminder email backup and password reset links.
+   Why Resend: sign-up needs no company email address and there's no manual account approval, so it's quick to set up; it
+   delivers through Amazon SES with DKIM and SPF on your own domain; its plain JSON HTTP API needs no extra library; and it
+   passes our own List-Unsubscribe headers through, so mail apps can offer one-click unsubscribe (RFC 8058).
    Links in emails carry signed tokens (HMAC-SHA256 with EMAIL_TOKEN_SECRET), so actions and unsubscribes work without signing in,
    but only for the one account, item and action they were made for. */
 const crypto = require('node:crypto');
 
-const API_URL = 'https://api.postmarkapp.com/email';
+const API_URL = 'https://api.resend.com/emails';
 const KINDS = ['daily', 'unopened'];
 const KIND_NAMES = { daily: 'daily reminder emails', unopened: 'emails when a reminder wasn’t opened 3 days before a deadline' };
 const ACTIONS = ['snooze', 'sent', 'keep'];
@@ -16,9 +16,9 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 
 /* Email settings from the environment, or null when email isn't set up. */
 function emailConfig(env) {
-  const token = env.POSTMARK_SERVER_TOKEN || '', from = env.EMAIL_FROM || '', appUrl = (env.APP_URL || '').replace(/\/+$/, '');
-  if (!token || !from || !/^https?:\/\//.test(appUrl)) return null;
-  return { token, from, appUrl, stream: env.POSTMARK_STREAM || 'outbound' };
+  const key = env.RESEND_API_KEY || '', from = env.EMAIL_FROM || '', appUrl = (env.APP_URL || '').replace(/\/+$/, '');
+  if (!key || !from || !/^https?:\/\//.test(appUrl)) return null;
+  return { key, from, appUrl, replyTo: env.SUPPORT_EMAIL || '' };
 }
 
 /* Signed tokens: base64url(JSON) + '.' + base64url(HMAC). */
@@ -64,15 +64,16 @@ function resetEmail(link) {
   return { subject: 'Reset your Returnly password', html, text: `Reset your Returnly password\n\nChoose a new password (the link works once, for one hour):\n${link}\n\nIf you didn't ask for this, ignore this email. Your password stays the same.\n` };
 }
 
-/* Sends email. `send(message)` is the Postmark call (tests pass a fake). */
+/* Sends email. `send(message)` is the Resend call (tests pass a fake). */
 function createEmail({ config = null, secret = '', send = null, fetch: fetchImpl = globalThis.fetch } = {}) {
   const tokens = createTokens(secret);
   const sender = send || (config ? async m => {
-    const res = await fetchImpl(API_URL, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-Postmark-Server-Token': config.token }, body: JSON.stringify(m), signal: AbortSignal.timeout(10000) });
+    const res = await fetchImpl(API_URL, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${config.key}` }, body: JSON.stringify(m), signal: AbortSignal.timeout(10000) });
     if (!res.ok) throw new Error(`Email failed (${res.status})`);
   } : null);
   const appUrl = config ? config.appUrl : 'http://localhost';
-  const message = (to, { subject, html, text }, tag, headers = []) => ({ From: config ? config.from : 'Returnly <test@example.com>', To: to, Subject: subject, HtmlBody: html, TextBody: text, Tag: tag, MessageStream: config ? config.stream : 'outbound', TrackOpens: false, TrackLinks: 'None', Headers: headers });
+  // Resend's email fields. Open and click tracking are per domain in Resend and stay off (its default).
+  const message = (to, { subject, html, text }, tag, headers = {}) => ({ from: config ? config.from : 'Returnly <test@example.com>', to: [to], subject, html, text, tags: [{ name: 'type', value: tag }], headers, ...(config && config.replyTo ? { reply_to: config.replyTo } : {}) });
 
   /* Links for one reminder: open the item, each action, and unsubscribe from each type. */
   function reminderLinks(userId, reminder, kind, date) {
@@ -93,10 +94,10 @@ function createEmail({ config = null, secret = '', send = null, fetch: fetchImpl
     tokens,
     async sendReminder(to, userId, reminder, { kind, date }) {
       const links = reminderLinks(userId, reminder, kind, date);
-      await sender(message(to, reminderEmail(reminder, { kind, links }), 'reminder-' + kind, [
-        { Name: 'List-Unsubscribe', Value: `<${links.oneClick}>` },
-        { Name: 'List-Unsubscribe-Post', Value: 'List-Unsubscribe=One-Click' }
-      ]));
+      await sender(message(to, reminderEmail(reminder, { kind, links }), 'reminder-' + kind, {
+        'List-Unsubscribe': `<${links.oneClick}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click'
+      }));
     },
     async sendReset(to, token) {
       await sender(message(to, resetEmail(`${appUrl}/reset.html#token=${token}`), 'password-reset'));
