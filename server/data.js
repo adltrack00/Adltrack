@@ -63,7 +63,7 @@ function createData({ store, storage, jobs = null }) {
 
   async function cleanupPurchase(userId, purchaseId) {
     const r = await store.deletePurchaseIfEmpty(userId, purchaseId);
-    if (r.deleted && r.receiptFileId) await deleteFile(userId, r.receiptFileId);
+    if (r.deleted) for (const id of [r.receiptFileId, ...(r.receiptPages || [])]) if (id) await deleteFile(userId, id);
   }
 
   /* Items. */
@@ -155,7 +155,7 @@ function createData({ store, storage, jobs = null }) {
   }
 
   async function listPurchases(userId) {
-    return (await store.listPurchases(userId)).map(({ receiptFileId, ...p }) => ({ ...p, receipt: receiptFileId ? fileUrl(receiptFileId) : null }));
+    return (await store.listPurchases(userId)).map(({ receiptFileId, receiptPages, ...p }) => ({ ...p, receipt: receiptFileId ? fileUrl(receiptFileId) : null, receiptPages: (receiptPages || []).map(fileUrl) }));
   }
   async function attachReceipt(userId, purchaseId, dataUrl) {
     if (!validId(purchaseId) || !(await store.getPurchase(userId, purchaseId))) throw new DataError(404, 'Not found.');
@@ -167,6 +167,41 @@ function createData({ store, storage, jobs = null }) {
     return { receipt: fileUrl(id), updatedAt: await store.touch(userId) };
   }
 
+  /* A scanned receipt, before its items are saved: every page is kept privately as a file on a purchase of its own (source
+     "receipt"), which the app's items then join. Sending the pages again (a long receipt, one more photo) replaces the set;
+     a page sent before is kept, not stored twice. Deleting the purchase's last item deletes the pages. */
+  function receiptPages(dataUrls, max) {
+    if (!Array.isArray(dataUrls) || !dataUrls.length || dataUrls.length > max) throw new DataError(400, `Scan up to ${max} pages of one receipt.`);
+    return dataUrls.map(u => { const p = parseDataUrl(u, 'receipt'); if (!p) throw new DataError(400, 'Use a photo or PDF receipt.'); return p; });
+  }
+  async function saveReceipt(userId, purchaseId, pages) {
+    if (!validId(purchaseId)) throw new DataError(400, 'Invalid request.');
+    const existing = await store.getPurchase(userId, purchaseId);
+    if (existing && existing.source !== 'receipt') throw new DataError(409, 'This purchase already has its items.');
+    if (!existing) await store.savePurchase(userId, { id: purchaseId, source: 'receipt' });
+    const previous = existing ? [existing.receiptFileId, ...existing.receiptPages].filter(Boolean) : [];
+    const known = [];
+    for (const id of previous) { const f = await store.getFile(userId, id); if (f) known.push(f); }
+    const ids = [];
+    for (const page of pages) {
+      const same = known.find(f => f.sha256 === sha256(page.body) && !ids.includes(f.id));
+      ids.push(same ? same.id : await saveFile(userId, 'receipt', page));
+    }
+    await store.setPurchaseReceiptPages(userId, purchaseId, ids);
+    for (const id of previous) if (!ids.includes(id)) await deleteFile(userId, id);
+    return ids.map(fileUrl);
+  }
+  /* What the receipt says about the purchase: store, channel, order number, date and matched retailer. */
+  async function describeReceiptPurchase(userId, purchaseId, { store: name = null, channel = null, orderNumber = null, purchased = null, retailerId = null }) {
+    await store.savePurchase(userId, { id: purchaseId, source: 'receipt', store: name, channel, orderNumber, purchased, retailerId });
+  }
+  /* Receipts that were read but never saved with an item, after `before`. */
+  async function cleanupReceipts(before) {
+    let n = 0;
+    for (const { userId, id } of await store.emptyReceiptPurchases(before)) { await cleanupPurchase(userId, id); n++; }
+    return n;
+  }
+
   /* Deletes the account's rows, then its stored files. */
   async function deleteAccount(userId) {
     const files = await store.listFiles(userId);
@@ -174,7 +209,7 @@ function createData({ store, storage, jobs = null }) {
     await removeStorage(files.map(f => f.storageKey));
   }
 
-  return { getData, putData, saveItem, deleteItem, listItems: userId => store.listItems(userId), putSettings, listPurchases, attachReceipt, readFile, deleteAccount, migrate, migrateAll, removeStorage };
+  return { getData, putData, saveItem, deleteItem, listItems: userId => store.listItems(userId), putSettings, listPurchases, attachReceipt, receiptPages, saveReceipt, describeReceiptPurchase, cleanupReceipts, readFile, deleteAccount, migrate, migrateAll, removeStorage };
 }
 
 module.exports = { createData, DataError };

@@ -4,6 +4,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { itemFields, summary } = require('./policies');
 const { evaluate } = require('./engine');
+const { MAX_PAGES } = require('./receipts');
 
 const ROOT = path.resolve(__dirname, '..');
 const COOKIE = 'rl_session';
@@ -76,10 +77,33 @@ function parseCookies(header) {
   return out;
 }
 
-function createApp({ store, data, production = false, policies = null, classifier = null }) {
+/* A read receipt → the app's draft: store (the matched retailer's name when we know the store), date, channel and one
+   product per item. A line bought several times becomes one product per unit, so each can be returned on its own. */
+function receiptDraft(receipt, policy) {
+  const products = [];
+  for (const line of receipt.items) {
+    const units = line.quantity > 1 && line.quantity <= 10 && line.price !== null ? line.quantity : 1;
+    const price = line.price === null ? '' : units > 1 ? Math.round(line.price / units * 100) / 100 : line.price;
+    for (let n = 0; n < units && products.length < 20; n++) products.push({ name: line.name || '', price, code: line.code || '' });
+  }
+  return {
+    retailer: policy ? policy.name : receipt.store || '',
+    purchased: receipt.purchased || '',
+    channel: receipt.channel,
+    products,
+    orderNumber: receipt.orderNumber || '',
+    payment: receipt.payment || '',
+    receiptPolicy: receipt.policyText || '',
+    notes: receipt.notes
+  };
+}
+
+function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null }) {
   const authLimit = limiter(20, 15 * 60 * 1000);
   // Each classification is an AI call, so it's limited per account.
   const classifyLimit = limiter(300, 60 * 60 * 1000);
+  // Each receipt read is a larger AI call (images), so it has its own, lower limit.
+  const receiptLimit = limiter(60, 60 * 60 * 1000);
   // Locks an email for 15 minutes after 10 wrong passwords, checked before the password is tried.
   const loginFailures = (() => {
     const fails = new Map(), WINDOW = 15 * 60 * 1000, MAX = 10;
@@ -203,7 +227,7 @@ function createApp({ store, data, production = false, policies = null, classifie
       const body = await readBody(req, 20_000);
       const raw = body && typeof body.item === 'object' && body.item ? body.item : {};
       const text = (v, n) => typeof v === 'string' ? v.slice(0, n) : '';
-      const item = { name: text(raw.name, 200), retailer: text(raw.retailer, 200), purchased: text(raw.purchased, 10), delivered: text(raw.delivered, 10), channel: text(raw.channel, 20), dateSet: !!raw.dateSet };
+      const item = { name: text(raw.name, 200), retailer: text(raw.retailer, 200), purchased: text(raw.purchased, 10), delivered: text(raw.delivered, 10), channel: text(raw.channel, 20), dateSet: !!raw.dateSet, receiptPolicy: text(raw.receiptPolicy, 2000) };
       const answers = {};
       for (const k of ['final', 'opened', 'member', 'damaged', 'tags', 'packaging', 'clearance']) if (typeof body.answers?.[k] === 'boolean') answers[k] = body.answers[k];
       const match = item.retailer && item.retailer !== 'Store not added' ? policies.match(item.retailer) : null;
@@ -213,6 +237,23 @@ function createApp({ store, data, production = false, policies = null, classifie
       else if (policy && classifier && classifyLimit('user:' + user.id)) category = await classifier.classify(item.name, policy);
       const result = evaluate({ item, policy, answers, category });
       return send(res, 200, { retailer: policy ? { id: policy.id, name: policy.name, version: policy.version, checked: policy.checked } : null, category, answers, result });
+    }
+    // Receipt reading: the pages of one receipt are saved privately on the scan's purchase, read by the AI model, and
+    // returned as the draft the Item card opens with. Fields the model wasn't sure about come back empty.
+    if (route === '/api/receipts/read' && method === 'POST') {
+      checkWrite(req);
+      const body = await readBody(req, 30 * 1024 * 1024);
+      const purchaseId = typeof body.purchaseId === 'string' ? body.purchaseId : '';
+      const pages = data.receiptPages(body.pages, MAX_PAGES);
+      const files = await data.saveReceipt(user.id, purchaseId, pages);
+      if (!receipts || !receipts.available()) return send(res, 200, { purchaseId, files, receipt: null, reason: 'unavailable' });
+      if (!receiptLimit('user:' + user.id)) return send(res, 200, { purchaseId, files, receipt: null, reason: 'limit' });
+      const receipt = await receipts.read(pages, { today: typeof body.today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.today) ? body.today : undefined });
+      if (!receipt) return send(res, 200, { purchaseId, files, receipt: null, reason: 'failed' });
+      const match = receipt.store && policies ? policies.match(receipt.store) : null;
+      const policy = match && policies.get(match.id);
+      await data.describeReceiptPurchase(user.id, purchaseId, { store: policy ? policy.name : receipt.store, channel: receipt.channel, orderNumber: receipt.orderNumber, purchased: receipt.purchased, retailerId: policy ? policy.id : null });
+      return send(res, 200, { purchaseId, files, receipt, retailer: policy ? { id: policy.id, name: policy.name } : null, draft: receiptDraft(receipt, policy) });
     }
     if (route === '/api/data' && method === 'GET') return send(res, 200, { data: await data.getData(user.id) });
     // The whole account in one document, kept for older versions of the app.
@@ -311,4 +352,4 @@ function createApp({ store, data, production = false, policies = null, classifie
   };
 }
 
-module.exports = { createApp, hashPassword, verifyPassword };
+module.exports = { createApp, hashPassword, verifyPassword, receiptDraft };

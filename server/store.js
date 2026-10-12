@@ -51,6 +51,8 @@ create table if not exists purchases (
   updated_at timestamptz not null default now(),
   primary key (user_id, id)
 );
+-- Further pages of a long receipt (file ids); the first page is receipt_file_id.
+alter table purchases add column if not exists receipt_pages jsonb not null default '[]';
 create table if not exists items (
   user_id uuid not null references users(id) on delete cascade,
   id text not null,
@@ -99,12 +101,12 @@ create table if not exists retailer_policies (
   primary key (retailer_id, version)
 );`;
 
-const PURCHASE_COLUMNS = 'id, store, channel, order_number as "orderNumber", purchased, delivered, source, retailer_id as "retailerId", receipt_file_id as "receiptFileId"';
+const PURCHASE_COLUMNS = 'id, store, channel, order_number as "orderNumber", purchased, delivered, source, retailer_id as "retailerId", receipt_file_id as "receiptFileId", receipt_pages as "receiptPages"';
 const JOB_COLUMNS = 'id, name, payload, unique_key as "uniqueKey", status, run_at as "runAt", attempts, max_attempts as "maxAttempts", last_error as "lastError"';
 const FILE_COLUMNS = 'id, user_id as "userId", kind, storage_key as "storageKey", content_type as "contentType", size, sha256';
 const iso = d => new Date(d).toISOString();
 const dateOrNull = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
-const cleanPurchase = p => ({ id: p.id, store: p.store ?? null, channel: p.channel ?? null, orderNumber: p.orderNumber ?? null, purchased: dateOrNull(p.purchased), delivered: dateOrNull(p.delivered), source: p.source || 'manual', retailerId: p.retailerId ?? null, receiptFileId: p.receiptFileId ?? null });
+const cleanPurchase = p => ({ id: p.id, store: p.store ?? null, channel: p.channel ?? null, orderNumber: p.orderNumber ?? null, purchased: dateOrNull(p.purchased), delivered: dateOrNull(p.delivered), source: p.source || 'manual', retailerId: p.retailerId ?? null, receiptFileId: p.receiptFileId ?? null, receiptPages: Array.isArray(p.receiptPages) ? p.receiptPages : [] });
 
 const versionChanged = (id, version) => Object.assign(new Error(`policies/${id}.json changed but is still version ${version}. Move the old file to policies/history/${id}.v${version}.json and raise the version.`), { code: 'POLICY_VERSION' });
 
@@ -190,11 +192,20 @@ function pgStore(connectionString) {
         where p.user_id=$1 and p.id=$2 returning prev.old as "previous"`, [userId, id, fileId]);
       return row ? row.previous : undefined;
     },
+    // All pages of a receipt at once: the first in receipt_file_id, the rest in receipt_pages. Returns the file ids it replaced.
+    async setPurchaseReceiptPages(userId, id, fileIds) {
+      const row = await one(`update purchases p set receipt_file_id=$3, receipt_pages=$4, updated_at=now() from (select receipt_file_id as old, receipt_pages as old_pages from purchases where user_id=$1 and id=$2) prev
+        where p.user_id=$1 and p.id=$2 returning prev.old as "previous", prev.old_pages as "previousPages"`, [userId, id, fileIds[0] || null, JSON.stringify(fileIds.slice(1))]);
+      return row ? [row.previous, ...(row.previousPages || [])].filter(Boolean) : undefined;
+    },
     async deletePurchaseIfEmpty(userId, id) {
       const row = await one(`delete from purchases where user_id=$1 and id=$2 and not exists (select 1 from items where user_id=$1 and purchase_id=$2)
-        returning receipt_file_id as "receiptFileId"`, [userId, id]);
-      return row ? { deleted: true, receiptFileId: row.receiptFileId } : { deleted: false };
+        returning receipt_file_id as "receiptFileId", receipt_pages as "receiptPages"`, [userId, id]);
+      return row ? { deleted: true, receiptFileId: row.receiptFileId, receiptPages: row.receiptPages || [] } : { deleted: false };
     },
+    // Receipts that were read but never saved with any item.
+    emptyReceiptPurchases: before => all(`select user_id as "userId", id from purchases p where source='receipt' and created_at < $1
+      and not exists (select 1 from items i where i.user_id=p.user_id and i.purchase_id=p.id) limit 500`, [before]),
     async listItems(userId) { return (await all('select * from items where user_id=$1 order by position, created_at, id', [userId])).map(decode); },
     async getItem(userId, id) { const row = await one('select * from items where user_id=$1 and id=$2', [userId, id]); return row && { item: decode(row), photoFileId: row.photo_file_id }; },
     async saveItem(userId, item, { photoFileId = null, position = null } = {}) {
@@ -336,11 +347,25 @@ function fileStore(file) {
       const previous = p.receiptFileId || null; p.receiptFileId = fileId; await persist();
       return previous;
     },
+    async setPurchaseReceiptPages(userId, id, fileIds) {
+      await load(); const p = userPurchases(userId)[id];
+      if (!p) return undefined;
+      const previous = [p.receiptFileId, ...(p.receiptPages || [])].filter(Boolean);
+      p.receiptFileId = fileIds[0] || null; p.receiptPages = fileIds.slice(1); p.updatedAt = now(); await persist();
+      return previous;
+    },
     async deletePurchaseIfEmpty(userId, id) {
       await load(); const p = userPurchases(userId)[id];
       if (!p || Object.values(userItems(userId)).some(r => r.purchase_id === id)) return { deleted: false };
       delete userPurchases(userId)[id]; await persist();
-      return { deleted: true, receiptFileId: p.receiptFileId || null };
+      return { deleted: true, receiptFileId: p.receiptFileId || null, receiptPages: p.receiptPages || [] };
+    },
+    async emptyReceiptPurchases(before) {
+      await load(); const out = [];
+      for (const [userId, list] of Object.entries(db.purchases)) for (const p of Object.values(list)) {
+        if (p.source === 'receipt' && p.createdAt < iso(before) && !Object.values(userItems(userId)).some(r => r.purchase_id === p.id)) out.push({ userId, id: p.id });
+      }
+      return out.slice(0, 500);
     },
     // Item rows are kept in the same shape as Postgres rows, so both stores encode and decode identically.
     async listItems(userId) { await load(); return Object.values(userItems(userId)).sort((a, b) => a.position - b.position || (a.created_at < b.created_at ? -1 : 1)).map(decode); },
@@ -367,7 +392,7 @@ function fileStore(file) {
       if (!f || f.userId !== userId) return null;
       delete db.files[id];
       for (const r of Object.values(userItems(userId))) if (r.photo_file_id === id) r.photo_file_id = null;
-      for (const p of Object.values(userPurchases(userId))) if (p.receiptFileId === id) p.receiptFileId = null;
+      for (const p of Object.values(userPurchases(userId))) { if (p.receiptFileId === id) p.receiptFileId = null; if (p.receiptPages) p.receiptPages = p.receiptPages.filter(x => x !== id); }
       await persist();
       return f;
     },

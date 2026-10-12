@@ -4,6 +4,7 @@
    checked fact behind it. */
 const C = require('../core.js');
 const { itemFields } = require('./policies');
+const { printedWindow } = require('./receipts');
 
 // Categories that describe the purchase rather than the product. They're asked about, not guessed by the classifier.
 const SITUATIONS = { 'final-sale': 'final', 'damaged-or-wrong': 'damaged', 'clearance-stores': 'clearance' };
@@ -97,13 +98,31 @@ function rule(policy, cat, item, answers) {
   return { cat, returnable: true, outcome, deadline, basis, start, holiday, member, why, facts, note: cat && cat.note || '' };
 }
 
-/* Unknown store: nothing to apply. The existing unconfirmed treatment stays ("Date unconfirmed", dashed calendar). */
+/* Return-policy text printed on the item's receipt, as a fact with the receipt as its source. `days` is the shortest window
+   the text states, or null when it states none. */
+function printed(item) {
+  const text = typeof item.receiptPolicy === 'string' ? item.receiptPolicy.trim() : '';
+  if (!text) return null;
+  return { days: printedWindow(text), fact: { label: 'Printed on your receipt', value: text, source: 'Printed on your receipt', checked: C.parseDate(item.purchased) ? item.purchased : '' } };
+}
+
+/* Unknown store: nothing to apply. The existing unconfirmed treatment stays ("Date unconfirmed", dashed calendar), unless the
+   receipt prints a return window: then that window, counted from purchase, is the date, with the receipt as its source. */
 function unknownStore(item) {
   const store = item.retailer && item.retailer !== 'Store not added' ? item.retailer : 'this store';
+  const p = printed(item);
+  if (p && p.days && C.parseDate(item.purchased)) {
+    const fields = { outcome: 'unknown', requirement: 'ship', url: '', conditions: '', processing: '', policySource: 'Printed on your receipt', confirmed: true };
+    if (!item.dateSet) { fields.window = p.days; fields.basis = 'purchase'; }
+    return {
+      fields, returnable: 'unsure', reason: `This date comes from the return policy printed on your receipt. We haven't checked ${store}'s full policy.`,
+      holiday: null, facts: [p.fact], questions: [], line: `Printed on your receipt: ${p.days} days from purchase · Outcome unconfirmed.`
+    };
+  }
   return {
     fields: { outcome: 'unknown', requirement: 'unknown', url: '', conditions: '', processing: '', policySource: 'Entered by you · policy not confirmed', confirmed: false },
     returnable: 'unsure', reason: `We don't have ${store}'s return policy yet, so the date is a guess.`,
-    holiday: null, facts: [], questions: [], line: `Not sure it's returnable · We don't have ${store}'s policy yet.`
+    holiday: null, facts: p ? [p.fact] : [], questions: [], line: `Not sure it's returnable · We don't have ${store}'s policy yet.`
   };
 }
 
@@ -185,6 +204,16 @@ function evaluate({ item, policy, answers = {}, category = null }) {
   if (!item.dateSet) {
     if (pick.deadline === 'none') { fields.window = null; fields.basis = 'purchase'; }
     else if (earliest) { fields.basis = earliest.basis; fields.window = C.days(earliest.deadline, earliest.start); }
+  }
+  // A window printed on the receipt is a fact too. When it ends earlier than the checked policy, the earlier date is used.
+  const receipt = printed(item);
+  if (receipt) facts.push(receipt.fact);
+  if (receipt && receipt.days && returnable !== 'no' && C.parseDate(item.purchased)) {
+    const printedDue = C.shift(item.purchased, receipt.days);
+    if (pick.deadline === 'none' || !earliest || printedDue < earliest.deadline) {
+      if (!item.dateSet) { fields.window = receipt.days; fields.basis = 'purchase'; fields.confirmed = true; }
+      why.push(`The policy printed on your receipt gives ${receipt.days} days, earlier than ${policy.name}'s policy, so we use it`);
+    }
   }
 
   // Up to three questions, only ones whose answer changes something for this store and category.
