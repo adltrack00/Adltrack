@@ -5,12 +5,14 @@ const path = require('node:path');
 const { createStore } = require('./server/store');
 const { createStorage, s3Config } = require('./server/storage');
 const { createData } = require('./server/data');
-const { createJobs, defineJobs } = require('./server/jobs');
+const { createJobs, defineJobs, defineReviewJobs } = require('./server/jobs');
 const { createApp } = require('./server/app');
 const { loadPolicies } = require('./server/policies');
 const { createClassifier } = require('./server/classify');
 const { createReceiptReader } = require('./server/receipts');
 const { createPlaces } = require('./server/places');
+const { createPolicyFinder } = require('./server/lookup');
+const { createReview } = require('./server/review');
 
 const production = process.env.NODE_ENV === 'production';
 const databaseUrl = process.env.DATABASE_URL || '';
@@ -36,11 +38,16 @@ store.init().then(async () => {
   // Invalid policy files stop the server rather than serve unchecked facts.
   const policies = loadPolicies();
   await store.syncPolicies(policies.versions());
+  // Unverified stores are looked up on the web; admins (ADMIN_EMAILS) review them, reports and flagged changes in Settings.
+  const review = createReview({ store, data, policies, finder: createPolicyFinder(), jobs, admins: (process.env.ADMIN_EMAILS || '').split(',') });
+  const approved = await review.loadApproved();
+  if (approved) console.log(`Loaded ${approved} admin-approved polic${approved === 1 ? 'y' : 'ies'}.`);
+  defineReviewJobs(jobs, review);
   // Accounts still saved as one document (with photos inside) move into the purchases and items tables.
   const migrated = await data.migrateAll();
   if (migrated) console.log(`Moved ${migrated} account${migrated === 1 ? '' : 's'} to the items tables.`);
   await jobs.start();
-  const server = http.createServer(createApp({ store, data, production, policies, classifier: createClassifier(), receipts: createReceiptReader(), places: createPlaces({ store }) })).listen(port, host, () =>
+  const server = http.createServer(createApp({ store, data, production, policies, classifier: createClassifier(), receipts: createReceiptReader(), places: createPlaces({ store }), review })).listen(port, host, () =>
     console.log(`Returnly running on http://${host === '0.0.0.0' ? 'localhost' : host}:${port} (${databaseUrl ? 'Postgres' : 'local file store'}, ${storage.kind === 's3' ? 'S3 file storage' : 'local file storage'})`));
   const shutdown = () => { server.close(); jobs.stop().finally(() => store.close().finally(() => process.exit(0))); };
   process.on('SIGTERM', shutdown);

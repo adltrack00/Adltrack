@@ -106,7 +106,79 @@ create table if not exists place_cache (
   key text primary key,
   places jsonb not null,
   fetched_at timestamptz not null default now()
-);`;
+);
+-- Stores we don't have a checked policy for, looked up on the web (status found / not_found / failed / approved). The policy
+-- is "unverified" until an admin approves it. One row per normalized store name, shared by every user who buys there.
+create table if not exists store_lookups (
+  key text primary key,
+  name text not null,
+  status text not null check (status in ('pending', 'found', 'not_found', 'failed', 'approved')),
+  policy jsonb,
+  retailer_id text,
+  looked_up_at timestamptz not null default now()
+);
+-- Which accounts hit each looked-up store, so the admin page can rank them by usage.
+create table if not exists store_lookup_users (
+  key text not null references store_lookups(key) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  first_seen timestamptz not null default now(),
+  primary key (key, user_id)
+);
+-- "Is this wrong?" reports from the Return card, kept for review.
+create table if not exists policy_reports (
+  id uuid primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  retailer_id text,
+  store text not null,
+  item_name text,
+  policy_version integer,
+  policy_line text,
+  note text,
+  status text not null default 'open' check (status in ('open', 'resolved')),
+  created_at timestamptz not null default now()
+);
+-- Policy versions an admin approved at runtime (an unverified store, or a change the freshness job flagged). They sit on top of
+-- policies/*.json until a file with the same or a higher version is committed.
+create table if not exists approved_policies (
+  retailer_id text not null,
+  version integer not null,
+  policy jsonb not null,
+  approved_by text not null,
+  reason text not null,
+  approved_at timestamptz not null default now(),
+  primary key (retailer_id, version)
+);
+-- The weekly freshness job's last copy of each official source page: a hash and the policy phrases found in it.
+create table if not exists source_snapshots (
+  url text primary key,
+  hash text not null,
+  phrases jsonb not null,
+  fetched_at timestamptz not null default now()
+);
+-- Meaningful changes the freshness job found, waiting for review. Nothing changes automatically.
+create table if not exists policy_flags (
+  id uuid primary key,
+  retailer_id text not null,
+  url text not null,
+  hash text not null,
+  added jsonb not null,
+  removed jsonb not null,
+  holiday boolean not null default false,
+  proposed jsonb,
+  status text not null default 'open' check (status in ('open', 'approved', 'dismissed')),
+  created_at timestamptz not null default now(),
+  unique (retailer_id, url, hash)
+);
+-- Messages for one account (for example "Target changed its return policy"), shown the next time the app opens.
+create table if not exists notices (
+  id uuid primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  text text not null,
+  item_id text,
+  read_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists notices_user_idx on notices(user_id) where read_at is null;`;
 
 const PURCHASE_COLUMNS = 'id, store, channel, order_number as "orderNumber", purchased, delivered, source, retailer_id as "retailerId", receipt_file_id as "receiptFileId", receipt_pages as "receiptPages"';
 const JOB_COLUMNS = 'id, name, payload, unique_key as "uniqueKey", status, run_at as "runAt", attempts, max_attempts as "maxAttempts", last_error as "lastError"';
@@ -264,6 +336,55 @@ function pgStore(connectionString) {
     async putPlaceCache(key, places) { await pool.query('insert into place_cache (key, places) values ($1,$2) on conflict (key) do update set places=excluded.places, fetched_at=now()', [key, JSON.stringify(places)]); },
     async deleteOldPlaceCache(before) { return (await pool.query('delete from place_cache where fetched_at < $1', [before])).rowCount; },
 
+    /* Store lookups (unverified policies) and how many accounts use each store. */
+    getStoreLookup: key => one(`select key, name, status, policy, retailer_id as "retailerId", looked_up_at as "lookedUpAt" from store_lookups where key=$1`, [key]),
+    async saveStoreLookup({ key, name, status, policy = null, retailerId = null }) {
+      await pool.query(`insert into store_lookups (key, name, status, policy, retailer_id, looked_up_at) values ($1,$2,$3,$4,$5,now())
+        on conflict (key) do update set name=excluded.name, status=excluded.status, policy=excluded.policy, retailer_id=excluded.retailer_id, looked_up_at=now()`,
+      [key, name, status, policy && JSON.stringify(policy), retailerId]);
+    },
+    async countStoreUser(key, userId) { await pool.query('insert into store_lookup_users (key, user_id) values ($1,$2) on conflict do nothing', [key, userId]); },
+    listStoreLookups: () => all(`select l.key, l.name, l.status, l.policy, l.retailer_id as "retailerId", l.looked_up_at as "lookedUpAt", count(u.user_id)::integer as users
+      from store_lookups l left join store_lookup_users u on u.key=l.key group by l.key order by users desc, l.looked_up_at desc limit 200`),
+
+    /* "Is this wrong?" reports. */
+    async createPolicyReport(r) {
+      await pool.query(`insert into policy_reports (id, user_id, retailer_id, store, item_name, policy_version, policy_line, note) values ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [r.id, r.userId, r.retailerId, r.store, r.itemName, r.policyVersion, r.policyLine, r.note]);
+      return r;
+    },
+    listPolicyReports: () => all(`select id, retailer_id as "retailerId", store, item_name as "itemName", policy_version as "policyVersion", policy_line as "policyLine", note, status, created_at as "createdAt"
+      from policy_reports where status='open' order by created_at desc limit 200`),
+    async resolvePolicyReport(id) { return (await pool.query(`update policy_reports set status='resolved' where id=$1 and status='open'`, [id])).rowCount > 0; },
+
+    /* Policies approved at runtime. */
+    async saveApprovedPolicy({ policy, by, reason }) {
+      await pool.query('insert into approved_policies (retailer_id, version, policy, approved_by, reason) values ($1,$2,$3,$4,$5)', [policy.id, policy.version, JSON.stringify(policy), by, reason]);
+    },
+    listApprovedPolicies: async () => (await all(`select distinct on (retailer_id) policy from approved_policies order by retailer_id, version desc`)).map(r => r.policy),
+
+    /* Freshness: source page snapshots and flagged changes. */
+    getSourceSnapshot: url => one('select url, hash, phrases from source_snapshots where url=$1', [url]),
+    async putSourceSnapshot(url, { hash, phrases }) {
+      await pool.query('insert into source_snapshots (url, hash, phrases) values ($1,$2,$3) on conflict (url) do update set hash=excluded.hash, phrases=excluded.phrases, fetched_at=now()', [url, hash, JSON.stringify(phrases)]);
+    },
+    async createPolicyFlag(f) {
+      const row = await one(`insert into policy_flags (id, retailer_id, url, hash, added, removed, holiday, proposed) values ($1,$2,$3,$4,$5,$6,$7,$8)
+        on conflict (retailer_id, url, hash) do nothing returning id`, [f.id, f.retailerId, f.url, f.hash, JSON.stringify(f.added), JSON.stringify(f.removed), f.holiday, f.proposed && JSON.stringify(f.proposed)]);
+      return !!row;
+    },
+    getPolicyFlag: id => one(`select id, retailer_id as "retailerId", url, added, removed, holiday, proposed, status, created_at as "createdAt" from policy_flags where id=$1`, [id]),
+    listPolicyFlags: () => all(`select id, retailer_id as "retailerId", url, added, removed, holiday, proposed, status, created_at as "createdAt" from policy_flags where status='open' order by created_at desc limit 200`),
+    async setPolicyFlagStatus(id, status) { return (await pool.query(`update policy_flags set status=$2 where id=$1 and status='open'`, [id, status])).rowCount > 0; },
+
+    /* Items of every account that use one of these retailers, for recomputing after an approved change. */
+    async itemsByRetailer(ids) { return (await all('select * from items where retailer_id = any($1)', [ids])).map(row => ({ userId: row.user_id, item: decode(row) })); },
+
+    /* Notices. */
+    async addNotice(userId, { text, itemId = null }) { await pool.query('insert into notices (id, user_id, text, item_id) values ($1,$2,$3,$4)', [crypto.randomUUID(), userId, text, itemId]); },
+    listNotices: userId => all('select id, text, item_id as "itemId", created_at as "createdAt" from notices where user_id=$1 and read_at is null order by created_at limit 20', [userId]),
+    async markNoticesRead(userId, ids) { await pool.query('update notices set read_at=now() where user_id=$1 and id = any($2::uuid[])', [userId, ids]); },
+
     async close() { await pool.end(); }
   };
 }
@@ -274,7 +395,7 @@ function fileStore(file) {
     if (db) return db;
     try { db = JSON.parse(await fs.readFile(file, 'utf8')); } catch { db = {}; }
     // Files written before the data foundation only have users, sessions and data.
-    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, places: {}, ...db };
+    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, places: {}, lookups: {}, reports: {}, approved: [], snapshots: {}, flags: {}, notices: {}, ...db };
     return db;
   };
   // Serialise writes so concurrent requests can't interleave partial files.
@@ -314,6 +435,9 @@ function fileStore(file) {
       delete db.users[userId]; delete db.data[userId]; delete db.items[userId]; delete db.purchases[userId];
       for (const [k, s] of Object.entries(db.sessions)) if (s.userId === userId) delete db.sessions[k];
       for (const [k, f] of Object.entries(db.files)) if (f.userId === userId) delete db.files[k];
+      for (const [k, r] of Object.entries(db.reports)) if (r.userId === userId) delete db.reports[k];
+      for (const [k, n] of Object.entries(db.notices)) if (n.userId === userId) delete db.notices[k];
+      for (const l of Object.values(db.lookups)) l.users = l.users.filter(u => u !== userId);
       await persist();
     },
     async syncPolicies(versions) {
@@ -447,6 +571,63 @@ function fileStore(file) {
       if (n) await persist();
       return n;
     },
+
+    async getStoreLookup(key) { await load(); const l = db.lookups[key]; return l ? JSON.parse(JSON.stringify({ key, ...l, users: undefined })) : null; },
+    async saveStoreLookup({ key, name, status, policy = null, retailerId = null }) {
+      await load(); db.lookups[key] = { name, status, policy: policy && JSON.parse(JSON.stringify(policy)), retailerId, lookedUpAt: now(), users: db.lookups[key]?.users || [] }; await persist();
+    },
+    async countStoreUser(key, userId) { await load(); const l = db.lookups[key]; if (l && !l.users.includes(userId)) { l.users.push(userId); await persist(); } },
+    async listStoreLookups() {
+      await load();
+      return Object.entries(db.lookups).map(([key, l]) => ({ key, name: l.name, status: l.status, policy: l.policy, retailerId: l.retailerId, lookedUpAt: l.lookedUpAt, users: l.users.filter(u => db.users[u]).length }))
+        .sort((a, b) => b.users - a.users || (a.lookedUpAt < b.lookedUpAt ? 1 : -1)).slice(0, 200);
+    },
+
+    async createPolicyReport(r) { await load(); db.reports[r.id] = { ...r, status: 'open', createdAt: now() }; await persist(); return r; },
+    async listPolicyReports() {
+      await load();
+      return Object.values(db.reports).filter(r => r.status === 'open').sort((a, b) => a.createdAt < b.createdAt ? 1 : -1).map(({ userId, ...r }) => r);
+    },
+    async resolvePolicyReport(id) { await load(); const r = db.reports[id]; if (!r || r.status !== 'open') return false; r.status = 'resolved'; await persist(); return true; },
+
+    async saveApprovedPolicy({ policy, by, reason }) {
+      await load();
+      if (db.approved.some(a => a.policy.id === policy.id && a.policy.version === policy.version)) throw new Error('This version was already approved.');
+      db.approved.push({ policy: JSON.parse(JSON.stringify(policy)), by, reason, approvedAt: now() }); await persist();
+    },
+    async listApprovedPolicies() {
+      await load(); const latest = new Map();
+      for (const a of db.approved) if (!latest.has(a.policy.id) || latest.get(a.policy.id).version < a.policy.version) latest.set(a.policy.id, a.policy);
+      return JSON.parse(JSON.stringify([...latest.values()]));
+    },
+
+    async getSourceSnapshot(url) { await load(); const s = db.snapshots[url]; return s ? { url, hash: s.hash, phrases: s.phrases } : null; },
+    async putSourceSnapshot(url, { hash, phrases }) { await load(); db.snapshots[url] = { hash, phrases, fetchedAt: now() }; await persist(); },
+    async createPolicyFlag(f) {
+      await load();
+      if (Object.values(db.flags).some(x => x.retailerId === f.retailerId && x.url === f.url && x.hash === f.hash)) return false;
+      db.flags[f.id] = { ...JSON.parse(JSON.stringify(f)), status: 'open', createdAt: now() }; await persist();
+      return true;
+    },
+    async getPolicyFlag(id) { await load(); const f = db.flags[id]; if (!f) return null; const { hash, ...rest } = f; return JSON.parse(JSON.stringify(rest)); },
+    async listPolicyFlags() {
+      await load();
+      return Object.values(db.flags).filter(f => f.status === 'open').sort((a, b) => a.createdAt < b.createdAt ? 1 : -1).map(({ hash, ...f }) => JSON.parse(JSON.stringify(f)));
+    },
+    async setPolicyFlagStatus(id, status) { await load(); const f = db.flags[id]; if (!f || f.status !== 'open') return false; f.status = status; await persist(); return true; },
+
+    async itemsByRetailer(ids) {
+      await load(); const out = [];
+      for (const [userId, rows] of Object.entries(db.items)) for (const r of Object.values(rows)) if (ids.includes(r.retailer_id)) out.push({ userId, item: decode(r) });
+      return out;
+    },
+
+    async addNotice(userId, { text, itemId = null }) { await load(); const id = crypto.randomUUID(); db.notices[id] = { id, userId, text, itemId, readAt: null, createdAt: now() }; await persist(); },
+    async listNotices(userId) {
+      await load();
+      return Object.values(db.notices).filter(n => n.userId === userId && !n.readAt).sort((a, b) => a.createdAt < b.createdAt ? -1 : 1).slice(0, 20).map(({ id, text, itemId, createdAt }) => ({ id, text, itemId, createdAt }));
+    },
+    async markNoticesRead(userId, ids) { await load(); for (const id of ids) { const n = db.notices[id]; if (n && n.userId === userId) n.readAt = now(); } await persist(); },
 
     async close() { await queue; }
   };

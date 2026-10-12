@@ -112,17 +112,28 @@ function itemFields(policy) {
 
 function catalog(current, history = []) {
   const byId = new Map(current.map(p => [p.id, p]));
-  const names = new Map(), prefixes = [];
-  for (const p of current) {
-    for (const a of p.aliases.names) names.set(normalizeStoreName(a), p.id);
-    names.set(normalizeStoreName(p.name), p.id);
-    for (const a of p.aliases.prefixes) prefixes.push([normalizeStoreName(a), p.id]);
-  }
-  prefixes.sort((a, b) => b[0].length - a[0].length);
+  let names, prefixes;
+  const index = () => {
+    names = new Map(); prefixes = [];
+    for (const p of byId.values()) {
+      for (const a of p.aliases.names) names.set(normalizeStoreName(a), p.id);
+      names.set(normalizeStoreName(p.name), p.id);
+      for (const a of p.aliases.prefixes) prefixes.push([normalizeStoreName(a), p.id]);
+    }
+    prefixes.sort((a, b) => b[0].length - a[0].length);
+  };
+  index();
   return {
-    list: () => current,
+    list: () => [...byId.values()],
     get: id => byId.get(id) || null,
     versions: () => [...history, ...current],
+    /* A policy version approved at runtime (see approved_policies). Replaces the current one only when it's newer. */
+    add(policy) {
+      const old = byId.get(policy.id);
+      if (old && old.version >= policy.version) return false;
+      byId.set(policy.id, policy); index();
+      return true;
+    },
     match(name) {
       const n = normalizeStoreName(name);
       if (!n) return null;
@@ -133,9 +144,28 @@ function catalog(current, history = []) {
   };
 }
 
+/* Every source URL a policy cites, for the freshness job. */
+function sourceUrls(policy) {
+  const urls = new Set();
+  const walk = v => {
+    if (Array.isArray(v)) return v.forEach(walk);
+    if (!v || typeof v !== 'object') return;
+    if (typeof v.source === 'string' && /^https:\/\//.test(v.source)) urls.add(v.source);
+    for (const x of Object.values(v)) walk(x);
+  };
+  walk(policy);
+  return [...urls];
+}
+
+/* A policy is valid when it matches the schema and every fact has a source and checked date. Returns the problems. */
+function problems(policy, dir = DIR) {
+  const schema = JSON.parse(fs.readFileSync(path.join(dir, 'schema.json'), 'utf8'));
+  return [...validate(policy, schema), ...unsourcedFacts(policy).map(p => `${p}: needs a source URL and checked date`)];
+}
+
 const summary = p => {
   const f = itemFields(p);
   return { id: p.id, name: p.name, status: p.status, version: p.version, checked: p.checked, window: f.window, basis: f.basis, outcome: f.outcome, url: f.url, policySource: f.policySource };
 };
 
-module.exports = { loadPolicies, validate, unsourcedFacts, normalizeStoreName, itemFields, summary, POLICY_DIR: DIR };
+module.exports = { loadPolicies, validate, unsourcedFacts, sourceUrls, problems, normalizeStoreName, itemFields, summary, POLICY_DIR: DIR };
