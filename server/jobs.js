@@ -76,4 +76,10 @@ function defineJobs(jobs, { store, storage, data = null }) {
   });
 }
 
-module.exports = { createJobs, defineJobs };
+/* Any store, always current: web lookups for stores we don't have, and the weekly check of every checked retailer's sources. */
+function defineReviewJobs(jobs, review) {
+  jobs.define('stores.lookup', payload => review.runLookup(payload));
+  jobs.define('policies.freshness', () => review.freshness(), { every: 7 * 24 * HOUR });
+}
+
+module.exports = { createJobs, defineJobs, defineReviewJobs };
