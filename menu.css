@@ -62,3 +62,6 @@ dialog.menu-drawer{width:min(72vw,280px)}
 .menu-foot{padding:18px 20px 24px}.menu-foot strong{font-size:18px}
 }
 .menu-email{font-size:13px;color:#999;margin:-8px 0 14px;overflow-wrap:anywhere}
+
+/* Support: rows stacked under "How Returnly works" share one divider, as in the Settings list. */
+.prose .settings-row+.settings-row{border-top:0}

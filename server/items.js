@@ -27,7 +27,7 @@ const FIELDS = [
   ['snoozeUntil', 'snooze_until', 'date'],
   ['dateSet', 'date_set', 'date'],
   ['demo', 'demo', 'bool'],
-  // Room for later sessions; unused by the app today.
+  // Room for later sessions (returnMethod and labelFileId are used by the Return card's guide).
   ['retailerId', 'retailer_id', 'text'],
   ['policyChecked', 'policy_checked', 'date'],
   ['conditionAnswers', 'condition_answers', 'json'],
@@ -77,6 +77,7 @@ function decode(row) {
     item[key] = type === 'num' ? Number(v) : type === 'date' && v instanceof Date ? v.toISOString().slice(0, 10) : v;
   }
   if (row.photo_file_id) item.photo = fileUrl(row.photo_file_id);
+  if (row.label_file_id) item.label = fileUrl(row.label_file_id);
   return item;
 }
 

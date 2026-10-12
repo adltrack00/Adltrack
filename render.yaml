@@ -30,6 +30,10 @@ services:
       # and the policy engine still works and uses the shortest window that could apply.
       - key: ANTHROPIC_API_KEY
         sync: false
+      # Google Places API (New) key for "Nearest drop-off" on the Return card. Without it the rest of the guide still works and
+      # the app says drop-off lookup isn't available.
+      - key: GOOGLE_PLACES_API_KEY
+        sync: false
 
 databases:
   # Render's free Postgres expires after 30 days. Switch to a paid plan before real users rely on it.

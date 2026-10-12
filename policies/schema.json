@@ -33,6 +33,7 @@
         "outcome": { "$ref": "#/$defs/fact", "properties": { "value": { "enum": ["refund", "credit", "exchange", "final", "unknown"] } } },
         "requirement": { "$ref": "#/$defs/fact", "properties": { "value": { "enum": ["start", "ship", "arrive", "store", "unknown"] } } },
         "url": { "$ref": "#/$defs/fact", "properties": { "value": { "type": "string", "pattern": "^https://" } } },
+        "orderUrl": { "description": "Optional. The retailer's own link to one order's return, with {order} where the order number goes. Only when an official source documents it.", "$ref": "#/$defs/fact", "properties": { "value": { "type": "string", "pattern": "^https://[^\\s]*\\{order\\}" } } },
         "conditions": { "$ref": "#/$defs/fact", "properties": { "value": { "type": "string", "minLength": 1 } } },
         "processing": { "$ref": "#/$defs/fact", "properties": { "value": { "type": "string", "minLength": 1 } } }
       }

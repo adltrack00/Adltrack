@@ -65,6 +65,8 @@ function defineJobs(jobs, { store, storage, data = null }) {
   jobs.define('maintenance.cleanup', async () => {
     await store.deleteExpiredSessions();
     await store.deleteFinishedJobs(new Date(Date.now() - 30 * 24 * HOUR));
+    // Cached drop-off places (ids and coordinates) are kept for at most 30 days, as the places provider's terms require.
+    await store.deleteOldPlaceCache(new Date(Date.now() - 30 * 24 * HOUR));
   }, { every: 6 * HOUR });
   // Scanned receipts whose items were never saved (the scan was abandoned) are deleted after two days.
   if (data) jobs.define('receipts.cleanup', async () => { await data.cleanupReceipts(new Date(Date.now() - 48 * HOUR)); }, { every: 6 * HOUR });

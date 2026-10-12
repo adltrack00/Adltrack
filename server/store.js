@@ -99,6 +99,13 @@ create table if not exists retailer_policies (
   policy jsonb not null,
   loaded_at timestamptz not null default now(),
   primary key (retailer_id, version)
+);
+-- Nearby drop-offs for one store or partner around one area (about 1 km): place ids and coordinates only, which the places
+-- provider allows keeping for up to 30 days. Never linked to a user.
+create table if not exists place_cache (
+  key text primary key,
+  places jsonb not null,
+  fetched_at timestamptz not null default now()
 );`;
 
 const PURCHASE_COLUMNS = 'id, store, channel, order_number as "orderNumber", purchased, delivered, source, retailer_id as "retailerId", receipt_file_id as "receiptFileId", receipt_pages as "receiptPages"';
@@ -252,6 +259,11 @@ function pgStore(connectionString) {
     async getJob(id) { const row = await one(`select ${JOB_COLUMNS} from jobs where id=$1`, [id]); return row && { ...row, id: String(row.id) }; },
     async deleteFinishedJobs(before) { return (await pool.query(`delete from jobs where status in ('done', 'failed') and finished_at < $1`, [before])).rowCount; },
 
+    /* Nearby drop-offs cache. */
+    async getPlaceCache(key, after) { const row = await one('select places from place_cache where key=$1 and fetched_at > $2', [key, after]); return row ? row.places : null; },
+    async putPlaceCache(key, places) { await pool.query('insert into place_cache (key, places) values ($1,$2) on conflict (key) do update set places=excluded.places, fetched_at=now()', [key, JSON.stringify(places)]); },
+    async deleteOldPlaceCache(before) { return (await pool.query('delete from place_cache where fetched_at < $1', [before])).rowCount; },
+
     async close() { await pool.end(); }
   };
 }
@@ -262,7 +274,7 @@ function fileStore(file) {
     if (db) return db;
     try { db = JSON.parse(await fs.readFile(file, 'utf8')); } catch { db = {}; }
     // Files written before the data foundation only have users, sessions and data.
-    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, ...db };
+    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, places: {}, ...db };
     return db;
   };
   // Serialise writes so concurrent requests can't interleave partial files.
@@ -391,7 +403,7 @@ function fileStore(file) {
       await load(); const f = db.files[id];
       if (!f || f.userId !== userId) return null;
       delete db.files[id];
-      for (const r of Object.values(userItems(userId))) if (r.photo_file_id === id) r.photo_file_id = null;
+      for (const r of Object.values(userItems(userId))) { if (r.photo_file_id === id) r.photo_file_id = null; if (r.label_file_id === id) r.label_file_id = null; }
       for (const p of Object.values(userPurchases(userId))) { if (p.receiptFileId === id) p.receiptFileId = null; if (p.receiptPages) p.receiptPages = p.receiptPages.filter(x => x !== id); }
       await persist();
       return f;
@@ -423,6 +435,15 @@ function fileStore(file) {
     async deleteFinishedJobs(before) {
       await load(); let n = 0;
       for (const [k, j] of Object.entries(db.jobs)) if (['done', 'failed'].includes(j.status) && new Date(j.finishedAt) < before) { delete db.jobs[k]; n++; }
+      if (n) await persist();
+      return n;
+    },
+
+    async getPlaceCache(key, after) { await load(); const c = db.places[key]; return c && new Date(c.fetchedAt) > after ? JSON.parse(JSON.stringify(c.places)) : null; },
+    async putPlaceCache(key, places) { await load(); db.places[key] = { places: JSON.parse(JSON.stringify(places)), fetchedAt: now() }; await persist(); },
+    async deleteOldPlaceCache(before) {
+      await load(); let n = 0;
+      for (const [k, c] of Object.entries(db.places)) if (new Date(c.fetchedAt) < before) { delete db.places[k]; n++; }
       if (n) await persist();
       return n;
     },
