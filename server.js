@@ -5,7 +5,8 @@ const path = require('node:path');
 const { createStore } = require('./server/store');
 const { createStorage, s3Config } = require('./server/storage');
 const { createData } = require('./server/data');
-const { createJobs, defineJobs, defineReviewJobs } = require('./server/jobs');
+const crypto = require('node:crypto');
+const { createJobs, defineJobs, defineReviewJobs, defineInboxJobs } = require('./server/jobs');
 const { createApp } = require('./server/app');
 const { loadPolicies } = require('./server/policies');
 const { createClassifier } = require('./server/classify');
@@ -14,6 +15,9 @@ const { createPlaces } = require('./server/places');
 const { createPush, createReminders, vapidConfig } = require('./server/reminders');
 const { createPolicyFinder } = require('./server/lookup');
 const { createReview } = require('./server/review');
+const { createEmailReader } = require('./server/mail');
+const { createInbox } = require('./server/inbox');
+const { oauthConfig, createOAuth, tokenKey } = require('./server/oauth');
 
 const production = process.env.NODE_ENV === 'production';
 const databaseUrl = process.env.DATABASE_URL || '';
@@ -26,6 +30,15 @@ if (production && !s3) {
   console.error('S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY are required in production.');
   process.exit(1);
 }
+// Purchases from email and Google / Apple sign-in. Inbox tokens and forwarded mail in the job queue are encrypted with
+// INBOX_TOKEN_KEY; in development a throwaway key is made when it isn't set (connected inboxes then need reconnecting after a restart).
+const oauthSettings = oauthConfig(process.env);
+const inboxWanted = !!(oauthSettings.google || oauthSettings.microsoft || process.env.INBOUND_EMAIL_DOMAIN);
+if (production && inboxWanted && !process.env.INBOX_TOKEN_KEY) {
+  console.error('INBOX_TOKEN_KEY is required in production when Google, Microsoft or inbound email is set up (openssl rand -base64 32).');
+  process.exit(1);
+}
+const inboxKey = tokenKey(process.env.INBOX_TOKEN_KEY) || crypto.randomBytes(32);
 const store = createStore({ databaseUrl, file: path.join(__dirname, 'data', 'dev-store.json') });
 const storage = createStorage({ s3, dir: path.join(__dirname, 'data', 'files') });
 const jobs = createJobs({ store });
@@ -48,11 +61,14 @@ store.init().then(async () => {
   const approved = await review.loadApproved();
   if (approved) console.log(`Loaded ${approved} admin-approved polic${approved === 1 ? 'y' : 'ies'}.`);
   defineReviewJobs(jobs, review);
+  const oauth = createOAuth({ config: oauthSettings });
+  const inbox = createInbox({ store, data, policies, reader: createEmailReader(), jobs, oauth, key: inboxKey, domain: (process.env.INBOUND_EMAIL_DOMAIN || '').toLowerCase(), publicUrl: oauthSettings.publicUrl, gmailVerified: process.env.GMAIL_VERIFIED === 'true' });
+  defineInboxJobs(jobs, inbox);
   // Accounts still saved as one document (with photos inside) move into the purchases and items tables.
   const migrated = await data.migrateAll();
   if (migrated) console.log(`Moved ${migrated} account${migrated === 1 ? '' : 's'} to the items tables.`);
   await jobs.start();
-  const server = http.createServer(createApp({ store, data, production, policies, classifier: createClassifier(), receipts: createReceiptReader(), places: createPlaces({ store }), review, push, reminders })).listen(port, host, () =>
+  const server = http.createServer(createApp({ store, data, production, policies, classifier: createClassifier(), receipts: createReceiptReader(), places: createPlaces({ store }), review, push, reminders, inbox, oauth, publicUrl: oauthSettings.publicUrl, inboundSecret: process.env.INBOUND_EMAIL_SECRET || '' })).listen(port, host, () =>
     console.log(`Returnly running on http://${host === '0.0.0.0' ? 'localhost' : host}:${port} (${databaseUrl ? 'Postgres' : 'local file store'}, ${storage.kind === 's3' ? 'S3 file storage' : 'local file storage'})`));
   const shutdown = () => { server.close(); jobs.stop().finally(() => store.close().finally(() => process.exit(0))); };
   process.on('SIGTERM', shutdown);

@@ -46,6 +46,40 @@ services:
       # wrong?" reports and changes the weekly freshness check flagged.
       - key: ADMIN_EMAILS
         sync: false
+      # Purchases from email and "Continue with Google / Apple" (see README → Purchases from email). Each part is off until
+      # its values are set. PUBLIC_URL is this service's https address, used for OAuth redirect and Outlook notification URLs.
+      - key: PUBLIC_URL
+        sync: false
+      # 32 random bytes, base64 (openssl rand -base64 32). Encrypts inbox tokens at rest. Required once any part below is set.
+      - key: INBOX_TOKEN_KEY
+        sync: false
+      # Forwarding: the inbound mail domain (for example in.returnly.app) and the webhook's basic-auth password.
+      - key: INBOUND_EMAIL_DOMAIN
+        sync: false
+      - key: INBOUND_EMAIL_SECRET
+        sync: false
+      # Google OAuth client: "Continue with Google" and Gmail connect (read-only). Set GMAIL_VERIFIED=true once Google has
+      # verified the app; until then Gmail connect is in testing mode (up to 100 test users).
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GMAIL_VERIFIED
+        value: "false"
+      # Microsoft app registration: Outlook connect (Mail.Read).
+      - key: MICROSOFT_CLIENT_ID
+        sync: false
+      - key: MICROSOFT_CLIENT_SECRET
+        sync: false
+      # Sign in with Apple: Services ID, team id, key id and the .p8 private key (newlines as \n).
+      - key: APPLE_CLIENT_ID
+        sync: false
+      - key: APPLE_TEAM_ID
+        sync: false
+      - key: APPLE_KEY_ID
+        sync: false
+      - key: APPLE_PRIVATE_KEY
+        sync: false
 
 databases:
   # Render's free Postgres expires after 30 days. Switch to a paid plan before real users rely on it.

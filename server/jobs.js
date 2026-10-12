@@ -4,13 +4,15 @@
 const HOUR = 60 * 60 * 1000;
 
 function createJobs({ store, intervalMs = 5000, staleMs = 10 * 60 * 1000, log = console }) {
-  const handlers = new Map(), recurring = new Map();
+  const handlers = new Map(), recurring = new Map(), sensitive = new Set();
   let timer = null, running = null, stopped = true;
 
-  /* handler(payload, job) does the work; throwing retries it. */
-  function define(name, handler, { every = null } = {}) {
+  /* handler(payload, job) does the work; throwing retries it. A sensitive job's payload (for example a forwarded email,
+     encrypted) is wiped once the job is done or has failed for good, so it never stays in the queue. */
+  function define(name, handler, { every = null, sensitive: wipe = false } = {}) {
     handlers.set(name, handler);
     if (every) recurring.set(name, every);
+    if (wipe) sensitive.add(name);
   }
   const enqueue = (name, payload = {}, { runAt = new Date(), uniqueKey = null, maxAttempts = 5 } = {}) => {
     if (!handlers.has(name)) throw new Error(`Unknown job: ${name}`);
@@ -29,10 +31,11 @@ function createJobs({ store, intervalMs = 5000, staleMs = 10 * 60 * 1000, log = 
       if (!handler) throw new Error(`Unknown job: ${job.name}`);
       await handler(job.payload, job);
       await store.completeJob(job.id);
+      if (sensitive.has(job.name)) await store.clearJobPayload(job.id);
     } catch (err) {
       const message = String(err && err.message || err).slice(0, 500);
       if (job.attempts < job.maxAttempts && handler) await store.retryJob(job.id, message, new Date(Date.now() + backoff(job.attempts)));
-      else { await store.failJob(job.id, message); log.error(`Job ${job.name} (${job.id}) failed: ${message}`); }
+      else { await store.failJob(job.id, message); if (sensitive.has(job.name)) await store.clearJobPayload(job.id); log.error(`Job ${job.name} (${job.id}) failed: ${message}`); }
     }
     if (recurring.has(job.name) && job.uniqueKey === `every:${job.name}`) {
       const latest = await store.getJob(job.id);
@@ -67,6 +70,8 @@ function defineJobs(jobs, { store, storage, data = null, reminders = null }) {
     await store.deleteFinishedJobs(new Date(Date.now() - 30 * 24 * HOUR));
     // Cached drop-off places (ids and coordinates) are kept for at most 30 days, as the places provider's terms require.
     await store.deleteOldPlaceCache(new Date(Date.now() - 30 * 24 * HOUR));
+    // Sign-in and inbox-connect requests that were never finished.
+    if (store.deleteExpiredOAuthStates) await store.deleteExpiredOAuthStates();
   }, { every: 6 * HOUR });
   // Scanned receipts whose items were never saved (the scan was abandoned) are deleted after two days.
   if (data) jobs.define('receipts.cleanup', async () => { await data.cleanupReceipts(new Date(Date.now() - 48 * HOUR)); }, { every: 6 * HOUR });
@@ -87,4 +92,13 @@ function defineReviewJobs(jobs, review) {
   jobs.define('policies.freshness', () => review.freshness(), { every: 7 * 24 * HOUR });
 }
 
-module.exports = { createJobs, defineJobs, defineReviewJobs };
+/* Purchases from email: a connected inbox is checked for new shopping mail every 15 minutes (and straight away when Outlook
+   says something arrived); each message is read on its own, and forwarded mail arrives encrypted and is wiped after. */
+function defineInboxJobs(jobs, inbox) {
+  jobs.define('inbox.poll', () => inbox.poll(), { every: 15 * 60 * 1000 });
+  jobs.define('inbox.sync', payload => inbox.sync(payload));
+  jobs.define('inbox.message', payload => inbox.readMessage(payload));
+  jobs.define('inbox.forwarded', payload => inbox.readForwarded(payload), { sensitive: true });
+}
+
+module.exports = { createJobs, defineJobs, defineReviewJobs, defineInboxJobs };

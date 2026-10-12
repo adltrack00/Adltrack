@@ -180,4 +180,4 @@ function createReceiptReader({ apiKey = process.env.ANTHROPIC_API_KEY, client = 
   return { read, available: () => !!client };
 }
 
-module.exports = { createReceiptReader, clean, scrub, printedWindow, SCHEMA, MODEL, MAX_PAGES };
+module.exports = { createReceiptReader, clean, scrub, printedWindow, SCHEMA, MODEL, MAX_PAGES, text, money, realDate };

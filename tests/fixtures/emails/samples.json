@@ -1,0 +1,59 @@
+{
+  "_note": "Fabricated sample emails from launch retailers (no real orders or people), with the answer a mocked model gives for each. {d-N} is N days before the test run.",
+  "amazon-order": {
+    "from": "Amazon.com <auto-confirm@amazon.com>",
+    "subject": "Your Amazon.com order #112-3344556-7788990",
+    "date": "{d-12}",
+    "html": "<html><head><style>p{color:red}</style></head><body><p>Hello Sample,</p><p>Thanks for your order. Order #112-3344556-7788990 placed {d-12}.</p><table><tr><td>Sony WH-1000XM5 Wireless Headphones</td><td>$348.00</td></tr><tr><td>Bamboo Cutting Board, Set of 2</td><td>Qty 2</td><td>$30.00</td></tr></table><p>Order total: $410.75 &amp; tax</p><p>Paid with Visa ending in 4242</p></body></html>",
+    "answer": { "kind": "order", "store": "Amazon.com", "order_number": "#112-3344556-7788990", "order_date": "{d-12}", "delivered_date": "", "items": [{ "name": "Sony WH-1000XM5 Wireless Headphones", "quantity": 1, "price": 348 }, { "name": "Bamboo Cutting Board, Set of 2", "quantity": 2, "price": 30 }], "refund_amount": null, "refund_date": "", "refund_method": "unknown" }
+  },
+  "amazon-delivered": {
+    "from": "Amazon.com <shipment-tracking@amazon.com>",
+    "subject": "Delivered: Your Amazon.com order #112-3344556-7788990",
+    "date": "{d-8}",
+    "text": "Your package was delivered. Order #112-3344556-7788990. Delivered {d-8}, left at front door.",
+    "answer": { "kind": "delivered", "store": "Amazon", "order_number": "112-3344556-7788990", "order_date": "", "delivered_date": "{d-8}", "items": [], "refund_amount": null, "refund_date": "", "refund_method": "unknown" }
+  },
+  "amazon-return-started": {
+    "from": "Amazon.com <return@amazon.com>",
+    "subject": "Your return request for order 112-3344556-7788990",
+    "date": "{d-5}",
+    "text": "We've received your return request for Sony WH-1000XM5 Wireless Headphones. Take the QR code to a UPS Store by the date shown.",
+    "answer": { "kind": "return_started", "store": "Amazon", "order_number": "112-3344556-7788990", "order_date": "", "delivered_date": "", "items": [{ "name": "Sony WH-1000XM5 Wireless Headphones", "quantity": 1, "price": null }], "refund_amount": null, "refund_date": "", "refund_method": "unknown" }
+  },
+  "amazon-return-shipped": {
+    "from": "Amazon.com <return@amazon.com>",
+    "subject": "Your return is on its way: order 112-3344556-7788990",
+    "date": "{d-4}",
+    "text": "Thanks for dropping off your return of Sony WH-1000XM5 Wireless Headphones at The UPS Store.",
+    "answer": { "kind": "return_shipped", "store": "Amazon", "order_number": "112-3344556-7788990", "order_date": "", "delivered_date": "", "items": [{ "name": "Sony WH-1000XM5 Wireless Headphones", "quantity": 1, "price": null }], "refund_amount": null, "refund_date": "", "refund_method": "unknown" }
+  },
+  "amazon-refund": {
+    "from": "Amazon.com <return@amazon.com>",
+    "subject": "Your refund for Sony WH-1000XM5 Wireless Headphones",
+    "date": "{d-1}",
+    "text": "We've issued your refund of $348.00 for order 112-3344556-7788990 on {d-1}. Refunds go back to your original payment method.",
+    "answer": { "kind": "refund", "store": "Amazon", "order_number": "112-3344556-7788990", "order_date": "", "delivered_date": "", "items": [{ "name": "Sony WH-1000XM5 Wireless Headphones", "quantity": 1, "price": 348 }], "refund_amount": 348, "refund_date": "{d-1}", "refund_method": "refund" }
+  },
+  "target-shipped": {
+    "from": "Target <orders@oe.target.com>",
+    "subject": "Your Target order has shipped",
+    "date": "{d-6}",
+    "text": "Good news! Order #902334455120 is on its way. A New Day Knit Cardigan $25.00. Universal Thread Jeans $29.99.",
+    "answer": { "kind": "shipped", "store": "Target", "order_number": "902334455120", "order_date": "{d-7}", "delivered_date": "", "items": [{ "name": "A New Day Knit Cardigan", "quantity": 1, "price": 25 }, { "name": "Universal Thread Jeans", "quantity": 1, "price": 29.99 }], "refund_amount": null, "refund_date": "", "refund_method": "unknown" }
+  },
+  "zara-refund-credit": {
+    "from": "ZARA <noreply@zara.com>",
+    "subject": "Your refund has been processed",
+    "date": "{d-2}",
+    "text": "We have processed your return for order 50981234. Amount refunded: 129.00 USD to your gift card.",
+    "answer": { "kind": "refund", "store": "ZARA", "order_number": "50981234", "order_date": "", "delivered_date": "", "items": [], "refund_amount": 129, "refund_date": "{d-2}", "refund_method": "store_credit" }
+  },
+  "nike-newsletter": {
+    "from": "Nike <nike@notifications.nike.com>",
+    "subject": "Just dropped: the new Pegasus",
+    "date": "{d-3}",
+    "text": "Shop the new Pegasus today.",
+    "answer": { "kind": "other", "store": "Nike", "order_number": "", "order_date": "", "delivered_date": "", "items": [], "refund_amount": null, "refund_date": "", "refund_method": "unknown" }
+  }
+}

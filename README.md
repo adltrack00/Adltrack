@@ -21,12 +21,13 @@ To run the data tests against Postgres as well, point `TEST_DATABASE_URL` at a t
 
 ## Accounts
 
-- `server.js` serves the app and a JSON API under `/api`: `signup`, `login`, `logout`, `me`, `items` (GET, POST; PUT and DELETE `/api/items/:id`), `settings` (PUT: settings and profile), `purchases` (GET; PUT `/api/purchases/:id/receipt`), `receipts/read` (POST: read a scanned receipt), `files/:id` (GET), `items/:id/label` (PUT, DELETE: the QR code or return label), `places/nearest` (POST: nearest drop-offs), `push/key` (GET), `push/subscribe`, `push/unsubscribe` and `push/test` (POST: this device's Web Push subscription), `reminders/claim` (POST: the open app's daily notification), `policy/report` (POST: "Is this wrong?"), `notices` (GET; POST `/api/notices/read`), `admin/*` (policy review, admin accounts only), `data` (GET/PUT, the whole account in one document, kept for older versions of the app) and `account` (DELETE, needs the password).
+- `server.js` serves the app and a JSON API under `/api`: `signup`, `login`, `logout`, `me`, `items` (GET, POST; PUT and DELETE `/api/items/:id`), `settings` (PUT: settings and profile), `purchases` (GET; PUT `/api/purchases/:id/receipt`), `receipts/read` (POST: read a scanned receipt), `files/:id` (GET), `items/:id/label` (PUT, DELETE: the QR code or return label), `places/nearest` (POST: nearest drop-offs), `push/key` (GET), `push/subscribe`, `push/unsubscribe` and `push/test` (POST: this device's Web Push subscription), `reminders/claim` (POST: the open app's daily notification), `policy/report` (POST: "Is this wrong?"), `notices` (GET; POST `/api/notices/read`), `inbox` (GET; POST `/api/inbox/address`, `/api/inbox/senders` and `/api/inbox/:provider/disconnect`; GET `/api/inbox/:provider/start` and `/callback`: purchases from email), `auth/providers` (GET) and `auth/:provider/start` / `callback` (Continue with Google / Apple), `inbound/email` (POST: the email provider's inbound webhook), `inbox/outlook/notify` (POST: Graph notifications), `admin/*` (policy review, admin accounts only), `data` (GET/PUT, the whole account in one document, kept for older versions of the app) and `account` (DELETE, needs the password).
 - Passwords are hashed with scrypt. Sessions are random tokens in an HttpOnly, SameSite=Lax cookie (Secure in production); only a SHA-256 of each token is stored. Sessions last 30 days.
 - The app keeps a full copy in the browser and uploads changes in the background, one item at a time (create, update, delete), plus settings and profile; the last write wins. Signing in on another device downloads the account's copy.
 - Sign-in is rate limited per IP, and an email is locked for 15 minutes after 10 wrong passwords. Writes must be same-origin JSON.
 - Pages are served with a strict Content Security Policy: scripts, styles, fonts, the service worker (`worker-src 'self'`) and the web app manifest (`manifest-src 'self'`) only from this site, no inline scripts, no framing. The service worker (`sw.js`) is a top-level file, so its scope is the whole site; it caches only the public app files and never `/api/` responses, so account data and private photos are never stored in its cache, and signing out clears the account from the browser as before.
-- Not built yet: password reset by email (needs an email service) and sign-in with Google or Apple.
+- "Continue with Google" and "Continue with Apple" sit under the existing buttons on the sign-in and sign-up pages when they're set up (see Purchases from email). They ask only for name and email (never inbox access), sign in to the account with that verified email (linking it the first time) or create one. Such accounts have no password; they confirm "Delete my account" with their email.
+- Not built yet: password reset by email (needs an email service).
 
 ## Data
 
@@ -110,21 +111,67 @@ npx web-push generate-vapid-keys
 
 Set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (a `mailto:` address push services can contact) on the Render service, and as environment secrets for development. Changing the keys later makes every device subscribe again the next time the app is opened.
 
+## Purchases from email
+
+Settings → **Add purchases from email** (a row below My profile) opens a sub-page with three ways in. Orders found in email appear on Your purchases (All purchases) as cards labelled **From email**. Tapping one opens the Item card filled in with the items, store, order number and dates. Nothing becomes a return until the user taps.
+
+- **Forwarding** (`server/inbox.js`): each account has a private address such as `u-7f3k2q9m@in.returnly.app` with a copy button and steps for Gmail, Outlook and Apple Mail. "Get a new address" replaces it straight away. Mail arrives through the email provider's inbound webhook (`POST /api/inbound/email`, Postmark's JSON format, with `INBOUND_EMAIL_SECRET` as the basic-auth password). It is accepted only when sent or forwarded by one of the user's verified addresses: the account email, a connected inbox, or a Gmail address that asked to auto-forward and that the user accepted on the sub-page, where Google's confirmation code is shown. Mail that fails SPF (unless DKIM passes) is dropped. Forwarded mail waits in the job queue encrypted (`inbox.forwarded`) and the job's payload is wiped once it has been read.
+- **Connect Gmail** (Google OAuth, `gmail.readonly`) and **Connect Outlook** (Microsoft Graph, `Mail.Read`): each shows a plain-English privacy explanation before connecting, and "Disconnect and delete" afterwards. The first import searches the last 90 days, only from the launch retailers' domains and shopping services (`server/mail.js`), and only emails whose subject is about an order, shipping, delivery, a return or a refund. After that, `inbox.poll` checks every 15 minutes for mail since the last check. Outlook also has a Graph subscription that says when mail arrives; it is checked by its clientState, of which only a hash is kept, and renewed when less than a day is left. Gmail stays in testing mode until Google verifies the app (see `docs/google-verification.md`): up to 100 test users, who reconnect every 7 days. Set `GMAIL_VERIFIED=true` once it's verified.
+- **Import a spreadsheet** opens the existing CSV import dialog.
+- **Reading** (`inbox.message`, one job per email): the same model and settings as receipt reading (`claude-opus-5-5`, structured output, low effort, refusal fallback on), with card numbers scrubbed first. It recognises order confirmations, shipping and delivery notices, return confirmations and refund notices, and returns the store, order number, dates, items and refund. At most 300 emails per account per day are read; one costs about $0.01 at `claude-opus-5-5` prices.
+- **Matching** by store and order number:
+  - A new order (or a shipping notice for one not seen yet) becomes a card. Its purchase row has source `email`, and the items the user saves from the card join it.
+  - Delivery sets `delivered` on the order's items and recomputes the deadline from the checked policy (a date the user set stays). The email's date is used when the notice gives none.
+  - A return started or shipped moves items the user is already returning to `started` or `shipped`. A kept item never becomes a return from an email.
+  - A refund sets `received`, the amount and the date (`returnedOn`), like "Return complete". If it can't tell which item it was for, the user gets a notice instead.
+  - Each change leaves a notice that is shown when the app opens.
+- **Privacy**:
+  - Email bodies are never stored, only the extracted fields and the message id (`inbox_messages`).
+  - Inbox tokens are encrypted at rest with AES-256-GCM (`INBOX_TOKEN_KEY`).
+  - "Disconnect and delete" revokes the Google grant (Microsoft has no app-side revoke, so its tokens are deleted and the Graph subscription removed), then deletes everything read from that inbox and its unopened orders. "Delete my account" revokes every grant first.
+  - Security and privacy has a paragraph on this.
+- Tables: `inbox_addresses`, `inbox_connections`, `inbox_messages`, `email_orders`, `oauth_states` (sign-in and connect requests in flight, 10 minutes, bound to the browser by a cookie) and `oauth_identities`.
+
+### Setting it up
+
+Each part stays off until its values are set. With any of them set, production also needs `INBOX_TOKEN_KEY` (`openssl rand -base64 32`) and `PUBLIC_URL` (the service's https address, for example `https://returnly.onrender.com`). Reading needs `ANTHROPIC_API_KEY`.
+
+1. **Inbound email (forwarding)**, with Postmark: create a server, then go to its Inbound stream → Settings.
+   - Set the webhook URL to `https://postmark:<INBOUND_EMAIL_SECRET>@<your host>/api/inbound/email`.
+   - Set the inbound domain to `in.returnly.app` (or your own).
+   - At your DNS host, add an **MX record** for `in.returnly.app` pointing to `inbound.postmarkapp.com`, priority 10.
+   - Set `INBOUND_EMAIL_DOMAIN` and `INBOUND_EMAIL_SECRET` on Render.
+2. **Google OAuth client** (Continue with Google and Gmail connect): in Google Cloud Console, enable the **Gmail API**.
+   - Under Google Auth Platform, set up the consent screen (External, Testing) and add scopes `openid`, `email`, `profile` and `.../auth/gmail.readonly`. Add test users.
+   - Create an **OAuth client ID** (Web application) with authorised redirect URIs `<PUBLIC_URL>/api/auth/google/callback` and `<PUBLIC_URL>/api/inbox/gmail/callback`.
+   - Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
+3. **Microsoft app registration** (Outlook connect): in Microsoft Entra admin center → App registrations → New registration.
+   - Supported account types: "Accounts in any organizational directory and personal Microsoft accounts".
+   - Redirect URI: Web, `<PUBLIC_URL>/api/inbox/outlook/callback`.
+   - Under API permissions, add Microsoft Graph delegated `Mail.Read`, `offline_access`, `openid` and `email`.
+   - Under Certificates & secrets, create a client secret.
+   - Set `MICROSOFT_CLIENT_ID` (the Application ID) and `MICROSOFT_CLIENT_SECRET` (the secret's value). Client secrets expire, so note the date.
+4. **Sign in with Apple**: in Apple Developer → Certificates, Identifiers & Profiles:
+   - Create an App ID with "Sign in with Apple".
+   - Create a **Services ID** (this is `APPLE_CLIENT_ID`). Enable Sign in with Apple on it with the domain and the return URL `<PUBLIC_URL>/api/auth/apple/callback`.
+   - Create a **Key** with Sign in with Apple and download the `.p8` (it can be downloaded only once).
+   - Set `APPLE_TEAM_ID`, `APPLE_KEY_ID` and `APPLE_PRIVATE_KEY` (the `.p8` contents, newlines as `\n`).
+
 ## Deploy on Render
 
 `render.yaml` is a Blueprint for a Node web service plus a Postgres database. In Render choose **New → Blueprint**, pick this repository and apply. `DATABASE_URL` is wired from the database automatically and the server refuses to start in production without it.
 
-Photos need a bucket. With Cloudflare R2: create a bucket (keep it private), create an R2 API token with Object Read & Write on that bucket, and set `S3_ENDPOINT` (`https://<account id>.r2.cloudflarestorage.com`), `S3_BUCKET`, `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY` on the Render service. Any S3-compatible service works; set `S3_REGION` if it isn't `auto`. For "Nearest drop-off", create a Google Cloud project, enable **Places API (New)**, create an API key restricted to that API, and set `GOOGLE_PLACES_API_KEY`. For reminders when the app is closed, set the three `VAPID_*` values (see above). Set `ADMIN_EMAILS` to the email addresses that may review policies. The server refuses to start in production without them; Render then keeps the previous version running. Render's free Postgres expires after 30 days; move it to a paid plan before real users rely on it.
+Photos need a bucket. With Cloudflare R2: create a bucket (keep it private), create an R2 API token with Object Read & Write on that bucket, and set `S3_ENDPOINT` (`https://<account id>.r2.cloudflarestorage.com`), `S3_BUCKET`, `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY` on the Render service. Any S3-compatible service works; set `S3_REGION` if it isn't `auto`. For "Nearest drop-off", create a Google Cloud project, enable **Places API (New)**, create an API key restricted to that API, and set `GOOGLE_PLACES_API_KEY`. For reminders when the app is closed, set the three `VAPID_*` values (see above). Set `ADMIN_EMAILS` to the email addresses that may review policies. The server refuses to start in production without them; Render then keeps the previous version running. For purchases from email and Google / Apple sign-in, see Purchases from email → Setting it up. Render's free Postgres expires after 30 days; move it to a paid plan before real users rely on it.
 
 ## Project layout
 
 - `index.html`, `landing.css`: home page with Sign in / Sign up.
-- `signin.html`, `signup.html`, `auth.js`: account pages.
+- `signin.html`, `signup.html`, `auth.js`: account pages, with Continue with Google / Apple when set up.
 - `account.js`: sign-in gate for the app and background sync.
 - `push.js`, `sw.js`, `manifest.webmanifest`: installable app, Web Push subscription and notification taps.
 - `app.html` and its scripts: `app.js`, `features.js`, `klarna.js`, `precision.js`, `guided.js` (four-step return journey), `menu.js` (side menu, History, Settings, Support).
 - `core.js`: date, eligibility and calendar logic.
-- `server.js`, `server/`: account API (`app.js`), database access (`store.js`, `items.js`), account data and photos (`data.js`), file storage (`storage.js`), background jobs (`jobs.js`) and static file server; retailer policies are loaded and matched in `policies.js`, applied to items in `engine.js` and item categories are sorted in `classify.js`, receipts are read in `receipts.js`, return guides are built in `guide.js`, nearby drop-offs found in `places.js`, unknown stores looked up in `lookup.js`, lookups, reports, approvals and the freshness check run in `review.js`, and daily reminders are chosen and pushed in `reminders.js`. Only top-level app files and `assets/` are publicly served.
+- `server.js`, `server/`: account API (`app.js`), database access (`store.js`, `items.js`), account data and photos (`data.js`), file storage (`storage.js`), background jobs (`jobs.js`) and static file server; retailer policies are loaded and matched in `policies.js`, applied to items in `engine.js` and item categories are sorted in `classify.js`, receipts are read in `receipts.js`, return guides are built in `guide.js`, nearby drop-offs found in `places.js`, unknown stores looked up in `lookup.js`, lookups, reports, approvals and the freshness check run in `review.js`, daily reminders are chosen and pushed in `reminders.js`, and purchases from email come in through `inbox.js` (forwarding, Gmail, Outlook, matching), `mail.js` (shopping senders and reading an email) and `oauth.js` (Google, Microsoft and Apple OAuth, token encryption). Only top-level app files and `assets/` are publicly served.
 - `policies/`: retailer return policies and their JSON schema.
 - `tests/`: automated tests (`npm test`).
 - `docs/`: product and design notes.
