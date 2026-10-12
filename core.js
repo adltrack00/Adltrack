@@ -5,7 +5,7 @@ function iso(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'
 function shift(s,n){const d=parseDate(s);if(!d)return null;d.setDate(d.getDate()+Number(n));return iso(d)}
 function ordinal(s){const d=parseDate(s);return d?Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())/dayMs:null}
 function days(s,today){const a=ordinal(s),b=ordinal(today);return a===null||b===null?null:a-b}
-function due(item){return shift(item.basis==='purchase'?item.purchased:item.delivered,item.window)}
+function due(item){if(item.window===null||item.window===undefined||item.window==='')return null;return shift(item.basis==='purchase'?item.purchased:item.delivered,item.window)}
 function active(item,today){const n=days(due(item),today);return !['kept','received'].includes(item.status)&&item.outcome!=='final'&&(item.status==='shipped'||n===null||n>=0)}
 function eligible(item,today){return active(item,today)&&item.confirmed&&item.requirement!=='unknown'&&['credit','refund'].includes(item.outcome)&&!!due(item)}
 function escape(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}

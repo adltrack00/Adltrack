@@ -3,6 +3,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { itemFields, summary } = require('./policies');
+const { evaluate } = require('./engine');
 
 const ROOT = path.resolve(__dirname, '..');
 const COOKIE = 'rl_session';
@@ -75,8 +76,10 @@ function parseCookies(header) {
   return out;
 }
 
-function createApp({ store, data, production = false, policies = null }) {
+function createApp({ store, data, production = false, policies = null, classifier = null }) {
   const authLimit = limiter(20, 15 * 60 * 1000);
+  // Each classification is an AI call, so it's limited per account.
+  const classifyLimit = limiter(300, 60 * 60 * 1000);
   // Locks an email for 15 minutes after 10 wrong passwords, checked before the password is tried.
   const loginFailures = (() => {
     const fails = new Map(), WINDOW = 15 * 60 * 1000, MAX = 10;
@@ -191,6 +194,26 @@ function createApp({ store, data, production = false, policies = null }) {
     if (!user) throw new HttpError(401, 'Please sign in.');
 
     if (route === '/api/me' && method === 'GET') return send(res, 200, { user: { email: user.email, name: user.name } });
+
+    // Policy engine: the retailer's checked policy applied to one item and the user's answers. Nothing is saved here;
+    // the app writes the result into the item's existing fields and syncs it like any other change.
+    if (route === '/api/policy' && method === 'POST') {
+      checkWrite(req);
+      if (!policies) throw new HttpError(503, 'Retailer policies aren’t loaded.');
+      const body = await readBody(req, 20_000);
+      const raw = body && typeof body.item === 'object' && body.item ? body.item : {};
+      const text = (v, n) => typeof v === 'string' ? v.slice(0, n) : '';
+      const item = { name: text(raw.name, 200), retailer: text(raw.retailer, 200), purchased: text(raw.purchased, 10), delivered: text(raw.delivered, 10), channel: text(raw.channel, 20), dateSet: !!raw.dateSet };
+      const answers = {};
+      for (const k of ['final', 'opened', 'member', 'damaged', 'tags', 'packaging', 'clearance']) if (typeof body.answers?.[k] === 'boolean') answers[k] = body.answers[k];
+      const match = item.retailer && item.retailer !== 'Store not added' ? policies.match(item.retailer) : null;
+      const policy = match && policies.get(match.id);
+      let category = null;
+      if (policy && body.retailerId === policy.id && typeof body.category === 'string' && body.category) category = body.category.slice(0, 60);
+      else if (policy && classifier && classifyLimit('user:' + user.id)) category = await classifier.classify(item.name, policy);
+      const result = evaluate({ item, policy, answers, category });
+      return send(res, 200, { retailer: policy ? { id: policy.id, name: policy.name, version: policy.version, checked: policy.checked } : null, category, answers, result });
+    }
     if (route === '/api/data' && method === 'GET') return send(res, 200, { data: await data.getData(user.id) });
     // The whole account in one document, kept for older versions of the app.
     if (route === '/api/data' && method === 'PUT') {

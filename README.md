@@ -45,7 +45,17 @@ To run the data tests against Postgres as well, point `TEST_DATABASE_URL` at a t
 - `policies/schema.json` is the JSON schema. The server checks every file at startup and won't start if one is invalid or a fact has no source.
 - Versions: to change a policy, move the current file to `policies/history/<id>.v<N>.json`, then edit `<id>.json` and raise its `version`. On startup every version is loaded into Postgres (`retailers`, `retailer_policies`); past versions are kept, and a changed file that keeps its old version number is refused.
 - API (no sign-in needed): `GET /api/retailers` lists stores; `GET /api/retailers/:id` returns the full policy, the item fields it fills and its versions; `GET /api/retailers?match=WAL-MART%20%231234` matches a receipt or card-statement name (store numbers, `*` reference codes and `.com` are ignored).
-- Nothing in the app reads these yet; the policy engine comes next.
+
+## Policy engine
+
+`server/engine.js` applies a store's policy to one item and fills the existing item fields (`window`, `basis`, `outcome`, `requirement`, `url`, `conditions`, `processing`, `policySource`, `confirmed`). It also says whether the item is returnable (yes / no / not sure, with the reason), whether a holiday extension applies, and lists the facts it used with their sources and checked dates.
+
+- `POST /api/policy` (signed in) takes the item and the answers to the condition questions, matches the store name, and returns the result. The app saves it into the item and syncs it like any other change. It runs when a store is added or changed on the Return card, when an answer changes, and on start for items that haven't been checked against their current store.
+- Categories: the item name is sorted into the store's policy categories (`electronics`, `non-returnable`, ...) with one small Claude call (`server/classify.js`, `claude-opus-5-5` at low effort, structured output, refusal fallback on). The answer is kept on the item as `policyCategory`, next to the existing `category`, so each item is sorted once; answers are also cached in memory and limited to 300 calls per account per hour. Set `ANTHROPIC_API_KEY` to turn it on.
+- Safety: when the category isn't known, the earliest deadline of every category that could apply is used and the answer is "not sure". An unknown start date counts from purchase (the earlier date); a delivery-based window counts from purchase until the delivery date is added; an unknown deadline meaning is read as "must be on its way by then". Holiday extensions only apply with a published return-by date and only move the date later. Membership uses the least generous program and skips categories a program excludes or where the policy says it's unconfirmed. "Yes" needs a checked policy and a checked window; unverified policies are never "yes".
+- Questions (at most three, only ones that change the answer for that store and category): marked final sale, opened or used, membership, damaged or wrong, tags still on, original packaging, bought at a clearance store. A "no" to a condition the policy names makes the answer "not sure" rather than a guessed refusal.
+- On the Return card, "Return by" and the days left come from the engine; the questions and one line for what you get back sit below the existing lines and above Continue. A manual date stays the user's. Stores without a policy keep the "Date unconfirmed" label and the dashed calendar entry. Items with no fixed window (Costco general merchandise) show "No fixed window".
+- New item fields (stored with the item): `retailerId`, `policyChecked`, `policyVersion`, `policyCategory`, `conditionAnswers`, `returnable`, `returnableReason`, `holidayReturnBy`, `policyFacts`, `policyQuestions`, `policyLine`, `policyStore`.
 
 ## Deploy on Render
 
@@ -60,11 +70,11 @@ Photos need a bucket. With Cloudflare R2: create a bucket (keep it private), cre
 - `account.js`: sign-in gate for the app and background sync.
 - `app.html` and its scripts: `app.js`, `features.js`, `klarna.js`, `precision.js`, `guided.js` (four-step return journey), `menu.js` (side menu, History, Settings, Support).
 - `core.js`: date, eligibility and calendar logic.
-- `server.js`, `server/`: account API (`app.js`), database access (`store.js`, `items.js`), account data and photos (`data.js`), file storage (`storage.js`), background jobs (`jobs.js`) and static file server; retailer policies are loaded and matched in `policies.js`. Only top-level app files and `assets/` are publicly served.
+- `server.js`, `server/`: account API (`app.js`), database access (`store.js`, `items.js`), account data and photos (`data.js`), file storage (`storage.js`), background jobs (`jobs.js`) and static file server; retailer policies are loaded and matched in `policies.js`, applied to items in `engine.js` and item categories are sorted in `classify.js`. Only top-level app files and `assets/` are publicly served.
 - `policies/`: retailer return policies and their JSON schema.
 - `tests/`: automated tests (`npm test`).
 - `docs/`: product and design notes.
 
 ## Current limits
 
-Receipt reading (OCR), automatic return-policy research, SMS and background push are not connected. Deadlines are estimates until the user confirms the retailer's policy. The Terms of service page is a draft and needs review before launch.
+Receipt reading (OCR), automatic return-policy research for stores outside `policies/`, SMS and background push are not connected. Deadlines for stores without a checked policy are estimates. The Terms of service page is a draft and needs review before launch.
