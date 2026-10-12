@@ -34,6 +34,14 @@ services:
       # the app says drop-off lookup isn't available.
       - key: GOOGLE_PLACES_API_KEY
         sync: false
+      # Web Push for daily reminders when the app is closed. Generate with `npx web-push generate-vapid-keys`. Without them
+      # reminders arrive only while the app is open.
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
       # Comma-separated emails of accounts that may review policies (Settings → Policy review): looked-up stores, "Is this
       # wrong?" reports and changes the weekly freshness check flagged.
       - key: ADMIN_EMAILS

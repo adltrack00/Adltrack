@@ -11,6 +11,7 @@ const { loadPolicies } = require('./server/policies');
 const { createClassifier } = require('./server/classify');
 const { createReceiptReader } = require('./server/receipts');
 const { createPlaces } = require('./server/places');
+const { createPush, createReminders, vapidConfig } = require('./server/reminders');
 const { createPolicyFinder } = require('./server/lookup');
 const { createReview } = require('./server/review');
 
@@ -29,7 +30,11 @@ const store = createStore({ databaseUrl, file: path.join(__dirname, 'data', 'dev
 const storage = createStorage({ s3, dir: path.join(__dirname, 'data', 'files') });
 const jobs = createJobs({ store });
 const data = createData({ store, storage, jobs });
-defineJobs(jobs, { store, storage, data });
+// Web Push needs VAPID keys; without them reminders still arrive while the app is open.
+const push = createPush({ vapid: vapidConfig(process.env) });
+const reminders = createReminders({ store, push });
+// The every-minute push dispatch only runs when push is set up.
+defineJobs(jobs, { store, storage, data, reminders: push.available() ? reminders : null });
 const port = Number(process.env.PORT || 4174);
 // Render routes traffic to 0.0.0.0; locally we stay on localhost only.
 const host = process.env.HOST || (production ? '0.0.0.0' : '127.0.0.1');
@@ -47,7 +52,7 @@ store.init().then(async () => {
   const migrated = await data.migrateAll();
   if (migrated) console.log(`Moved ${migrated} account${migrated === 1 ? '' : 's'} to the items tables.`);
   await jobs.start();
-  const server = http.createServer(createApp({ store, data, production, policies, classifier: createClassifier(), receipts: createReceiptReader(), places: createPlaces({ store }), review })).listen(port, host, () =>
+  const server = http.createServer(createApp({ store, data, production, policies, classifier: createClassifier(), receipts: createReceiptReader(), places: createPlaces({ store }), review, push, reminders })).listen(port, host, () =>
     console.log(`Returnly running on http://${host === '0.0.0.0' ? 'localhost' : host}:${port} (${databaseUrl ? 'Postgres' : 'local file store'}, ${storage.kind === 's3' ? 'S3 file storage' : 'local file storage'})`));
   const shutdown = () => { server.close(); jobs.stop().finally(() => store.close().finally(() => process.exit(0))); };
   process.on('SIGTERM', shutdown);

@@ -6,17 +6,18 @@ const { itemFields, summary } = require('./policies');
 const { evaluate } = require('./engine');
 const { MAX_PAGES } = require('./receipts');
 const { buildGuide, placeQueries } = require('./guide');
+const { cleanSubscription, validTimeZone } = require('./reminders');
 const { printedWindow } = require('./receipts');
 
 const ROOT = path.resolve(__dirname, '..');
 const COOKIE = 'rl_session';
 const SESSION_DAYS = 30;
-const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.woff2': 'font/woff2' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
 // Only top-level app files and assets/ are public; server/, tests/, scripts/, data/ and package files never are.
 const STATIC_DIRS = new Set(['', 'assets']);
 const SERVER_ONLY = new Set(['server.js']);
 const FILE_CSP = "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox";
-const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
+const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; font-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
 
 /* Passwords: scrypt with a per-user salt. */
 const SCRYPT = { N: 16384, r: 8, p: 1 };
@@ -100,7 +101,7 @@ function receiptDraft(receipt, policy) {
   };
 }
 
-function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, places = null, review = null }) {
+function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, places = null, review = null, push = null, reminders = null }) {
   const authLimit = limiter(20, 15 * 60 * 1000);
   // Each classification is an AI call, so it's limited per account.
   const classifyLimit = limiter(300, 60 * 60 * 1000);
@@ -108,6 +109,8 @@ function createApp({ store, data, production = false, policies = null, classifie
   const receiptLimit = limiter(60, 60 * 60 * 1000);
   // Each drop-off lookup can be several paid places calls.
   const placesLimit = limiter(30, 60 * 60 * 1000);
+  // Test notifications go through the push service.
+  const pushTestLimit = limiter(10, 60 * 60 * 1000);
   // Each new store lookup is a web search plus an AI call; cached answers don't count.
   const lookupLimit = limiter(20, 60 * 60 * 1000);
   const reportLimit = limiter(30, 60 * 60 * 1000);
@@ -316,6 +319,43 @@ function createApp({ store, data, production = false, policies = null, classifie
       const policy = match && policies.get(match.id);
       await data.describeReceiptPurchase(user.id, purchaseId, { store: policy ? policy.name : receipt.store, channel: receipt.channel, orderNumber: receipt.orderNumber, purchased: receipt.purchased, retailerId: policy ? policy.id : null });
       return send(res, 200, { purchaseId, files, receipt, retailer: policy ? { id: policy.id, name: policy.name } : null, draft: receiptDraft(receipt, policy) });
+    }
+    // Web Push: the public key the browser subscribes with (null when push isn't set up), and this device's subscription.
+    if (route === '/api/push/key' && method === 'GET') return send(res, 200, { key: push && push.available() ? push.publicKey() : null });
+    if (route === '/api/push/subscribe' && method === 'POST') {
+      checkWrite(req);
+      if (!push || !push.available()) throw new HttpError(503, 'Background reminders aren’t set up on this server.');
+      const body = await readBody(req, 5_000);
+      const sub = cleanSubscription(body.subscription);
+      if (!sub) throw new HttpError(400, 'This browser’s notification subscription isn’t supported.');
+      await store.savePushSubscription(user.id, { ...sub, timeZone: validTimeZone(body.timeZone) ? body.timeZone : 'UTC' });
+      return send(res, 200, { ok: true });
+    }
+    if (route === '/api/push/unsubscribe' && method === 'POST') {
+      checkWrite(req);
+      const body = await readBody(req, 5_000);
+      if (typeof body.endpoint === 'string') await store.deletePushSubscription(body.endpoint, user.id);
+      return send(res, 200, { ok: true });
+    }
+    // "Send a test notification": pushed to this device, so it shows the same way the daily reminder will.
+    if (route === '/api/push/test' && method === 'POST') {
+      checkWrite(req);
+      const body = await readBody(req, 5_000);
+      const sub = push && push.available() && typeof body.endpoint === 'string' ? (await store.listPushSubscriptions(user.id)).find(s => s.endpoint === body.endpoint) : null;
+      if (!sub) return send(res, 200, { sent: false });
+      if (!pushTestLimit('user:' + user.id)) throw new HttpError(429, 'Too many test notifications. Try again later.');
+      const r = await reminders.sendTo(user.id, [sub], { title: 'Returnly · A little nudge', body: 'Your return radar is ready. Reminders arrive even when Returnly is closed.', url: 'app.html' });
+      return send(res, 200, { sent: r.sent > 0 });
+    }
+    // The open app's daily notification: the same rule and the same once-a-day claim as push, so only one of them is sent.
+    if (route === '/api/reminders/claim' && method === 'POST') {
+      checkWrite(req);
+      const body = await readBody(req, 2_000);
+      // The device's local date, which is never more than a day from the server's UTC date.
+      const offset = typeof body.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.date) ? (Date.parse(body.date) - Date.parse(new Date().toISOString().slice(0, 10))) / 864e5 : NaN;
+      if (!(Math.abs(offset) <= 1)) throw new HttpError(400, 'Invalid date.');
+      if (!reminders) return send(res, 200, { reminder: null });
+      return send(res, 200, { reminder: (await reminders.claim(user.id, body.date, 'app')).reminder });
     }
     if (route === '/api/data' && method === 'GET') return send(res, 200, { data: await data.getData(user.id) });
     // The whole account in one document, kept for older versions of the app.

@@ -107,6 +107,24 @@ create table if not exists place_cache (
   places jsonb not null,
   fetched_at timestamptz not null default now()
 );
+-- Web Push: one row per browser or installed app that allowed notifications, with the device's time zone.
+create table if not exists push_subscriptions (
+  endpoint text primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  p256dh text not null,
+  auth text not null,
+  time_zone text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists push_subscriptions_user_idx on push_subscriptions(user_id);
+-- The last local date each user's daily reminder was claimed (by push or by the open app), so it's sent once a day.
+create table if not exists reminder_days (
+  user_id uuid primary key references users(id) on delete cascade,
+  last_date date not null,
+  sent_by text not null,
+  updated_at timestamptz not null default now()
+);
 -- Stores we don't have a checked policy for, looked up on the web (status found / not_found / failed / approved). The policy
 -- is "unverified" until an admin approves it. One row per normalized store name, shared by every user who buys there.
 create table if not exists store_lookups (
@@ -336,6 +354,30 @@ function pgStore(connectionString) {
     async putPlaceCache(key, places) { await pool.query('insert into place_cache (key, places) values ($1,$2) on conflict (key) do update set places=excluded.places, fetched_at=now()', [key, JSON.stringify(places)]); },
     async deleteOldPlaceCache(before) { return (await pool.query('delete from place_cache where fetched_at < $1', [before])).rowCount; },
 
+    /* Push subscriptions and daily reminders. A device that signs in to another account moves to that account. */
+    async savePushSubscription(userId, { endpoint, p256dh, auth, timeZone }) {
+      await pool.query(`insert into push_subscriptions (endpoint, user_id, p256dh, auth, time_zone) values ($1,$2,$3,$4,$5)
+        on conflict (endpoint) do update set user_id=excluded.user_id, p256dh=excluded.p256dh, auth=excluded.auth, time_zone=excluded.time_zone, updated_at=now()`, [endpoint, userId, p256dh, auth, timeZone]);
+    },
+    async deletePushSubscription(endpoint, userId) { return (await pool.query('delete from push_subscriptions where endpoint=$1 and user_id=$2', [endpoint, userId])).rowCount > 0; },
+    async listPushSubscriptions(userId) { return all('select endpoint, p256dh, auth, time_zone as "timeZone" from push_subscriptions where user_id=$1 order by updated_at desc', [userId]); },
+    // Users with at least one subscription, their settings, the time zone of their most recently seen device, and last reminder day.
+    async reminderCandidates() {
+      return all(`select distinct on (s.user_id) s.user_id as "userId", s.time_zone as "timeZone", d.payload->'settings' as settings, r.last_date as "lastDate"
+        from push_subscriptions s left join user_data d on d.user_id=s.user_id left join reminder_days r on r.user_id=s.user_id
+        order by s.user_id, s.updated_at desc`);
+    },
+    async claimReminderDay(userId, date, by) {
+      const row = await one(`with prev as (select last_date from reminder_days where user_id=$1)
+        insert into reminder_days (user_id, last_date, sent_by) values ($1,$2,$3)
+        on conflict (user_id) do update set last_date=excluded.last_date, sent_by=excluded.sent_by, updated_at=now() where reminder_days.last_date <> excluded.last_date
+        returning (select last_date from prev) as previous`, [userId, date, by]);
+      return row ? { claimed: true, previous: row.previous || null } : { claimed: false, previous: null };
+    },
+    async releaseReminderDay(userId, date, previous) {
+      if (previous) await pool.query('update reminder_days set last_date=$3 where user_id=$1 and last_date=$2', [userId, date, previous]);
+      else await pool.query('delete from reminder_days where user_id=$1 and last_date=$2', [userId, date]);
+    },
     /* Store lookups (unverified policies) and how many accounts use each store. */
     getStoreLookup: key => one(`select key, name, status, policy, retailer_id as "retailerId", looked_up_at as "lookedUpAt" from store_lookups where key=$1`, [key]),
     async saveStoreLookup({ key, name, status, policy = null, retailerId = null }) {
@@ -395,7 +437,7 @@ function fileStore(file) {
     if (db) return db;
     try { db = JSON.parse(await fs.readFile(file, 'utf8')); } catch { db = {}; }
     // Files written before the data foundation only have users, sessions and data.
-    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, places: {}, lookups: {}, reports: {}, approved: [], snapshots: {}, flags: {}, notices: {}, ...db };
+    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, places: {}, lookups: {}, reports: {}, approved: [], snapshots: {}, flags: {}, notices: {}, push: {}, reminderDays: {}, ...db };
     return db;
   };
   // Serialise writes so concurrent requests can't interleave partial files.
@@ -435,6 +477,8 @@ function fileStore(file) {
       delete db.users[userId]; delete db.data[userId]; delete db.items[userId]; delete db.purchases[userId];
       for (const [k, s] of Object.entries(db.sessions)) if (s.userId === userId) delete db.sessions[k];
       for (const [k, f] of Object.entries(db.files)) if (f.userId === userId) delete db.files[k];
+      for (const [k, p] of Object.entries(db.push)) if (p.userId === userId) delete db.push[k];
+      delete db.reminderDays[userId];
       for (const [k, r] of Object.entries(db.reports)) if (r.userId === userId) delete db.reports[k];
       for (const [k, n] of Object.entries(db.notices)) if (n.userId === userId) delete db.notices[k];
       for (const l of Object.values(db.lookups)) l.users = l.users.filter(u => u !== userId);
@@ -570,6 +614,37 @@ function fileStore(file) {
       for (const [k, c] of Object.entries(db.places)) if (new Date(c.fetchedAt) < before) { delete db.places[k]; n++; }
       if (n) await persist();
       return n;
+    },
+
+    async savePushSubscription(userId, { endpoint, p256dh, auth, timeZone }) {
+      await load();
+      db.push[endpoint] = { endpoint, userId, p256dh, auth, timeZone, createdAt: db.push[endpoint]?.createdAt || now(), updatedAt: later(now(), db.push[endpoint]?.updatedAt || '') };
+      await persist();
+    },
+    async deletePushSubscription(endpoint, userId) { await load(); if (db.push[endpoint]?.userId !== userId) return false; delete db.push[endpoint]; await persist(); return true; },
+    async listPushSubscriptions(userId) {
+      await load();
+      return Object.values(db.push).filter(p => p.userId === userId).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)).map(({ endpoint, p256dh, auth, timeZone }) => ({ endpoint, p256dh, auth, timeZone }));
+    },
+    async reminderCandidates() {
+      await load();
+      const latest = {};
+      for (const p of Object.values(db.push)) if (!latest[p.userId] || latest[p.userId].updatedAt < p.updatedAt) latest[p.userId] = p;
+      return Object.values(latest).map(p => ({ userId: p.userId, timeZone: p.timeZone, settings: db.data[p.userId]?.settings || null, lastDate: db.reminderDays[p.userId]?.lastDate || null }));
+    },
+    async claimReminderDay(userId, date, by) {
+      await load();
+      const prev = db.reminderDays[userId];
+      if (prev && prev.lastDate === date) return { claimed: false, previous: null };
+      db.reminderDays[userId] = { lastDate: date, sentBy: by, updatedAt: now() };
+      await persist();
+      return { claimed: true, previous: prev ? prev.lastDate : null };
+    },
+    async releaseReminderDay(userId, date, previous) {
+      await load();
+      if (db.reminderDays[userId]?.lastDate !== date) return;
+      if (previous) db.reminderDays[userId].lastDate = previous; else delete db.reminderDays[userId];
+      await persist();
     },
 
     async getStoreLookup(key) { await load(); const l = db.lookups[key]; return l ? JSON.parse(JSON.stringify({ key, ...l, users: undefined })) : null; },
