@@ -75,7 +75,9 @@ function rule(policy, cat, item, answers) {
 
   // Start date: delivery only when the policy says so and the delivery date is known; otherwise the earlier purchase date.
   let basis = 'purchase';
-  if (rawBasis === 'delivery' && item.delivered) basis = 'delivery';
+  // An unverified policy (found online, not checked) always counts from the earlier purchase date.
+  if (policy.status !== 'checked') { if (rawBasis !== 'purchase') why.push(`${policy.name}'s policy is unverified, so we count from the earlier purchase date.`); }
+  else if (rawBasis === 'delivery' && item.delivered) basis = 'delivery';
   else if (rawBasis === 'delivery' && item.channel === 'online') why.push(`Counted from the purchase date until the delivery date is added.`);
   else if (rawBasis === 'shipment') why.push(`${policy.name} counts from shipment; we count from the earlier purchase date.`);
   else if (rawBasis === 'unknown') why.push(`${policy.name} doesn't say if the window starts at purchase or delivery, so we count from purchase.`);
@@ -164,7 +166,7 @@ function evaluate({ item, policy, answers = {}, category = null }) {
 
   let returnable, reason = '';
   if (rules.every(r => r.returnable === false)) { returnable = 'no'; reason = pick.cat ? `${pick.cat.label} can't be returned.` : `${policy.name} doesn't accept this return.`; }
-  else if (policy.status !== 'checked') { returnable = 'unsure'; reason = `${policy.name}'s policy hasn't been checked yet.`; }
+  else if (policy.status !== 'checked') { returnable = 'unsure'; reason = `${policy.name}'s policy was found online and hasn't been checked yet.`; }
   else if (!agree) { returnable = 'unsure'; reason = classified ? 'Answer the question below to confirm.' : `We couldn't tell which ${policy.name} category this is, so we use the shortest window that could apply.`; }
   else if (pick.returnable !== true) { returnable = 'unsure'; reason = pick.cat ? `${policy.name} hasn't confirmed the terms for ${pick.cat.label.toLowerCase()}.` : why[0] || `${policy.name} hasn't confirmed the terms.`; }
   else if (pending.length) { returnable = 'unsure'; reason = 'Answer the question below to confirm.'; }
@@ -231,7 +233,7 @@ function evaluate({ item, policy, answers = {}, category = null }) {
   const line = returnable === 'no' ? `Not returnable · ${reason}`
     : returnable === 'unsure' ? `Not sure it's returnable · ${reason}`
     : [`${OUTCOMES[outcome]} · ${base.processing || 'timing not confirmed'}`, ...extra, ...why].map(s => s.replace(/\.$/, '')).join('. ') + '.';
-  return { fields, returnable, reason: reason || [...why, meaning].filter(Boolean).join(' '), holiday, facts, questions, line, category: chosen ? chosen.id : classified ? 'general' : null };
+  return { fields, returnable, reason: reason || [...why, meaning].filter(Boolean).join(' '), holiday, facts, questions, line, category: chosen ? chosen.id : classified ? 'general' : null, unverified: policy.status !== 'checked' };
 }
 
 module.exports = { evaluate, productCategories, SITUATIONS, OUTCOMES };

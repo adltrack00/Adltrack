@@ -38,7 +38,7 @@ const Account = (() => {
     del(DIRTY_KEY);
   }
   function clearLocal() { [...Object.values(DATA_KEYS), 'back-last-nudge', 'returnly-push-endpoint', ACCOUNT_KEY, SYNCED_KEY, DIRTY_KEY, ITEMS_KEY, SETTINGS_KEY].forEach(del); }
-  function remember(u) { set(ACCOUNT_KEY, JSON.stringify({ email: u.email, name: u.name })); }
+  function remember(u) { set(ACCOUNT_KEY, JSON.stringify({ email: u.email, name: u.name, ...(u.admin ? { admin: true } : {}) })); }
 
   /* The account stores photos as files and sends back their private URLs; swap them into this browser's copy
      (in memory too, so the next save doesn't upload the photo again). */
@@ -149,6 +149,8 @@ const Account = (() => {
 
   /* On the app: require an account, then pull changes made on other devices. */
   async function checkApp() {
+    // Keeps the stored account up to date, for example when it's made an admin.
+    api('GET', '/api/me').then(r => remember(r.user)).catch(() => {});
     try {
       const { data } = await api('GET', '/api/data');
       if (get(DIRTY_KEY)) return flush();

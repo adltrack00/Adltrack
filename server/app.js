@@ -7,6 +7,7 @@ const { evaluate } = require('./engine');
 const { MAX_PAGES } = require('./receipts');
 const { buildGuide, placeQueries } = require('./guide');
 const { cleanSubscription, validTimeZone } = require('./reminders');
+const { printedWindow } = require('./receipts');
 
 const ROOT = path.resolve(__dirname, '..');
 const COOKIE = 'rl_session';
@@ -100,7 +101,7 @@ function receiptDraft(receipt, policy) {
   };
 }
 
-function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, places = null, push = null, reminders = null }) {
+function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, places = null, review = null, push = null, reminders = null }) {
   const authLimit = limiter(20, 15 * 60 * 1000);
   // Each classification is an AI call, so it's limited per account.
   const classifyLimit = limiter(300, 60 * 60 * 1000);
@@ -110,6 +111,9 @@ function createApp({ store, data, production = false, policies = null, classifie
   const placesLimit = limiter(30, 60 * 60 * 1000);
   // Test notifications go through the push service.
   const pushTestLimit = limiter(10, 60 * 60 * 1000);
+  // Each new store lookup is a web search plus an AI call; cached answers don't count.
+  const lookupLimit = limiter(20, 60 * 60 * 1000);
+  const reportLimit = limiter(30, 60 * 60 * 1000);
   // Locks an email for 15 minutes after 10 wrong passwords, checked before the password is tried.
   const loginFailures = (() => {
     const fails = new Map(), WINDOW = 15 * 60 * 1000, MAX = 10;
@@ -144,8 +148,10 @@ function createApp({ store, data, production = false, policies = null, classifie
   async function startSession(req, res, user, status, extra = {}) {
     const token = crypto.randomBytes(32).toString('base64url');
     await store.createSession(user.id, sha256(token), new Date(Date.now() + SESSION_DAYS * 864e5));
-    send(res, status, { user: { email: user.email, name: user.name }, ...extra }, { 'Set-Cookie': cookie(req, token, SESSION_DAYS * 86400) });
+    send(res, status, { user: publicUser(user), ...extra }, { 'Set-Cookie': cookie(req, token, SESSION_DAYS * 86400) });
   }
+
+  const publicUser = user => ({ email: user.email, name: user.name, ...(review && review.isAdmin(user) ? { admin: true } : {}) });
 
   function checkWrite(req) {
     // Blocks cross-site form posts: state changes must be JSON from this site.
@@ -223,7 +229,7 @@ function createApp({ store, data, production = false, policies = null, classifie
     const user = await currentUser(req);
     if (!user) throw new HttpError(401, 'Please sign in.');
 
-    if (route === '/api/me' && method === 'GET') return send(res, 200, { user: { email: user.email, name: user.name } });
+    if (route === '/api/me' && method === 'GET') return send(res, 200, { user: publicUser(user) });
 
     // Policy engine: the retailer's checked policy applied to one item and the user's answers. Nothing is saved here;
     // the app writes the result into the item's existing fields and syncs it like any other change.
@@ -237,22 +243,58 @@ function createApp({ store, data, production = false, policies = null, classifie
       const answers = {};
       for (const k of ['final', 'opened', 'member', 'damaged', 'tags', 'packaging', 'clearance']) if (typeof body.answers?.[k] === 'boolean') answers[k] = body.answers[k];
       const match = item.retailer && item.retailer !== 'Store not added' ? policies.match(item.retailer) : null;
-      const policy = match && policies.get(match.id);
+      let policy = match && policies.get(match.id), lookup = null;
+      // A store we don't have, with no window printed on the receipt: the cached web lookup (unverified), or one queued for it.
+      if (!policy && match === null && item.retailer && item.retailer !== 'Store not added' && review && !printedWindow(item.receiptPolicy)) {
+        const r = await review.forStore(item.retailer, user.id, { canLookUp: lookupLimit('user:' + user.id) });
+        policy = r.policy; lookup = r.state;
+      }
       let category = null;
       if (policy && body.retailerId === policy.id && typeof body.category === 'string' && body.category) category = body.category.slice(0, 60);
       else if (policy && classifier && classifyLimit('user:' + user.id)) category = await classifier.classify(item.name, policy);
       const result = evaluate({ item, policy, answers, category });
+      if (!policy && lookup === 'pending') result.line = `Not sure it's returnable · Looking up ${item.retailer}'s return policy…`;
       // How to return it: the steps for each way this store accepts returns, easiest first.
       const guide = buildGuide(policy, item);
       if (guide) result.fields.url = guide.url;
-      return send(res, 200, { retailer: policy ? { id: policy.id, name: policy.name, version: policy.version, checked: policy.checked } : null, category, answers, result, guide });
+      return send(res, 200, { retailer: policy ? { id: policy.id, name: policy.name, version: policy.version, checked: policy.checked, ...(policy.status !== 'checked' ? { unverified: true } : {}) } : null, category, answers, result, guide, ...(lookup ? { lookup } : {}) });
+    }
+    // "Is this wrong?" on the Return card: the policy line the user saw and an optional note, saved for review.
+    if (route === '/api/policy/report' && method === 'POST') {
+      checkWrite(req);
+      if (!review) throw new HttpError(503, 'Reports aren’t available right now.');
+      if (!reportLimit('user:' + user.id)) throw new HttpError(429, 'You’ve sent a lot of reports this hour. Try again later.');
+      return send(res, 201, await review.report(user.id, await readBody(req, 5_000)));
+    }
+    // Notices, such as a store changing its policy, shown once the next time the app opens.
+    if (route === '/api/notices' && method === 'GET') return send(res, 200, { notices: await store.listNotices(user.id) });
+    if (route === '/api/notices/read' && method === 'POST') {
+      checkWrite(req);
+      const body = await readBody(req, 5_000);
+      const ids = (Array.isArray(body.ids) ? body.ids : []).filter(id => typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id)).slice(0, 50);
+      if (ids.length) await store.markNoticesRead(user.id, ids);
+      return send(res, 200, { ok: true });
+    }
+    // Policy review, for admin accounts only (ADMIN_EMAILS). Everyone else gets the same 404 as a route that doesn't exist.
+    if (route.startsWith('/api/admin/')) {
+      if (!review || !review.isAdmin(user)) throw new HttpError(404, 'Not found.');
+      if (route === '/api/admin/review' && method === 'GET') return send(res, 200, await review.overview());
+      if (method !== 'POST') throw new HttpError(404, 'Not found.');
+      checkWrite(req);
+      const body = await readBody(req, 5_000);
+      if (route === '/api/admin/stores/approve') return send(res, 200, await review.approveStore(String(body.key || ''), user));
+      const reportMatch = /^\/api\/admin\/reports\/([0-9a-f-]{36})\/resolve$/i.exec(route);
+      if (reportMatch) { if (!(await store.resolvePolicyReport(reportMatch[1]))) throw new HttpError(404, 'This report was already reviewed.'); return send(res, 200, { ok: true }); }
+      const flagMatch = /^\/api\/admin\/flags\/([0-9a-f-]{36})$/i.exec(route);
+      if (flagMatch && ['approve', 'dismiss'].includes(body.action)) return send(res, 200, await review.decideFlag(flagMatch[1], { action: body.action, window: body.window, basis: body.basis, outcome: body.outcome }, user));
+      throw new HttpError(404, 'Not found.');
     }
     // Nearest drop-off: the closest places that accept this store's returns by the chosen way. The location is used for this
     // request only and never saved.
     if (route === '/api/places/nearest' && method === 'POST') {
       checkWrite(req);
       const body = await readBody(req, 2_000);
-      const policy = policies && typeof body.retailerId === 'string' ? policies.get(body.retailerId) : null;
+      const policy = typeof body.retailerId === 'string' ? (policies && policies.get(body.retailerId)) || (review && await review.policyById(body.retailerId)) : null;
       const way = policy && Number.isInteger(body.method) ? policy.methods[body.method] : null;
       const queries = way ? placeQueries(policy, way) : [];
       if (!queries.length) throw new HttpError(400, 'There’s no drop-off to look up for this way of returning.');
