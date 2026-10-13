@@ -9,7 +9,7 @@
 const crypto = require('node:crypto');
 const { evaluate } = require('./engine');
 const C = require('../core.js');
-const { knownSender, isShoppingEmail, gmailQuery, bodyText, forwardedFrom, address, orderKey, RECENT_DAYS } = require('./mail');
+const { knownSender, isShoppingEmail, gmailQuery, bodyText, forwardedFrom, address, contact, orderKey, RECENT_DAYS } = require('./mail');
 const { seal, unseal } = require('./oauth');
 
 const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me';
@@ -278,7 +278,7 @@ function createInbox({ store, data, policies = null, reader = null, jobs, oauth,
     const msgKey = `forward:${sha256(m.message_id || header(hs, 'Message-ID') || emailId)}`;
     if (await store.hasInboxMessage(userId, msgKey)) return { accepted: true, reason: 'seen' };
     // The user chose to forward it, so any store's email is read.
-    await readAndApply(userId, { from: forwardedFrom(body) || m.from || '', subject: String(m.subject || '').slice(0, 300), date: m.created_at || header(hs, 'Date'), text: body }, { key: msgKey });
+    await readAndApply(userId, { from: forwardedFrom(body) || contact(m.from), subject: String(m.subject || '').slice(0, 300), date: m.created_at || header(hs, 'Date'), text: body }, { key: msgKey });
     return { accepted: true };
   }
 

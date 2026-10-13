@@ -84,6 +84,7 @@ test('shopping senders: the launch retailers and shopping services, by domain or
   assert.deepEqual(knownSender('Returns <noreply@happyreturns.com>'), { service: true });
   assert.equal(knownSender('friend@example.com'), null);
   assert.equal(knownSender('amazon.com.phish@evil.example'), null, 'only the address’s own domain counts');
+  assert.deepEqual(knownSender({ name: 'Zara', email: 'noreply@zara.com' }), { retailerId: 'zara' }, 'senders may come as objects');
   assert.equal(isShoppingEmail({ from: sample('amazon-order').from, subject: sample('amazon-order').subject }), true);
   assert.equal(isShoppingEmail({ from: sample('nike-newsletter').from, subject: sample('nike-newsletter').subject }), false, 'newsletters are never opened');
   assert.match(gmailQuery(), /^newer_than:90d from:\(amazon\.com OR walmart\.com OR /);
@@ -193,6 +194,7 @@ for (const [label, databaseUrl] of STORES) test(`${label}: forwarding address: u
   assert.equal((await inbox.inbound({ type: 'email.sent', data: { email_id: 'x' } })).reason, 'ignored');
   assert.equal((await deliver(forwarded('u-nobody00@in.returnly.app', 'amazon-order'))).reason, 'unknown_address', 'dropped without being fetched');
   assert.equal((await readNow(forwarded(address, 'amazon-order', { from: 'x@example.com' }))).reason, 'unverified_sender');
+  assert.equal((await readNow(forwarded(address, 'zara-refund-credit', { from: { name: 'Sam', email: 'Sam@Example.com' }, to: [{ email: address }] }))).accepted, true, 'senders and recipients may come as objects');
   assert.equal((await readNow(forwarded(address, 'amazon-order', { headers: { 'Received-SPF': 'Fail (not authorized)' } }))).reason, 'unauthenticated');
   assert.equal((await inbox.readForwarded({ userId: user.id, emailId: 'em_missing' })).reason, 'gone');
   // Gmail auto-forwarding: Google sends a code first; the user accepts the address, then its forwarded mail is read.
@@ -208,8 +210,9 @@ for (const [label, databaseUrl] of STORES) test(`${label}: forwarding address: u
   assert.equal(s.gmailRequest, null);
   assert.equal((await deliver(auto())).accepted, true);
   await jobs.drain();
-  assert.equal(reader.calls.length, 1);
-  assert.equal(reader.calls[0].from, sample('amazon-order').from);
+  assert.equal(reader.calls.length, 2);
+  assert.equal(reader.calls[0].from, sample('zara-refund-credit').from);
+  assert.equal(reader.calls[1].from, sample('amazon-order').from);
   // A new address replaces the old one straight away, also for mail that arrived just before.
   const late = forwarded(address, 'target-shipped');
   const next = (await inbox.newAddress(user.id)).address;

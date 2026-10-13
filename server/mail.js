@@ -14,7 +14,9 @@ const SERVICE_SENDERS = ['shopifyemail.com', 'narvar.com', 'happyreturns.com', '
 const SHOPPING_SUBJECT = /\b(order|ordered|purchase|receipt|confirm|confirmation|ship|shipped|shipping|deliver|delivered|delivery|arriv|package|return|returned|refund|refunded|credit)/i;
 const RECENT_DAYS = 90;
 
-const address = from => { const m = /<([^<>\s]+@[^<>\s]+)>/.exec(String(from || '')) || /([^\s<>"']+@[^\s<>"']+)/.exec(String(from || '')); return m ? m[1].toLowerCase() : ''; };
+// A sender or recipient as "Name <a@b.com>" text, whether it came as text or as { name, email } (providers differ).
+const contact = v => v && typeof v === 'object' ? (v.name ? `${v.name} <${v.email || v.address || ''}>` : String(v.email || v.address || '')) : String(v || '');
+const address = from => { const t = contact(from), m = /<([^<>\s]+@[^<>\s]+)>/.exec(t) || /([^\s<>"']+@[^\s<>"']+)/.exec(t); return m ? m[1].toLowerCase() : ''; };
 const domainOf = email => email.split('@')[1] || '';
 const under = (domain, d) => domain === d || domain.endsWith('.' + d);
 
@@ -136,4 +138,4 @@ function createEmailReader({ apiKey = process.env.ANTHROPIC_API_KEY, client = nu
   return { read, available: () => !!client };
 }
 
-module.exports = { createEmailReader, cleanEmail, knownSender, isShoppingEmail, gmailQuery, htmlToText, bodyText, forwardedFrom, address, orderKey, RETAILER_SENDERS, SERVICE_SENDERS, RECENT_DAYS, SCHEMA };
+module.exports = { createEmailReader, cleanEmail, knownSender, isShoppingEmail, gmailQuery, htmlToText, bodyText, forwardedFrom, address, contact, orderKey, RETAILER_SENDERS, SERVICE_SENDERS, RECENT_DAYS, SCHEMA };
