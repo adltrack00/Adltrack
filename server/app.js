@@ -6,7 +6,8 @@ const { itemFields, summary } = require('./policies');
 const { evaluate } = require('./engine');
 const { MAX_PAGES } = require('./receipts');
 const { buildGuide, placeQueries } = require('./guide');
-const { cleanSubscription, validTimeZone } = require('./reminders');
+const { cleanSubscription, validTimeZone, quiet, notification } = require('./reminders');
+const { ACTIONS, KINDS } = require('./email');
 const { printedWindow } = require('./receipts');
 const { InboxError } = require('./inbox');
 
@@ -112,7 +113,7 @@ function receiptDraft(receipt, policy) {
   };
 }
 
-function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, places = null, review = null, push = null, reminders = null, inbox = null, oauth = null, publicUrl = '', inboundSecret = '' }) {
+function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, places = null, review = null, push = null, reminders = null, email = null, supportEmail = '', inbox = null, oauth = null, publicUrl = '', inboundSecret = '' }) {
   const authLimit = limiter(20, 15 * 60 * 1000);
   // Each classification is an AI call, so it's limited per account.
   const classifyLimit = limiter(300, 60 * 60 * 1000);
@@ -125,6 +126,10 @@ function createApp({ store, data, production = false, policies = null, classifie
   // Each new store lookup is a web search plus an AI call; cached answers don't count.
   const lookupLimit = limiter(20, 60 * 60 * 1000);
   const reportLimit = limiter(30, 60 * 60 * 1000);
+  // Password reset emails: a few per address per hour, so nobody can flood someone's inbox.
+  const resetLimit = limiter(3, 60 * 60 * 1000);
+  // Email links (actions and unsubscribes) work without signing in, so they're limited per IP.
+  const linkLimit = limiter(60, 15 * 60 * 1000);
   const inboundLimit = limiter(600, 60 * 60 * 1000);
   // Locks an email for 15 minutes after 10 wrong passwords, checked before the password is tried.
   const loginFailures = (() => {
@@ -272,6 +277,66 @@ function createApp({ store, data, production = false, policies = null, classifie
       if (!user || !ok) { loginFailures.fail(email); throw new HttpError(401, 'Email or password is incorrect.'); }
       loginFailures.clear(email);
       return startSession(req, res, user, 200, { data: await data.getData(user.id) });
+    }
+
+    // The support address shown on Support (SUPPORT_EMAIL), or null when it isn't set.
+    if (route === '/api/contact' && method === 'GET') return send(res, 200, { email: supportEmail || null });
+
+    // Password reset by email. The answer is the same whether or not the address has an account.
+    if (route === '/api/password/forgot' && method === 'POST') {
+      checkWrite(req);
+      if (!authLimit('ip:' + clientIp(req))) throw new HttpError(429, 'Too many attempts. Try again in a few minutes.');
+      const body = await readBody(req, 10_000);
+      const address = normEmail(body.email);
+      if (!validEmail(address)) throw new HttpError(400, 'Enter a valid email address.');
+      if (!email || !email.available()) throw new HttpError(503, 'Password reset by email isn’t set up yet. Contact support to reset it.');
+      if (!resetLimit('email:' + address)) return send(res, 200, { ok: true });
+      const user = await store.findUserByEmail(address);
+      if (user) {
+        const token = crypto.randomBytes(32).toString('base64url');
+        await store.createPasswordReset(user.id, sha256(token), new Date(Date.now() + 60 * 60 * 1000));
+        // Not awaited, so the response time doesn't reveal which addresses have an account.
+        email.sendReset(user.email, token).catch(err => console.error('Reset email failed:', err.message));
+      }
+      return send(res, 200, { ok: true });
+    }
+    if (route === '/api/password/reset' && method === 'POST') {
+      checkWrite(req);
+      if (!authLimit('ip:' + clientIp(req))) throw new HttpError(429, 'Too many attempts. Try again in a few minutes.');
+      const body = await readBody(req, 10_000);
+      if (!validPassword(body.password)) throw new HttpError(400, 'Use a password with at least 8 characters.');
+      const userId = typeof body.token === 'string' && body.token.length <= 100 ? await store.takePasswordReset(sha256(body.token)) : null;
+      if (!userId) throw new HttpError(400, 'This link has expired or was already used. Ask for a new one.');
+      await store.setPassword(userId, await hashPassword(body.password));
+      // Every other device is signed out; this one is signed in with the new password.
+      await store.deleteUserSessions(userId);
+      const user = await store.findUserById(userId);
+      loginFailures.clear(user.email);
+      return startSession(req, res, user, 200, { data: await data.getData(user.id) });
+    }
+
+    // Links in reminder emails, which work without signing in: signed for one account, item and action.
+    if (route === '/api/email/act' && method === 'POST') {
+      checkWrite(req);
+      if (!linkLimit('ip:' + clientIp(req))) throw new HttpError(429, 'Too many attempts. Try again in a few minutes.');
+      const body = await readBody(req, 2_000);
+      const t = email && email.tokens.verify(body.token);
+      if (!t || t.t !== 'act' || !ACTIONS.includes(t.a) || !reminders) throw new HttpError(400, 'This link has expired. Open Returnly instead.');
+      const item = await reminders.act(t.u, t.i, t.a, (await reminders.localNow(t.u)).date);
+      if (!item) throw new HttpError(404, 'This purchase isn’t in your Returnly anymore.');
+      return send(res, 200, { ok: true, action: t.a, name: item.name || '' });
+    }
+    // Unsubscribe from one type of reminder email: from the email's link (JSON) or one-click from the mail app (RFC 8058,
+    // a form post with the token in the URL, sent by the mail provider itself).
+    if (route === '/api/email/unsubscribe' && method === 'POST') {
+      if (!linkLimit('ip:' + clientIp(req))) throw new HttpError(429, 'Too many attempts. Try again in a few minutes.');
+      const query = new URL(req.url, 'http://localhost').searchParams.get('t');
+      let token = query;
+      if (query) req.resume(); else { checkWrite(req); token = (await readBody(req, 2_000)).token; }
+      const t = email && email.tokens.verify(token);
+      if (!t || t.t !== 'unsub' || !KINDS.includes(t.k)) throw new HttpError(400, 'This link isn’t valid. Turn emails off in Reminders instead.');
+      if (await store.findUserById(t.u)) await store.setEmailOptout(t.u, t.k, true);
+      return send(res, 200, { ok: true, kind: t.k });
     }
 
     if (route === '/api/logout' && method === 'POST') {
@@ -488,7 +553,40 @@ function createApp({ store, data, production = false, policies = null, classifie
       const offset = typeof body.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.date) ? (Date.parse(body.date) - Date.parse(new Date().toISOString().slice(0, 10))) / 864e5 : NaN;
       if (!(Math.abs(offset) <= 1)) throw new HttpError(400, 'Invalid date.');
       if (!reminders) return send(res, 200, { reminder: null });
-      return send(res, 200, { reminder: (await reminders.claim(user.id, body.date, 'app')).reminder });
+      // Inside quiet hours nothing is claimed; the app asks again once they end.
+      const settings = await reminders.settingsOf(user.id);
+      if (typeof body.time === 'string' && quiet(settings, body.time)) return send(res, 200, { reminder: null, quiet: true });
+      const r = (await reminders.claim(user.id, body.date, 'app', settings)).reminder;
+      return send(res, 200, { reminder: r && notification(r) });
+    }
+    // A notification's action buttons ("Snooze until tomorrow", "I sent it back", "I'm keeping it"), sent by the service worker.
+    if (route === '/api/reminders/action' && method === 'POST') {
+      checkWrite(req);
+      const body = await readBody(req, 2_000);
+      if (!reminders || !ACTIONS.includes(body.action)) throw new HttpError(400, 'Invalid action.');
+      const offset = typeof body.today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.today) ? (Date.parse(body.today) - Date.parse(new Date().toISOString().slice(0, 10))) / 864e5 : NaN;
+      const today = Math.abs(offset) <= 1 ? body.today : (await reminders.localNow(user.id)).date;
+      const item = await reminders.act(user.id, body.itemId, body.action, today);
+      if (!item) throw new HttpError(404, 'Not found.');
+      return send(res, 200, { item });
+    }
+    // The daily reminder was opened (tapped), so no "unopened" email follows it.
+    if (route === '/api/reminders/opened' && method === 'POST') {
+      checkWrite(req);
+      if (reminders) await reminders.opened(user.id);
+      return send(res, 200, { ok: true });
+    }
+    // Reminder emails: which types are on ("Also email me" on Reminders, and the unsubscribe links in each email).
+    if (route === '/api/email/prefs' && method === 'GET') {
+      const off = await store.emailOptouts(user.id);
+      return send(res, 200, { available: !!(email && email.available()), ...Object.fromEntries(KINDS.map(k => [k, !off.includes(k)])) });
+    }
+    if (route === '/api/email/prefs' && method === 'PUT') {
+      checkWrite(req);
+      const body = await readBody(req, 2_000);
+      for (const k of KINDS) if (typeof body[k] === 'boolean') await store.setEmailOptout(user.id, k, !body[k]);
+      const off = await store.emailOptouts(user.id);
+      return send(res, 200, { available: !!(email && email.available()), ...Object.fromEntries(KINDS.map(k => [k, !off.includes(k)])) });
     }
     if (route === '/api/data' && method === 'GET') return send(res, 200, { data: await data.getData(user.id) });
     // The whole account in one document, kept for older versions of the app.

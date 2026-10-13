@@ -50,7 +50,7 @@ const Push = (() => {
 
   /* Shows the open app's daily notification; through the service worker when possible (required on Android). */
   async function show(reminder) {
-    try { await (await ready()).showNotification(reminder.title, { body: reminder.body, icon: 'assets/icon-192.png', tag: 'returnly-daily', data: { url: reminder.url, itemId: reminder.itemId } }); return; } catch {}
+    try { await (await ready()).showNotification(reminder.title, { body: reminder.body, icon: 'assets/icon-192.png', tag: 'returnly-daily', actions: (reminder.actions || []).slice(0, 4), data: { url: reminder.url, itemId: reminder.itemId } }); return; } catch {}
     try { const n = new Notification(reminder.title, { body: reminder.body }); n.onclick = () => { window.focus(); openItem(reminder.itemId); }; } catch {}
   }
 

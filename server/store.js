@@ -125,6 +125,22 @@ create table if not exists reminder_days (
   sent_by text not null,
   updated_at timestamptz not null default now()
 );
+-- The day a reminder was opened (tapped, or an email link used), so an unopened one can be followed by email.
+alter table reminder_days add column if not exists opened_date date;
+-- Reminder email types an account unsubscribed from ('daily': when push isn't set up; 'unopened': 3 days before a deadline).
+create table if not exists email_optouts (
+  user_id uuid not null references users(id) on delete cascade,
+  kind text not null check (kind in ('daily', 'unopened')),
+  created_at timestamptz not null default now(),
+  primary key (user_id, kind)
+);
+-- Password reset links: only a SHA-256 of each token is stored; each works once, for one hour.
+create table if not exists password_resets (
+  token_hash text primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  expires_at timestamptz not null
+);
+create index if not exists password_resets_user_idx on password_resets(user_id);
 -- Stores we don't have a checked policy for, looked up on the web (status found / not_found / failed / approved). The policy
 -- is "unverified" until an admin approves it. One row per normalized store name, shared by every user who buys there.
 create table if not exists store_lookups (
@@ -432,16 +448,37 @@ function pgStore(connectionString) {
     },
     async deletePushSubscription(endpoint, userId) { return (await pool.query('delete from push_subscriptions where endpoint=$1 and user_id=$2', [endpoint, userId])).rowCount > 0; },
     async listPushSubscriptions(userId) { return all('select endpoint, p256dh, auth, time_zone as "timeZone" from push_subscriptions where user_id=$1 order by updated_at desc', [userId]); },
-    // Users with at least one subscription, their settings, the time zone of their most recently seen device, and last reminder day.
+    // Every account with settings or a push subscription: its settings, the time zone of its most recently seen device (or
+    // null), whether it has a device for push, and its last reminder day.
     async reminderCandidates() {
-      return all(`select distinct on (s.user_id) s.user_id as "userId", s.time_zone as "timeZone", d.payload->'settings' as settings, r.last_date as "lastDate"
-        from push_subscriptions s left join user_data d on d.user_id=s.user_id left join reminder_days r on r.user_id=s.user_id
-        order by s.user_id, s.updated_at desc`);
+      return all(`select u.id as "userId", p.time_zone as "timeZone", p.time_zone is not null as "hasPush", d.payload->'settings' as settings, r.last_date as "lastDate"
+        from users u left join user_data d on d.user_id=u.id left join reminder_days r on r.user_id=u.id
+        left join lateral (select time_zone from push_subscriptions s where s.user_id=u.id order by s.updated_at desc limit 1) p on true
+        where d.user_id is not null or p.time_zone is not null`);
     },
+    reminderDay: userId => one('select last_date as "lastDate", opened_date as "openedDate" from reminder_days where user_id=$1', [userId]),
+    async markReminderOpened(userId) { await pool.query('update reminder_days set opened_date=last_date where user_id=$1', [userId]); },
+    async emailOptouts(userId) { return (await all('select kind from email_optouts where user_id=$1 order by kind', [userId])).map(r => r.kind); },
+    async setEmailOptout(userId, kind, off) {
+      if (off) await pool.query('insert into email_optouts (user_id, kind) values ($1,$2) on conflict do nothing', [userId, kind]);
+      else await pool.query('delete from email_optouts where user_id=$1 and kind=$2', [userId, kind]);
+    },
+    /* Password reset. */
+    async setPassword(userId, passwordHash) { await pool.query('update users set password_hash=$2 where id=$1', [userId, passwordHash]); },
+    async deleteUserSessions(userId) { await pool.query('delete from sessions where user_id=$1', [userId]); },
+    async createPasswordReset(userId, tokenHash, expiresAt) { await pool.query('insert into password_resets (token_hash, user_id, expires_at) values ($1,$2,$3)', [tokenHash, userId, expiresAt]); },
+    // Uses the link up: returns its account when it hasn't expired, and removes every reset link of that account.
+    async takePasswordReset(tokenHash) {
+      const row = await one('delete from password_resets where token_hash=$1 returning user_id as "userId", expires_at as "expiresAt"', [tokenHash]);
+      if (!row) return null;
+      await pool.query('delete from password_resets where user_id=$1', [row.userId]);
+      return new Date(row.expiresAt) > new Date() ? row.userId : null;
+    },
+    async deleteExpiredPasswordResets() { return (await pool.query('delete from password_resets where expires_at < now()')).rowCount; },
     async claimReminderDay(userId, date, by) {
       const row = await one(`with prev as (select last_date from reminder_days where user_id=$1)
         insert into reminder_days (user_id, last_date, sent_by) values ($1,$2,$3)
-        on conflict (user_id) do update set last_date=excluded.last_date, sent_by=excluded.sent_by, updated_at=now() where reminder_days.last_date <> excluded.last_date
+        on conflict (user_id) do update set last_date=excluded.last_date, sent_by=excluded.sent_by, opened_date=null, updated_at=now() where reminder_days.last_date <> excluded.last_date
         returning (select last_date from prev) as previous`, [userId, date, by]);
       return row ? { claimed: true, previous: row.previous || null } : { claimed: false, previous: null };
     },
@@ -555,7 +592,7 @@ function fileStore(file) {
     if (db) return db;
     try { db = JSON.parse(await fs.readFile(file, 'utf8')); } catch { db = {}; }
     // Files written before the data foundation only have users, sessions and data.
-    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, places: {}, lookups: {}, reports: {}, approved: [], snapshots: {}, flags: {}, notices: {}, push: {}, reminderDays: {}, inboxAddresses: {}, inboxConnections: {}, inboxMessages: {}, emailOrders: {}, oauthStates: {}, identities: {}, ...db };
+    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, places: {}, lookups: {}, reports: {}, approved: [], snapshots: {}, flags: {}, notices: {}, push: {}, reminderDays: {}, optouts: {}, resets: {}, inboxAddresses: {}, inboxConnections: {}, inboxMessages: {}, emailOrders: {}, oauthStates: {}, identities: {}, ...db };
     return db;
   };
   // Serialise writes so concurrent requests can't interleave partial files.
@@ -598,7 +635,8 @@ function fileStore(file) {
       for (const [k, s] of Object.entries(db.sessions)) if (s.userId === userId) delete db.sessions[k];
       for (const [k, f] of Object.entries(db.files)) if (f.userId === userId) delete db.files[k];
       for (const [k, p] of Object.entries(db.push)) if (p.userId === userId) delete db.push[k];
-      delete db.reminderDays[userId];
+      delete db.reminderDays[userId]; delete db.optouts[userId];
+      for (const [k, r] of Object.entries(db.resets)) if (r.userId === userId) delete db.resets[k];
       for (const [k, r] of Object.entries(db.reports)) if (r.userId === userId) delete db.reports[k];
       for (const [k, n] of Object.entries(db.notices)) if (n.userId === userId) delete db.notices[k];
       for (const l of Object.values(db.lookups)) l.users = l.users.filter(u => u !== userId);
@@ -754,13 +792,39 @@ function fileStore(file) {
       await load();
       const latest = {};
       for (const p of Object.values(db.push)) if (!latest[p.userId] || latest[p.userId].updatedAt < p.updatedAt) latest[p.userId] = p;
-      return Object.values(latest).map(p => ({ userId: p.userId, timeZone: p.timeZone, settings: db.data[p.userId]?.settings || null, lastDate: db.reminderDays[p.userId]?.lastDate || null }));
+      return Object.keys(db.users).filter(id => db.data[id] || latest[id]).map(id => ({ userId: id, timeZone: latest[id]?.timeZone || null, hasPush: !!latest[id], settings: db.data[id]?.settings || null, lastDate: db.reminderDays[id]?.lastDate || null }));
+    },
+    async reminderDay(userId) { await load(); const r = db.reminderDays[userId]; return r ? { lastDate: r.lastDate, openedDate: r.openedDate || null } : null; },
+    async markReminderOpened(userId) { await load(); const r = db.reminderDays[userId]; if (r) { r.openedDate = r.lastDate; await persist(); } },
+    async emailOptouts(userId) { await load(); return [...(db.optouts[userId] || [])].sort(); },
+    async setEmailOptout(userId, kind, off) {
+      await load();
+      const set = new Set(db.optouts[userId] || []);
+      if (off) set.add(kind); else set.delete(kind);
+      db.optouts[userId] = [...set]; await persist();
+    },
+    async setPassword(userId, passwordHash) { await load(); if (db.users[userId]) { db.users[userId].passwordHash = passwordHash; await persist(); } },
+    async deleteUserSessions(userId) { await load(); for (const [k, s] of Object.entries(db.sessions)) if (s.userId === userId) delete db.sessions[k]; await persist(); },
+    async createPasswordReset(userId, tokenHash, expiresAt) { await load(); db.resets[tokenHash] = { userId, expiresAt: iso(expiresAt) }; await persist(); },
+    async takePasswordReset(tokenHash) {
+      await load();
+      const r = db.resets[tokenHash];
+      if (!r) return null;
+      for (const [k, x] of Object.entries(db.resets)) if (x.userId === r.userId) delete db.resets[k];
+      await persist();
+      return new Date(r.expiresAt) > new Date() ? r.userId : null;
+    },
+    async deleteExpiredPasswordResets() {
+      await load(); let n = 0;
+      for (const [k, r] of Object.entries(db.resets)) if (new Date(r.expiresAt) < new Date()) { delete db.resets[k]; n++; }
+      if (n) await persist();
+      return n;
     },
     async claimReminderDay(userId, date, by) {
       await load();
       const prev = db.reminderDays[userId];
       if (prev && prev.lastDate === date) return { claimed: false, previous: null };
-      db.reminderDays[userId] = { lastDate: date, sentBy: by, updatedAt: now() };
+      db.reminderDays[userId] = { lastDate: date, sentBy: by, openedDate: null, updatedAt: now() };
       await persist();
       return { claimed: true, previous: prev ? prev.lastDate : null };
     },

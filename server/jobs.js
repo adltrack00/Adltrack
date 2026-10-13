@@ -67,6 +67,7 @@ function defineJobs(jobs, { store, storage, data = null, reminders = null }) {
   // Example recurring job: clears expired sign-in sessions and old finished jobs.
   jobs.define('maintenance.cleanup', async () => {
     await store.deleteExpiredSessions();
+    await store.deleteExpiredPasswordResets();
     await store.deleteFinishedJobs(new Date(Date.now() - 30 * 24 * HOUR));
     // Cached drop-off places (ids and coordinates) are kept for at most 30 days, as the places provider's terms require.
     await store.deleteOldPlaceCache(new Date(Date.now() - 30 * 24 * HOUR));
@@ -75,10 +76,12 @@ function defineJobs(jobs, { store, storage, data = null, reminders = null }) {
   }, { every: 6 * HOUR });
   // Scanned receipts whose items were never saved (the scan was abandoned) are deleted after two days.
   if (data) jobs.define('receipts.cleanup', async () => { await data.cleanupReceipts(new Date(Date.now() - 48 * HOUR)); }, { every: 6 * HOUR });
-  // Daily reminders by Web Push: every minute, queue a send for each user whose reminder time has come in their time zone.
+  // Daily reminders by Web Push or email: every minute, queue a send for each user whose reminder time has come in their
+  // time zone; an unopened push reminder 3 days before a deadline is followed by email.
   if (reminders) {
     jobs.define('reminders.dispatch', () => reminders.dispatch(), { every: 60 * 1000 });
     jobs.define('reminders.send', payload => reminders.send(payload));
+    jobs.define('reminders.followup', payload => reminders.followup(payload));
   }
   // Retries deleting stored files that couldn't be removed straight away (for example, after "Delete my account").
   jobs.define('files.delete', async ({ keys }) => {

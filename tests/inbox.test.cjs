@@ -411,7 +411,7 @@ test('HTTP: Continue with Google signs in or up, inbox routes need an account, a
 test('Settings gets "Add purchases from email" right below My profile, and email orders show as cards with the From email label', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'menu.js'), 'utf8');
   const listeners = [];
-  const ctx = { render() {}, gallery: () => '', profileHeader: () => '', profileTools: () => '', items: [{ id: 'x', purchaseId: 'eo-done' }], view: 'overview', galleryFilter: 'all', galleryQuery: '', NO_STORE: 'Store not added', profile: {}, toast() {}, setTimeout() {}, location: { search: '' }, history: {}, URLSearchParams,
+  const ctx = { render() {}, gallery: () => '', profileHeader: () => '', profileTools: () => '', items: [{ id: 'x', purchaseId: 'eo-done' }], view: 'overview', galleryFilter: 'all', galleryQuery: '', NO_STORE: 'Store not added', profile: {}, toast() {}, setTimeout() {}, location: { search: '' }, history: {}, URLSearchParams, fetch: () => new Promise(() => {}),
     esc: s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])), money: n => '$' + Number(n).toFixed(2), photo: i => `<div class="product-photo" aria-label="${i.name}"></div>`,
     Account: { user: () => null }, document: { addEventListener: (n, f) => listeners.push(n), querySelector: () => null, body: { insertAdjacentHTML() {} } }, $: () => null };
   vm.runInNewContext(src + ';this.settingsPage=settingsPage;this.emailCards=emailCards;this.setInbox=d=>{inbox.data=d};this.privacyPage=privacyPage;', ctx);
