@@ -14,6 +14,7 @@ const { createPlaces } = require('./server/places');
 const { createPush, createReminders, vapidConfig } = require('./server/reminders');
 const { createPolicyFinder } = require('./server/lookup');
 const { createReview } = require('./server/review');
+const { createEmail, emailConfig } = require('./server/email');
 
 const production = process.env.NODE_ENV === 'production';
 const databaseUrl = process.env.DATABASE_URL || '';
@@ -32,9 +33,12 @@ const jobs = createJobs({ store });
 const data = createData({ store, storage, jobs });
 // Web Push needs VAPID keys; without them reminders still arrive while the app is open.
 const push = createPush({ vapid: vapidConfig(process.env) });
-const reminders = createReminders({ store, push });
-// The every-minute push dispatch only runs when push is set up.
-defineJobs(jobs, { store, storage, data, reminders: push.available() ? reminders : null });
+// Reminder emails and password reset links need Resend (RESEND_API_KEY, EMAIL_FROM, APP_URL).
+const email = createEmail({ config: emailConfig(process.env), secret: process.env.EMAIL_TOKEN_SECRET || '' });
+if (email.available() && !process.env.EMAIL_TOKEN_SECRET) console.warn('EMAIL_TOKEN_SECRET isn’t set: links in emails stop working when the server restarts.');
+const reminders = createReminders({ store, push, email, data });
+// The every-minute reminder dispatch only runs when push or email is set up.
+defineJobs(jobs, { store, storage, data, reminders: push.available() || email.available() ? reminders : null });
 const port = Number(process.env.PORT || 4174);
 // Render routes traffic to 0.0.0.0; locally we stay on localhost only.
 const host = process.env.HOST || (production ? '0.0.0.0' : '127.0.0.1');
@@ -52,7 +56,7 @@ store.init().then(async () => {
   const migrated = await data.migrateAll();
   if (migrated) console.log(`Moved ${migrated} account${migrated === 1 ? '' : 's'} to the items tables.`);
   await jobs.start();
-  const server = http.createServer(createApp({ store, data, production, policies, classifier: createClassifier(), receipts: createReceiptReader(), places: createPlaces({ store }), review, push, reminders })).listen(port, host, () =>
+  const server = http.createServer(createApp({ store, data, production, policies, classifier: createClassifier(), receipts: createReceiptReader(), places: createPlaces({ store }), review, push, reminders, email, supportEmail: process.env.SUPPORT_EMAIL || '' })).listen(port, host, () =>
     console.log(`Returnly running on http://${host === '0.0.0.0' ? 'localhost' : host}:${port} (${databaseUrl ? 'Postgres' : 'local file store'}, ${storage.kind === 's3' ? 'S3 file storage' : 'local file storage'})`));
   const shutdown = () => { server.close(); jobs.stop().finally(() => store.close().finally(() => process.exit(0))); };
   process.on('SIGTERM', shutdown);
