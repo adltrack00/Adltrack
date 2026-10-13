@@ -62,16 +62,15 @@ services:
       - key: ADMIN_EMAILS
         sync: false
       # Purchases from email and "Continue with Google / Apple" (see README → Purchases from email). Each part is off until
-      # its values are set. PUBLIC_URL is this service's https address, used for OAuth redirect and Outlook notification URLs.
-      - key: PUBLIC_URL
-        sync: false
+      # its values are set. OAuth redirects and Outlook notifications use APP_URL above.
       # 32 random bytes, base64 (openssl rand -base64 32). Encrypts inbox tokens at rest. Required once any part below is set.
       - key: INBOX_TOKEN_KEY
         sync: false
-      # Forwarding: the inbound mail domain (for example in.returnly.app) and the webhook's basic-auth password.
+      # Forwarding, through Resend's inbound email (uses RESEND_API_KEY above): the receiving domain (for example
+      # in.returnly.app) and the signing secret of the email.received webhook (whsec_...).
       - key: INBOUND_EMAIL_DOMAIN
         sync: false
-      - key: INBOUND_EMAIL_SECRET
+      - key: RESEND_WEBHOOK_SECRET
         sync: false
       # Google OAuth client: "Continue with Google" and Gmail connect (read-only). Set GMAIL_VERIFIED=true once Google has
       # verified the app; until then Gmail connect is in testing mode (up to 100 test users).

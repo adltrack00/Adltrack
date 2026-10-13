@@ -15,7 +15,7 @@ Checked October 12, 2026. Google changes this process and assessors change their
 
 ## Steps to verification
 
-1. **Get the basics in place.** Verified domain for the app's home page and the redirect URIs (`https://<PUBLIC_URL>/api/inbox/gmail/callback`, `https://<PUBLIC_URL>/api/auth/google/callback`). A public privacy policy that describes the Gmail data use; Google's [User Data Policy](https://developers.google.com/terms/api-services-user-data-policy) includes the "Limited Use" rules. The Terms of service draft also needs review first. Add an app logo and a support email.
+1. **Get the basics in place.** Verified domain for the app's home page and the redirect URIs (`https://<APP_URL>/api/inbox/gmail/callback`, `https://<APP_URL>/api/auth/google/callback`). A public privacy policy that describes the Gmail data use; Google's [User Data Policy](https://developers.google.com/terms/api-services-user-data-policy) includes the "Limited Use" rules. The Terms of service draft also needs review first. Add an app logo and a support email.
 2. **Confirm the scope is needed.** Google asks why a narrower scope won't do. Our answer: `gmail.metadata` has no message bodies, so order details can't be read, and nothing narrower than `gmail.readonly` gives read access to bodies. Returnly never sends, changes or deletes mail.
 3. **Submit for verification** (Google Auth Platform → Verification Center). Include:
    - a written justification for each scope;

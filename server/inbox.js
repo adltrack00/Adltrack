@@ -1,4 +1,4 @@
-/* Purchases from email. Three ways in: a private forwarding address (the email provider's inbound webhook), a connected
+/* Purchases from email. Three ways in: a private forwarding address (Resend's inbound email), a connected
    Gmail inbox (read-only) and a connected Outlook inbox (Graph, Mail.Read). Every email is read on the server by a job, and
    only what it says about an order is kept, with the message id: never the email itself.
    - A new order becomes a card on Your purchases ("From email"). Tapping it opens the Item card filled in; nothing becomes
@@ -33,13 +33,19 @@ function sameName(a, b) {
   return n >= Math.max(1, Math.ceil(Math.min(x.size, y.size) / 2));
 }
 class InboxError extends Error { constructor(status, message) { super(message); this.status = status; } }
-const header = (headers, name) => { const h = (headers || []).find(x => String(x.Name || x.name).toLowerCase() === name.toLowerCase()); return h ? String(h.Value ?? h.value ?? '') : ''; };
+// Headers as a list of { name, value } (Gmail) or an object of name → value (Resend).
+const header = (headers, name) => {
+  const n = name.toLowerCase();
+  if (Array.isArray(headers)) { const h = headers.find(x => x && String(x.Name || x.name).toLowerCase() === n); return h ? String(h.Value ?? h.value ?? '') : ''; }
+  const k = headers && typeof headers === 'object' ? Object.keys(headers).find(x => x.toLowerCase() === n) : null;
+  return k ? String([].concat(headers[k])[0] ?? '') : '';
+};
 
-function createInbox({ store, data, policies = null, reader = null, jobs, oauth, key = null, domain = '', publicUrl = '', gmailVerified = false, fetch: http = globalThis.fetch, log = console }) {
+function createInbox({ store, data, policies = null, reader = null, jobs, oauth, key = null, domain = '', resendKey = '', publicUrl = '', gmailVerified = false, fetch: http = globalThis.fetch, log = console }) {
   const readLimit = (() => { const hits = new Map(); return userId => { const now = Date.now(), e = hits.get(userId); if (!e || e.reset < now) { hits.set(userId, { n: 1, reset: now + DAY }); return true; } return ++e.n <= 300; }; })();
   const canRead = () => !!(reader && reader.available() && key);
   const available = () => ({
-    forwarding: !!domain && canRead(),
+    forwarding: !!domain && !!resendKey && canRead(),
     gmail: oauth.available.google && canRead(),
     outlook: oauth.available.microsoft && canRead(),
     gmailTesting: !gmailVerified
@@ -229,42 +235,51 @@ function createInbox({ store, data, policies = null, reader = null, jobs, oauth,
     return r;
   }
 
-  /* --- Forwarded mail (the email provider's inbound webhook) --- */
-  /* payload: the provider's JSON (Postmark's inbound format: From, FromFull, ToFull, CcFull, OriginalRecipient, Subject,
-     MessageID, Date, TextBody, HtmlBody, Headers). Returns what happened; anything not accepted is dropped, not stored. */
-  async function inbound(payload) {
-    const p = payload && typeof payload === 'object' ? payload : {};
+  /* --- Forwarded mail (Resend's inbound email) --- */
+  /* The `email.received` webhook (already signature-checked) has only the message's metadata. Mail to an address that isn't
+     anyone's is dropped without being fetched; otherwise a job fetches it from Resend by id, so the queue never holds it. */
+  async function inbound(event) {
+    const d = event && event.type === 'email.received' && event.data && typeof event.data === 'object' ? event.data : null;
+    if (!d || typeof d.email_id !== 'string' || !d.email_id) return { accepted: false, reason: 'ignored' };
     if (!domain) return { accepted: false, reason: 'not_set_up' };
-    const recipients = [...['ToFull', 'CcFull', 'BccFull'].flatMap(k => Array.isArray(p[k]) ? p[k].map(r => r && r.Email) : []), p.OriginalRecipient, p.To].map(address).filter(e => e.endsWith('@' + domain.toLowerCase()));
-    let owner = null;
-    for (const r of recipients) { owner = await store.findInboxAddress(r.split('@')[0]); if (owner) break; }
+    const owner = await ownerOf([].concat(d.to || [], d.cc || [], d.bcc || []));
     if (!owner) return { accepted: false, reason: 'unknown_address' };
-    const user = await store.findUserById(owner.userId);
+    await jobs.enqueue('inbox.forwarded', { userId: owner.userId, emailId: d.email_id.slice(0, 100) }, { uniqueKey: `inbox-forwarded:${d.email_id.slice(0, 100)}` });
+    return { accepted: true };
+  }
+  async function ownerOf(list) {
+    for (const r of list.map(address).filter(e => e.endsWith('@' + domain.toLowerCase()))) { const a = await store.findInboxAddress(r.split('@')[0]); if (a) return a; }
+    return null;
+  }
+  /* Fetches the message from Resend and reads it if it came from one of the user's own addresses. Returns what happened;
+     anything not accepted is dropped, not stored. */
+  async function readForwarded({ userId, emailId }) {
+    if (!resendKey || typeof emailId !== 'string') return { accepted: false, reason: 'not_set_up' };
+    const res = await http(`https://api.resend.com/emails/receiving/${encodeURIComponent(emailId)}`, { headers: { Authorization: `Bearer ${resendKey}` } });
+    if (res.status === 404) return { accepted: false, reason: 'gone' };
+    if (!res.ok) throw new Error(`Resend request failed (${res.status}).`);
+    const m = await res.json();
+    // The address may have been replaced since the mail arrived: it must still belong to the same account.
+    const owner = await ownerOf([].concat(m.to || [], m.cc || [], m.bcc || []));
+    const user = owner && owner.userId === userId ? await store.findUserById(userId) : null;
     if (!user) return { accepted: false, reason: 'unknown_address' };
-    const from = address(p.FromFull && p.FromFull.Email || p.From), hs = p.Headers;
-    const body = bodyText({ text: p.TextBody, html: p.HtmlBody });
+    const from = address(m.from), hs = m.headers, body = bodyText({ text: m.text, html: m.html });
     // Gmail sends a confirmation code before it auto-forwards. It's shown on the sub-page; nothing else is read from it.
     if (from === 'forwarding-noreply@google.com') {
       const code = /confirmation code:\s*(\d{6,12})/i.exec(body), who = /\b([^\s@]+@[^\s@]+\.[a-z]{2,})\s+has requested/i.exec(body);
-      if (code && who) await store.setForwardRequest(owner.userId, { email: who[1].toLowerCase(), code: code[1], at: new Date().toISOString() });
+      if (code && who) await store.setForwardRequest(userId, { email: who[1].toLowerCase(), code: code[1], at: new Date().toISOString() });
       return { accepted: !!(code && who), reason: 'gmail_confirmation' };
     }
-    // The sending server must pass SPF or DKIM where the provider reports it, so a forged From is turned away.
+    // The sending server must pass SPF or DKIM where it's reported, so a forged From is turned away.
     const spf = header(hs, 'Received-SPF'), auth = header(hs, 'Authentication-Results');
     if (/^\s*(fail|softfail)/i.test(spf) && !/dkim=pass/i.test(auth)) return { accepted: false, reason: 'unauthenticated' };
     const senders = await verifiedSenders(user), forwardedBy = [from, address(header(hs, 'X-Forwarded-For').split(/\s+/)[0]), address(header(hs, 'Resent-From'))].filter(Boolean);
     if (!forwardedBy.some(e => senders.includes(e))) return { accepted: false, reason: 'unverified_sender' };
-    const original = forwardedFrom(body) || p.From || '';
-    const messageId = String(p.MessageID || header(hs, 'Message-ID') || sha256(body)).slice(0, 300);
-    await jobs.enqueue('inbox.forwarded', { sealed: seal(key, { userId: owner.userId, messageId, from: original, subject: String(p.Subject || '').slice(0, 300), date: String(p.Date || ''), text: body }) }, { uniqueKey: `inbox-forwarded:${owner.userId}:${sha256(messageId)}` });
-    return { accepted: true };
-  }
-  async function readForwarded({ sealed }) {
-    if (!sealed) return;
-    const m = unseal(key, sealed), msgKey = `forward:${sha256(m.messageId)}`;
-    if (!(await store.findUserById(m.userId)) || await store.hasInboxMessage(m.userId, msgKey)) return;
+    const msgKey = `forward:${sha256(m.message_id || header(hs, 'Message-ID') || emailId)}`;
+    if (await store.hasInboxMessage(userId, msgKey)) return { accepted: true, reason: 'seen' };
     // The user chose to forward it, so any store's email is read.
-    await readAndApply(m.userId, m, { key: msgKey });
+    await readAndApply(userId, { from: forwardedFrom(body) || m.from || '', subject: String(m.subject || '').slice(0, 300), date: m.created_at || header(hs, 'Date'), text: body }, { key: msgKey });
+    return { accepted: true };
   }
 
   /* --- Applying what an email says --- */

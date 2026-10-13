@@ -45,9 +45,20 @@ async function setup({ fetch = async () => { throw new Error('no network in test
   const jobs = createJobs({ store, log: quiet });
   const data = createData({ store, storage, jobs });
   defineJobs(jobs, { store, storage, data });
-  const inbox = createInbox({ store, data, policies: P, reader, jobs, oauth, key: crypto.randomBytes(32), domain: 'in.returnly.app', publicUrl: 'https://returnly.example', fetch, log: quiet });
+  // A mocked Resend receiving API: the messages "received" so far, by Resend email id.
+  const mailbox = new Map(), RESEND = 'https://api.resend.com/emails/receiving/';
+  const all = async (url, opts = {}) => {
+    if (!url.startsWith(RESEND)) return fetch(url, opts);
+    assert.equal(opts.headers.Authorization, 'Bearer re_test_key');
+    const m = mailbox.get(decodeURIComponent(url.slice(RESEND.length)));
+    return m ? { ok: true, status: 200, json: async () => m } : { ok: false, status: 404, json: async () => ({}) };
+  };
+  const inbox = createInbox({ store, data, policies: P, reader, jobs, oauth, key: crypto.randomBytes(32), domain: 'in.returnly.app', resendKey: 're_test_key', publicUrl: 'https://returnly.example', fetch: all, log: quiet });
   defineInboxJobs(jobs, inbox);
   const user = await store.createUser({ email: 'sam@example.com', name: 'Sam', passwordHash: 'x' });
+  // The email.received webhook for a message (metadata only), and reading one straight away to see why it was dropped.
+  const deliver = m => { mailbox.set(m.id, m); return inbox.inbound({ type: 'email.received', data: { email_id: m.id, from: m.from, to: m.to, subject: m.subject } }); };
+  const readNow = m => { mailbox.set(m.id, m); return inbox.readForwarded({ userId: user.id, emailId: m.id }); };
   // Everything the store holds, as text, to check what is (and isn't) kept.
   async function rows(table) {
     if (!databaseUrl) { const db = JSON.parse(fs.readFileSync(file, 'utf8')); const pick = { jobs: Object.values(db.jobs), inbox_messages: Object.values(db.inboxMessages[user.id] || {}), purchases: Object.values(db.purchases[user.id] || {}) }; return table ? pick[table] : [db]; }
@@ -60,9 +71,11 @@ async function setup({ fetch = async () => { throw new Error('no network in test
     } finally { await c.end(); }
   }
   const raw = async () => JSON.stringify(await rows());
-  return { store, data, jobs, inbox, user, reader, oauth, raw, rows };
+  return { store, data, jobs, inbox, user, reader, oauth, raw, rows, deliver, readNow };
 }
-const forwarded = (to, name, extra = {}) => { const s = sample(name); return { From: 'Sam <sam@example.com>', FromFull: { Email: 'sam@example.com' }, ToFull: [{ Email: to }], Subject: s.subject, Date: s.date, MessageID: `<${name}@mail.example.com>`, TextBody: `---------- Forwarded message ---------\nFrom: ${s.from}\nSubject: ${s.subject}\n\n${s.text || htmlToText(s.html)}`, Headers: [{ Name: 'Received-SPF', Value: 'Pass (sender SPF authorized)' }], ...extra }; };
+// A message as Resend's receiving API returns it: Sam forwarding one of the sample emails to their address.
+let mailSeq = 0;
+const forwarded = (to, name, extra = {}) => { const s = sample(name); return { id: `em_${++mailSeq}`, from: 'Sam <sam@example.com>', to: [to], subject: s.subject, created_at: s.date + 'T12:00:00Z', message_id: `<${name}@mail.example.com>`, text: `---------- Forwarded message ---------\nFrom: ${s.from}\nSubject: ${s.subject}\n\n${s.text || htmlToText(s.html)}`, headers: { 'received-spf': 'Pass (sender SPF authorized)' }, ...extra }; };
 
 test('shopping senders: the launch retailers and shopping services, by domain or subdomain', () => {
   for (const id of P.list().map(p => p.id)) assert.ok(RETAILER_SENDERS[id], `${id} has its sending domains`);
@@ -108,10 +121,10 @@ test('the email reader asks the receipt model with structured output, scrubs car
 });
 
 for (const [label, databaseUrl] of STORES) test(`${label}: forwarded emails: a new order becomes a card, then delivery, return and refund update the items the user added`, async () => {
-  const { store, data, jobs, inbox, user, raw, rows } = await setup({ databaseUrl });
+  const { store, data, jobs, inbox, user, raw, rows, deliver } = await setup({ databaseUrl });
   const { address } = await inbox.status(user);
   assert.match(address, /^u-[a-z0-9]{8}@in\.returnly\.app$/);
-  const send = async name => { assert.equal((await inbox.inbound(forwarded(address, name))).accepted, true, name); await jobs.drain(); };
+  const send = async name => { assert.equal((await deliver(forwarded(address, name))).accepted, true, name); await jobs.drain(); };
 
   await send('amazon-order');
   let s = await inbox.status(user);
@@ -160,11 +173,11 @@ for (const [label, databaseUrl] of STORES) test(`${label}: forwarded emails: a n
   await send('nike-newsletter');
   assert.equal((await inbox.status(user)).orders.length, 1);
 
-  // Never stored: the email bodies, or the forwarded mail in the job queue once it's been read.
+  // Never stored: the email bodies. The job queue holds only Resend's email id.
   const file = await raw();
   for (const phrase of ['left at front door', 'Visa ending in 4242', 'Thanks for dropping off']) assert.ok(!file.includes(phrase), phrase);
   const forwardJobs = (await rows('jobs')).filter(j => j.name === 'inbox.forwarded');
-  assert.ok(forwardJobs.length >= 8 && forwardJobs.every(j => JSON.stringify(j.payload) === '{}'));
+  assert.ok(forwardJobs.length >= 8 && forwardJobs.every(j => JSON.stringify(Object.keys(j.payload).sort()) === '["emailId","userId"]'));
   const kept = await rows('inbox_messages');
   assert.ok(kept.every(m => /^forward:[0-9a-f]{64}$/.test(m.key)));
   assert.deepEqual(Object.keys(kept.find(m => m.kind === 'order').fields).sort(), ['delivered', 'items', 'kind', 'orderNumber', 'purchased', 'refund', 'refundDate', 'refundMethod', 'store']);
@@ -175,30 +188,34 @@ for (const [label, databaseUrl] of STORES) test(`${label}: forwarded emails: a n
 });
 
 for (const [label, databaseUrl] of STORES) test(`${label}: forwarding address: unknown addresses, other senders and forged mail are dropped; Gmail’s confirmation is shown`, async () => {
-  const { store, jobs, inbox, user, reader } = await setup({ databaseUrl });
+  const { store, jobs, inbox, user, reader, deliver, readNow } = await setup({ databaseUrl });
   const { address } = await inbox.status(user);
-  assert.equal((await inbox.inbound(forwarded('u-nobody00@in.returnly.app', 'amazon-order'))).reason, 'unknown_address');
-  assert.equal((await inbox.inbound(forwarded(address, 'amazon-order', { From: 'x@example.com', FromFull: { Email: 'x@example.com' } }))).reason, 'unverified_sender');
-  assert.equal((await inbox.inbound(forwarded(address, 'amazon-order', { Headers: [{ Name: 'Received-SPF', Value: 'Fail (not authorized)' }] }))).reason, 'unauthenticated');
+  assert.equal((await inbox.inbound({ type: 'email.sent', data: { email_id: 'x' } })).reason, 'ignored');
+  assert.equal((await deliver(forwarded('u-nobody00@in.returnly.app', 'amazon-order'))).reason, 'unknown_address', 'dropped without being fetched');
+  assert.equal((await readNow(forwarded(address, 'amazon-order', { from: 'x@example.com' }))).reason, 'unverified_sender');
+  assert.equal((await readNow(forwarded(address, 'amazon-order', { headers: { 'Received-SPF': 'Fail (not authorized)' } }))).reason, 'unauthenticated');
+  assert.equal((await inbox.readForwarded({ userId: user.id, emailId: 'em_missing' })).reason, 'gone');
   // Gmail auto-forwarding: Google sends a code first; the user accepts the address, then its forwarded mail is read.
-  const confirm = await inbox.inbound({ From: 'forwarding-noreply@google.com', FromFull: { Email: 'forwarding-noreply@google.com' }, ToFull: [{ Email: address }], Subject: '(#123456789) Gmail Forwarding Confirmation', TextBody: `sam.shops@gmail.com has requested to automatically forward mail to your email address ${address}.\nConfirmation code: 123456789` });
+  const confirm = await readNow({ id: 'em_google', from: 'Gmail Team <forwarding-noreply@google.com>', to: [address], subject: '(#123456789) Gmail Forwarding Confirmation', text: `sam.shops@gmail.com has requested to automatically forward mail to your email address ${address}.\nConfirmation code: 123456789`, headers: {} });
   assert.equal(confirm.accepted, true);
   let s = await inbox.status(user);
   assert.deepEqual([s.gmailRequest.email, s.gmailRequest.code], ['sam.shops@gmail.com', '123456789']);
   assert.ok(!s.senders.includes('sam.shops@gmail.com'), 'the request alone never adds a sender');
-  const auto = forwarded(address, 'amazon-order', { From: sample('amazon-order').from, FromFull: { Email: 'auto-confirm@amazon.com' }, Headers: [{ Name: 'X-Forwarded-For', Value: `sam.shops@gmail.com ${address}` }] });
-  assert.equal((await inbox.inbound(auto)).reason, 'unverified_sender');
+  const auto = () => forwarded(address, 'amazon-order', { from: sample('amazon-order').from, text: sample('amazon-order').html.replace(/<[^>]+>/g, ' '), headers: { 'X-Forwarded-For': `sam.shops@gmail.com ${address}`, 'Received-SPF': 'Pass' } });
+  assert.equal((await readNow(auto())).reason, 'unverified_sender');
   s = await inbox.acceptSender(user.id, 'sam.shops@gmail.com');
   assert.ok(s.senders.includes('sam.shops@gmail.com'));
   assert.equal(s.gmailRequest, null);
-  assert.equal((await inbox.inbound(auto)).accepted, true);
+  assert.equal((await deliver(auto())).accepted, true);
   await jobs.drain();
   assert.equal(reader.calls.length, 1);
   assert.equal(reader.calls[0].from, sample('amazon-order').from);
-  // A new address replaces the old one straight away.
+  // A new address replaces the old one straight away, also for mail that arrived just before.
+  const late = forwarded(address, 'target-shipped');
   const next = (await inbox.newAddress(user.id)).address;
   assert.notEqual(next, address);
-  assert.equal((await inbox.inbound(forwarded(address, 'amazon-order'))).reason, 'unknown_address');
+  assert.equal((await deliver(forwarded(address, 'amazon-order'))).reason, 'unknown_address');
+  assert.equal((await readNow(late)).reason, 'unknown_address');
   assert.equal(await store.findInboxAddress(address.split('@')[0]), null);
 });
 
@@ -342,10 +359,11 @@ test('HTTP: Continue with Google signs in or up, inbox routes need an account, a
   const jobs = createJobs({ store, log: quiet });
   const data = createData({ store, storage, jobs });
   const forgotten = [];
-  const inbox = createInbox({ store, data, policies: P, reader: mockReader(), jobs, oauth, key: crypto.randomBytes(32), domain: 'in.returnly.app', fetch: async () => ({ ok: false, status: 500, json: async () => ({}) }), log: quiet });
+  const inbox = createInbox({ store, data, policies: P, reader: mockReader(), jobs, oauth, key: crypto.randomBytes(32), domain: 'in.returnly.app', resendKey: 're_test_key', fetch: async () => ({ ok: false, status: 500, json: async () => ({}) }), log: quiet });
   const realForget = inbox.forget; inbox.forget = async id => { forgotten.push(id); return realForget(id); };
   defineInboxJobs(jobs, inbox);
-  const server = http.createServer(createApp({ store, data, oauth, inbox, inboundSecret: 'hook-secret' })).listen(0);
+  const hookKey = crypto.randomBytes(24), hookSecret = 'whsec_' + hookKey.toString('base64');
+  const server = http.createServer(createApp({ store, data, oauth, inbox, inboundSecret: hookSecret })).listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
   const go = (p, { method = 'GET', cookie = '', body, headers = {} } = {}) => fetch(base + p, { method, redirect: 'manual', headers: { ...(cookie ? { cookie } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}), ...headers }, body: body ? JSON.stringify(body) : undefined });
   const cookieOf = (res, name) => (res.headers.getSetCookie().find(c => c.startsWith(name + '=')) || '').split(';')[0];
@@ -390,10 +408,17 @@ test('HTTP: Continue with Google signs in or up, inbox routes need an account, a
     assert.equal(new URL(connect.headers.get('location')).searchParams.get('scope'), 'https://www.googleapis.com/auth/gmail.readonly');
     assert.equal((await go('/api/inbox/outlook/start', { cookie: session })).headers.get('location'), '/app.html?inbox_error=unavailable');
 
-    // The inbound webhook needs the shared secret; Graph's handshake echoes the token.
-    assert.equal((await go('/api/inbound/email', { method: 'POST', body: {} })).status, 401);
-    const hook = await go('/api/inbound/email', { method: 'POST', body: forwarded(status.address, 'amazon-order', { From: 'nia@example.com', FromFull: { Email: 'nia@example.com' } }), headers: { authorization: 'Basic ' + Buffer.from('postmark:hook-secret').toString('base64') } });
-    assert.deepEqual(await hook.json(), { accepted: true });
+    // Resend's webhook must carry a valid, recent Svix signature over the exact body; Graph's handshake echoes the token.
+    const event = JSON.stringify({ type: 'email.received', created_at: new Date().toISOString(), data: { email_id: 'em_http', from: 'nia@example.com', to: [status.address], subject: 'Fwd: order' } });
+    const sign = (id, ts, body, key = hookKey) => 'v1,' + crypto.createHmac('sha256', key).update(`${id}.${ts}.${body}`).digest('base64');
+    const hook = (headers, body = event) => fetch(base + '/api/inbound/email', { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body });
+    const now = Math.floor(Date.now() / 1000);
+    assert.equal((await hook({})).status, 401);
+    assert.equal((await hook({ 'svix-id': 'msg_1', 'svix-timestamp': String(now), 'svix-signature': sign('msg_1', now, event, crypto.randomBytes(24)) })).status, 401, 'wrong secret');
+    assert.equal((await hook({ 'svix-id': 'msg_1', 'svix-timestamp': String(now - 600), 'svix-signature': sign('msg_1', now - 600, event) })).status, 401, 'too old to be fresh');
+    assert.equal((await hook({ 'svix-id': 'msg_1', 'svix-timestamp': String(now), 'svix-signature': sign('msg_1', now, event) }, event.replace('Fwd', 'Fwd!'))).status, 401, 'a changed body');
+    const ok = await hook({ 'svix-id': 'msg_1', 'svix-timestamp': String(now), 'svix-signature': `v1,${Buffer.alloc(32).toString('base64')} ${sign('msg_1', now, event)}` });
+    assert.deepEqual(await ok.json(), { accepted: true });
     const echo = await go('/api/inbox/outlook/notify?validationToken=abc%20123', { method: 'POST', headers: { 'Content-Type': 'text/plain' } });
     assert.equal(await echo.text(), 'abc 123');
     assert.match(echo.headers.get('content-type'), /^text\/plain/);

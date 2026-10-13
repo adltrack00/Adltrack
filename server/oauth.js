@@ -23,7 +23,8 @@ function oauthConfig(env) {
     google: google && { clientId: google.GOOGLE_CLIENT_ID, clientSecret: google.GOOGLE_CLIENT_SECRET },
     microsoft: microsoft && { clientId: microsoft.MICROSOFT_CLIENT_ID, clientSecret: microsoft.MICROSOFT_CLIENT_SECRET },
     apple: apple && { clientId: apple.APPLE_CLIENT_ID, teamId: apple.APPLE_TEAM_ID, keyId: apple.APPLE_KEY_ID, privateKey: apple.APPLE_PRIVATE_KEY.replace(/\\n/g, '\n') },
-    publicUrl: (env.PUBLIC_URL || '').replace(/\/+$/, '')
+    // The service's own address (APP_URL, also used in emails), for OAuth redirects and Outlook notifications.
+    publicUrl: (env.APP_URL || '').replace(/\/+$/, '')
   };
 }
 

@@ -580,7 +580,6 @@ function pgStore(connectionString) {
     async deleteExpiredOAuthStates() { return (await pool.query('delete from oauth_states where expires_at < now()')).rowCount; },
     findOAuthIdentity: (provider, subject) => one('select user_id as "userId", email from oauth_identities where provider=$1 and subject=$2', [provider, subject]),
     async saveOAuthIdentity({ provider, subject, userId, email = null }) { await pool.query('insert into oauth_identities (provider, subject, user_id, email) values ($1,$2,$3,$4) on conflict (provider, subject) do nothing', [provider, subject, userId, email]); },
-    async clearJobPayload(id) { await pool.query(`update jobs set payload='{}' where id=$1`, [id]); },
 
     async close() { await pool.end(); }
   };
@@ -950,7 +949,6 @@ function fileStore(file) {
     async deleteExpiredOAuthStates() { await load(); let n = 0; for (const [k, st] of Object.entries(db.oauthStates)) if (Date.parse(st.expiresAt) < Date.now()) { delete db.oauthStates[k]; n++; } if (n) await persist(); return n; },
     async findOAuthIdentity(provider, subject) { await load(); const i = db.identities[`${provider}:${subject}`]; return i ? { userId: i.userId, email: i.email } : null; },
     async saveOAuthIdentity({ provider, subject, userId, email = null }) { await load(); db.identities[`${provider}:${subject}`] ||= { userId, email, createdAt: now() }; await persist(); },
-    async clearJobPayload(id) { await load(); if (db.jobs[id]) { db.jobs[id].payload = {}; await persist(); } },
 
     async close() { await queue; }
   };

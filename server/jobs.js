@@ -4,15 +4,13 @@
 const HOUR = 60 * 60 * 1000;
 
 function createJobs({ store, intervalMs = 5000, staleMs = 10 * 60 * 1000, log = console }) {
-  const handlers = new Map(), recurring = new Map(), sensitive = new Set();
+  const handlers = new Map(), recurring = new Map();
   let timer = null, running = null, stopped = true;
 
-  /* handler(payload, job) does the work; throwing retries it. A sensitive job's payload (for example a forwarded email,
-     encrypted) is wiped once the job is done or has failed for good, so it never stays in the queue. */
-  function define(name, handler, { every = null, sensitive: wipe = false } = {}) {
+  /* handler(payload, job) does the work; throwing retries it. */
+  function define(name, handler, { every = null } = {}) {
     handlers.set(name, handler);
     if (every) recurring.set(name, every);
-    if (wipe) sensitive.add(name);
   }
   const enqueue = (name, payload = {}, { runAt = new Date(), uniqueKey = null, maxAttempts = 5 } = {}) => {
     if (!handlers.has(name)) throw new Error(`Unknown job: ${name}`);
@@ -31,11 +29,10 @@ function createJobs({ store, intervalMs = 5000, staleMs = 10 * 60 * 1000, log = 
       if (!handler) throw new Error(`Unknown job: ${job.name}`);
       await handler(job.payload, job);
       await store.completeJob(job.id);
-      if (sensitive.has(job.name)) await store.clearJobPayload(job.id);
     } catch (err) {
       const message = String(err && err.message || err).slice(0, 500);
       if (job.attempts < job.maxAttempts && handler) await store.retryJob(job.id, message, new Date(Date.now() + backoff(job.attempts)));
-      else { await store.failJob(job.id, message); if (sensitive.has(job.name)) await store.clearJobPayload(job.id); log.error(`Job ${job.name} (${job.id}) failed: ${message}`); }
+      else { await store.failJob(job.id, message); log.error(`Job ${job.name} (${job.id}) failed: ${message}`); }
     }
     if (recurring.has(job.name) && job.uniqueKey === `every:${job.name}`) {
       const latest = await store.getJob(job.id);
@@ -96,12 +93,12 @@ function defineReviewJobs(jobs, review) {
 }
 
 /* Purchases from email: a connected inbox is checked for new shopping mail every 15 minutes (and straight away when Outlook
-   says something arrived); each message is read on its own, and forwarded mail arrives encrypted and is wiped after. */
+   says something arrived); each message is read on its own, and forwarded mail is fetched from Resend by id when its job runs. */
 function defineInboxJobs(jobs, inbox) {
   jobs.define('inbox.poll', () => inbox.poll(), { every: 15 * 60 * 1000 });
   jobs.define('inbox.sync', payload => inbox.sync(payload));
   jobs.define('inbox.message', payload => inbox.readMessage(payload));
-  jobs.define('inbox.forwarded', payload => inbox.readForwarded(payload), { sensitive: true });
+  jobs.define('inbox.forwarded', payload => inbox.readForwarded(payload));
 }
 
 module.exports = { createJobs, defineJobs, defineReviewJobs, defineInboxJobs };

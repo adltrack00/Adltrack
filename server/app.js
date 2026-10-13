@@ -73,6 +73,24 @@ function readBody(req, maxBytes) {
   });
 }
 
+/* The raw request body, for checking a webhook's signature before parsing it. */
+function readRaw(req, maxBytes) {
+  return new Promise((resolve, reject) => {
+    let size = 0; const chunks = [];
+    req.on('data', c => { size += c.length; if (size > maxBytes) { reject(new HttpError(413, 'Too much data.')); req.destroy(); } else chunks.push(c); });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+/* Resend signs webhooks the Svix way: HMAC-SHA256 of "id.timestamp.body" with the base64 key after "whsec_", sent as
+   "v1,<base64>" (several may be listed). Requests older or newer than five minutes are refused, so they can't be replayed. */
+function verifyWebhook(secret, headers, raw, now = Date.now()) {
+  const id = headers['svix-id'], ts = headers['svix-timestamp'], sigs = String(headers['svix-signature'] || '');
+  if (!secret || !id || !/^\d+$/.test(String(ts || '')) || Math.abs(now / 1000 - Number(ts)) > 300) return false;
+  const want = crypto.createHmac('sha256', Buffer.from(String(secret).replace(/^whsec_/, ''), 'base64')).update(`${id}.${ts}.${raw.toString('utf8')}`).digest();
+  return sigs.split(' ').some(s => { const [v, b64] = s.split(','); const got = Buffer.from(b64 || '', 'base64'); return v === 'v1' && got.length === want.length && crypto.timingSafeEqual(got, want); });
+}
+
 /* Form posts (Sign in with Apple answers with one). */
 function readForm(req, maxBytes) {
   return new Promise((resolve, reject) => {
@@ -130,7 +148,6 @@ function createApp({ store, data, production = false, policies = null, classifie
   const resetLimit = limiter(3, 60 * 60 * 1000);
   // Email links (actions and unsubscribes) work without signing in, so they're limited per IP.
   const linkLimit = limiter(60, 15 * 60 * 1000);
-  const inboundLimit = limiter(600, 60 * 60 * 1000);
   // Locks an email for 15 minutes after 10 wrong passwords, checked before the password is tried.
   const loginFailures = (() => {
     const fails = new Map(), WINDOW = 15 * 60 * 1000, MAX = 10;
@@ -373,16 +390,13 @@ function createApp({ store, data, production = false, policies = null, classifie
         return await socialSignIn(req, res, 'apple', t.claims, name);
       } catch (err) { return authFailed(res, err); }
     }
-    // Forwarded mail, from the email provider's inbound webhook (Postmark's JSON format), with the shared secret as the
-    // basic-auth password. Mail to an unknown address or from an unverified sender is dropped and never stored.
+    // Forwarded mail: Resend's `email.received` webhook, signed with RESEND_WEBHOOK_SECRET (Svix format). Only the message's
+    // metadata arrives here; mail to an unknown address is dropped, and the rest is fetched and read by a job.
     if (route === '/api/inbound/email' && method === 'POST') {
-      const given = Buffer.from(String(req.headers.authorization || '').replace(/^Basic\s+/i, ''), 'base64').toString('utf8').split(':').slice(1).join(':');
-      const want = Buffer.from(String(inboundSecret)), got = Buffer.from(given);
-      if (!inbox || !inboundSecret || want.length !== got.length || !crypto.timingSafeEqual(want, got)) throw new HttpError(401, 'Unauthorized.');
-      if (!inboundLimit('inbound')) throw new HttpError(429, 'Too many messages.');
-      const body = await readBody(req, 40 * 1024 * 1024);
-      delete body.Attachments;
-      return send(res, 200, await inbox.inbound(body));
+      const raw = await readRaw(req, 1024 * 1024);
+      if (!inbox || !verifyWebhook(inboundSecret, req.headers, raw)) throw new HttpError(401, 'Unauthorized.');
+      let event; try { event = JSON.parse(raw.toString('utf8')); } catch { throw new HttpError(400, 'Invalid request.'); }
+      return send(res, 200, await inbox.inbound(event));
     }
     // Microsoft Graph: the subscription handshake echoes validationToken; notifications only say that mail arrived.
     if (route === '/api/inbox/outlook/notify' && method === 'POST') {
@@ -697,4 +711,4 @@ function createApp({ store, data, production = false, policies = null, classifie
   };
 }
 
-module.exports = { createApp, hashPassword, verifyPassword, receiptDraft };
+module.exports = { createApp, hashPassword, verifyPassword, receiptDraft, verifyWebhook };

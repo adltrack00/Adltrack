@@ -132,7 +132,7 @@ Set up email: create a Resend account (resend.com), add your domain (Domains →
 
 Settings → **Add purchases from email** (a row below My profile) opens a sub-page with three ways in. Orders found in email appear on Your purchases (All purchases) as cards labelled **From email**. Tapping one opens the Item card filled in with the items, store, order number and dates. Nothing becomes a return until the user taps.
 
-- **Forwarding** (`server/inbox.js`): each account has a private address such as `u-7f3k2q9m@in.returnly.app` with a copy button and steps for Gmail, Outlook and Apple Mail. "Get a new address" replaces it straight away. Mail arrives through the email provider's inbound webhook (`POST /api/inbound/email`, Postmark's JSON format, with `INBOUND_EMAIL_SECRET` as the basic-auth password). It is accepted only when sent or forwarded by one of the user's verified addresses: the account email, a connected inbox, or a Gmail address that asked to auto-forward and that the user accepted on the sub-page, where Google's confirmation code is shown. Mail that fails SPF (unless DKIM passes) is dropped. Forwarded mail waits in the job queue encrypted (`inbox.forwarded`) and the job's payload is wiped once it has been read.
+- **Forwarding** (`server/inbox.js`): each account has a private address such as `u-7f3k2q9m@in.returnly.app` with a copy button and steps for Gmail, Outlook and Apple Mail. "Get a new address" replaces it straight away. Mail arrives through Resend's inbound email, the same provider as reminder emails. Its `email.received` webhook (`POST /api/inbound/email`, signature checked with `RESEND_WEBHOOK_SECRET`) carries only the message's metadata. Mail to an unknown address is dropped unread. For the rest, a job (`inbox.forwarded`, whose payload is only Resend's email id) fetches the message from Resend's API and reads it. It is accepted only when sent or forwarded by one of the user's verified addresses: the account email, a connected inbox, or a Gmail address that asked to auto-forward and that the user accepted on the sub-page, where Google's confirmation code is shown. Mail that fails SPF (unless DKIM passes) is dropped. Resend keeps its own copy of received mail under its retention settings.
 - **Connect Gmail** (Google OAuth, `gmail.readonly`) and **Connect Outlook** (Microsoft Graph, `Mail.Read`): each shows a plain-English privacy explanation before connecting, and "Disconnect and delete" afterwards. The first import searches the last 90 days, only from the launch retailers' domains and shopping services (`server/mail.js`), and only emails whose subject is about an order, shipping, delivery, a return or a refund. After that, `inbox.poll` checks every 15 minutes for mail since the last check. Outlook also has a Graph subscription that says when mail arrives; it is checked by its clientState, of which only a hash is kept, and renewed when less than a day is left. Gmail stays in testing mode until Google verifies the app (see `docs/google-verification.md`): up to 100 test users, who reconnect every 7 days. Set `GMAIL_VERIFIED=true` once it's verified.
 - **Import a spreadsheet** opens the existing CSV import dialog.
 - **Reading** (`inbox.message`, one job per email): the same model and settings as receipt reading (`claude-opus-5-5`, structured output, low effort, refusal fallback on), with card numbers scrubbed first. It recognises order confirmations, shipping and delivery notices, return confirmations and refund notices, and returns the store, order number, dates, items and refund. At most 300 emails per account per day are read; one costs about $0.01 at `claude-opus-5-5` prices.
@@ -151,26 +151,26 @@ Settings → **Add purchases from email** (a row below My profile) opens a sub-p
 
 ### Setting it up
 
-Each part stays off until its values are set. With any of them set, production also needs `INBOX_TOKEN_KEY` (`openssl rand -base64 32`) and `PUBLIC_URL` (the service's https address, for example `https://returnly.onrender.com`). Reading needs `ANTHROPIC_API_KEY`.
+Each part stays off until its values are set. With any of them set, production also needs `INBOX_TOKEN_KEY` (`openssl rand -base64 32`), and `APP_URL` (from Reminders that get it done) is used for the OAuth redirect and Outlook notification addresses. Reading needs `ANTHROPIC_API_KEY`.
 
-1. **Inbound email (forwarding)**, with Postmark: create a server, then go to its Inbound stream → Settings.
-   - Set the webhook URL to `https://postmark:<INBOUND_EMAIL_SECRET>@<your host>/api/inbound/email`.
-   - Set the inbound domain to `in.returnly.app` (or your own).
-   - At your DNS host, add an **MX record** for `in.returnly.app` pointing to `inbound.postmarkapp.com`, priority 10.
-   - Set `INBOUND_EMAIL_DOMAIN` and `INBOUND_EMAIL_SECRET` on Render.
+1. **Inbound email (forwarding)**, with Resend (set up for reminder emails already):
+   - In Resend → Receiving, add the receiving domain `in.returnly.app` (or a subdomain of your own). Don't use your main domain if it already receives mail.
+   - At your DNS host, add the **MX record** Resend shows for it, priority 10.
+   - In Resend → Webhooks, add `<APP_URL>/api/inbound/email` for the `email.received` event and copy its signing secret.
+   - Set `INBOUND_EMAIL_DOMAIN` and `RESEND_WEBHOOK_SECRET` on Render. `RESEND_API_KEY` is reused to fetch each message.
 2. **Google OAuth client** (Continue with Google and Gmail connect): in Google Cloud Console, enable the **Gmail API**.
    - Under Google Auth Platform, set up the consent screen (External, Testing) and add scopes `openid`, `email`, `profile` and `.../auth/gmail.readonly`. Add test users.
-   - Create an **OAuth client ID** (Web application) with authorised redirect URIs `<PUBLIC_URL>/api/auth/google/callback` and `<PUBLIC_URL>/api/inbox/gmail/callback`.
+   - Create an **OAuth client ID** (Web application) with authorised redirect URIs `<APP_URL>/api/auth/google/callback` and `<APP_URL>/api/inbox/gmail/callback`.
    - Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
 3. **Microsoft app registration** (Outlook connect): in Microsoft Entra admin center → App registrations → New registration.
    - Supported account types: "Accounts in any organizational directory and personal Microsoft accounts".
-   - Redirect URI: Web, `<PUBLIC_URL>/api/inbox/outlook/callback`.
+   - Redirect URI: Web, `<APP_URL>/api/inbox/outlook/callback`.
    - Under API permissions, add Microsoft Graph delegated `Mail.Read`, `offline_access`, `openid` and `email`.
    - Under Certificates & secrets, create a client secret.
    - Set `MICROSOFT_CLIENT_ID` (the Application ID) and `MICROSOFT_CLIENT_SECRET` (the secret's value). Client secrets expire, so note the date.
 4. **Sign in with Apple**: in Apple Developer → Certificates, Identifiers & Profiles:
    - Create an App ID with "Sign in with Apple".
-   - Create a **Services ID** (this is `APPLE_CLIENT_ID`). Enable Sign in with Apple on it with the domain and the return URL `<PUBLIC_URL>/api/auth/apple/callback`.
+   - Create a **Services ID** (this is `APPLE_CLIENT_ID`). Enable Sign in with Apple on it with the domain and the return URL `<APP_URL>/api/auth/apple/callback`.
    - Create a **Key** with Sign in with Apple and download the `.p8` (it can be downloaded only once).
    - Set `APPLE_TEAM_ID`, `APPLE_KEY_ID` and `APPLE_PRIVATE_KEY` (the `.p8` contents, newlines as `\n`).
 

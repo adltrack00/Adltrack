@@ -66,13 +66,13 @@ store.init().then(async () => {
   if (approved) console.log(`Loaded ${approved} admin-approved polic${approved === 1 ? 'y' : 'ies'}.`);
   defineReviewJobs(jobs, review);
   const oauth = createOAuth({ config: oauthSettings });
-  const inbox = createInbox({ store, data, policies, reader: createEmailReader(), jobs, oauth, key: inboxKey, domain: (process.env.INBOUND_EMAIL_DOMAIN || '').toLowerCase(), publicUrl: oauthSettings.publicUrl, gmailVerified: process.env.GMAIL_VERIFIED === 'true' });
+  const inbox = createInbox({ store, data, policies, reader: createEmailReader(), jobs, oauth, key: inboxKey, domain: (process.env.INBOUND_EMAIL_DOMAIN || '').toLowerCase(), resendKey: process.env.RESEND_API_KEY || '', publicUrl: oauthSettings.publicUrl, gmailVerified: process.env.GMAIL_VERIFIED === 'true' });
   defineInboxJobs(jobs, inbox);
   // Accounts still saved as one document (with photos inside) move into the purchases and items tables.
   const migrated = await data.migrateAll();
   if (migrated) console.log(`Moved ${migrated} account${migrated === 1 ? '' : 's'} to the items tables.`);
   await jobs.start();
-  const server = http.createServer(createApp({ store, data, production, policies, classifier: createClassifier(), receipts: createReceiptReader(), places: createPlaces({ store }), review, push, reminders, email, supportEmail: process.env.SUPPORT_EMAIL || '', inbox, oauth, publicUrl: oauthSettings.publicUrl, inboundSecret: process.env.INBOUND_EMAIL_SECRET || '' })).listen(port, host, () =>
+  const server = http.createServer(createApp({ store, data, production, policies, classifier: createClassifier(), receipts: createReceiptReader(), places: createPlaces({ store }), review, push, reminders, email, supportEmail: process.env.SUPPORT_EMAIL || '', inbox, oauth, publicUrl: oauthSettings.publicUrl, inboundSecret: process.env.RESEND_WEBHOOK_SECRET || '' })).listen(port, host, () =>
     console.log(`Returnly running on http://${host === '0.0.0.0' ? 'localhost' : host}:${port} (${databaseUrl ? 'Postgres' : 'local file store'}, ${storage.kind === 's3' ? 'S3 file storage' : 'local file storage'})`));
   const shutdown = () => { server.close(); jobs.stop().finally(() => store.close().finally(() => process.exit(0))); };
   process.on('SIGTERM', shutdown);
