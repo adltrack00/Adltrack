@@ -212,11 +212,82 @@ create table if not exists notices (
   read_at timestamptz,
   created_at timestamptz not null default now()
 );
-create index if not exists notices_user_idx on notices(user_id) where read_at is null;`;
+create index if not exists notices_user_idx on notices(user_id) where read_at is null;
+-- Purchases from email. Each account's private forwarding address (u-<token>@ the inbound domain), and the extra senders
+-- it accepts: Gmail addresses whose forwarding request reached this address.
+create table if not exists inbox_addresses (
+  user_id uuid primary key references users(id) on delete cascade,
+  token text not null unique,
+  senders jsonb not null default '[]',
+  request jsonb,
+  created_at timestamptz not null default now()
+);
+-- A connected Gmail or Outlook inbox. tokens is encrypted (INBOX_TOKEN_KEY); only a hash of the Graph clientState is kept.
+create table if not exists inbox_connections (
+  id uuid primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  provider text not null check (provider in ('gmail', 'outlook')),
+  email text not null,
+  tokens text not null,
+  status text not null default 'active' check (status in ('active', 'expired')),
+  synced_at timestamptz,
+  subscription_id text,
+  subscription_secret text,
+  subscription_expires timestamptz,
+  created_at timestamptz not null default now(),
+  unique (user_id, provider)
+);
+-- What was read from each email: the message id and the extracted fields. Email bodies are never stored.
+create table if not exists inbox_messages (
+  user_id uuid not null references users(id) on delete cascade,
+  key text not null,
+  connection_id uuid references inbox_connections(id) on delete cascade,
+  kind text not null,
+  order_key text,
+  fields jsonb not null default '{}',
+  created_at timestamptz not null default now(),
+  primary key (user_id, key)
+);
+-- Orders found in email, waiting on Your purchases until the user opens them. id is the purchase id their items join.
+create table if not exists email_orders (
+  user_id uuid not null references users(id) on delete cascade,
+  id text not null,
+  connection_id uuid references inbox_connections(id) on delete set null,
+  order_key text not null,
+  retailer_id text,
+  store text,
+  order_number text,
+  purchased date,
+  delivered date,
+  products jsonb not null default '[]',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, id),
+  unique (user_id, order_key)
+);
+-- OAuth requests in flight (sign-in and inbox connect), by a hash of their state value. Kept for 10 minutes.
+create table if not exists oauth_states (
+  state_hash text primary key,
+  purpose text not null,
+  user_id uuid references users(id) on delete cascade,
+  data jsonb not null default '{}',
+  expires_at timestamptz not null
+);
+-- "Continue with Google / Apple": the provider's account id for each Returnly account.
+create table if not exists oauth_identities (
+  provider text not null,
+  subject text not null,
+  user_id uuid not null references users(id) on delete cascade,
+  email text,
+  created_at timestamptz not null default now(),
+  primary key (provider, subject)
+);`;
 
 const PURCHASE_COLUMNS = 'id, store, channel, order_number as "orderNumber", purchased, delivered, source, retailer_id as "retailerId", receipt_file_id as "receiptFileId", receipt_pages as "receiptPages"';
 const JOB_COLUMNS = 'id, name, payload, unique_key as "uniqueKey", status, run_at as "runAt", attempts, max_attempts as "maxAttempts", last_error as "lastError"';
 const FILE_COLUMNS = 'id, user_id as "userId", kind, storage_key as "storageKey", content_type as "contentType", size, sha256';
+const CONNECTION_COLUMNS = 'id, user_id as "userId", provider, email, tokens, status, synced_at as "syncedAt", subscription_id as "subscriptionId", subscription_secret as "subscriptionSecret", subscription_expires as "subscriptionExpires", created_at as "createdAt"';
+const ORDER_COLUMNS = 'id, connection_id as "connectionId", order_key as "orderKey", retailer_id as "retailerId", store, order_number as "orderNumber", purchased, delivered, products, created_at as "createdAt", updated_at as "updatedAt"';
 const iso = d => new Date(d).toISOString();
 const dateOrNull = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
 const cleanPurchase = p => ({ id: p.id, store: p.store ?? null, channel: p.channel ?? null, orderNumber: p.orderNumber ?? null, purchased: dateOrNull(p.purchased), delivered: dateOrNull(p.delivered), source: p.source || 'manual', retailerId: p.retailerId ?? null, receiptFileId: p.receiptFileId ?? null, receiptPages: Array.isArray(p.receiptPages) ? p.receiptPages : [] });
@@ -464,6 +535,52 @@ function pgStore(connectionString) {
     listNotices: userId => all('select id, text, item_id as "itemId", created_at as "createdAt" from notices where user_id=$1 and read_at is null order by created_at limit 20', [userId]),
     async markNoticesRead(userId, ids) { await pool.query('update notices set read_at=now() where user_id=$1 and id = any($2::uuid[])', [userId, ids]); },
 
+
+    /* Purchases from email. */
+    getInboxAddress: userId => one('select token, senders, request, created_at as "createdAt" from inbox_addresses where user_id=$1', [userId]),
+    findInboxAddress: token => one('select user_id as "userId", token, senders from inbox_addresses where token=$1', [token]),
+    async setInboxAddress(userId, token) { await pool.query('insert into inbox_addresses (user_id, token) values ($1,$2) on conflict (user_id) do update set token=excluded.token, request=null, created_at=now()', [userId, token]); },
+    async setForwardRequest(userId, request) { await pool.query('update inbox_addresses set request=$2 where user_id=$1', [userId, request && JSON.stringify(request)]); },
+    async addInboxSender(userId, email) {
+      await pool.query(`update inbox_addresses set request=null, senders=(select coalesce(jsonb_agg(distinct v), '[]') from jsonb_array_elements(senders || jsonb_build_array($2::text)) v) where user_id=$1`, [userId, email]);
+    },
+    async saveInboxConnection(c) {
+      return one(`insert into inbox_connections (id, user_id, provider, email, tokens, status) values ($1,$2,$3,$4,$5,'active')
+        on conflict (user_id, provider) do update set email=excluded.email, tokens=excluded.tokens, status='active' returning ${CONNECTION_COLUMNS}`, [c.id, c.userId, c.provider, c.email, c.tokens]);
+    },
+    async updateInboxConnection(id, patch) {
+      const cols = { tokens: 'tokens', status: 'status', syncedAt: 'synced_at', subscriptionId: 'subscription_id', subscriptionSecret: 'subscription_secret', subscriptionExpires: 'subscription_expires' };
+      const keys = Object.keys(patch).filter(k => cols[k]);
+      if (!keys.length) return;
+      await pool.query(`update inbox_connections set ${keys.map((k, n) => `${cols[k]}=$${n + 2}`).join(', ')} where id=$1`, [id, ...keys.map(k => patch[k])]);
+    },
+    getInboxConnection: id => one(`select ${CONNECTION_COLUMNS} from inbox_connections where id=$1`, [id]),
+    listInboxConnections: userId => all(`select ${CONNECTION_COLUMNS} from inbox_connections where user_id=$1 order by provider`, [userId]),
+    activeInboxConnections: () => all(`select ${CONNECTION_COLUMNS} from inbox_connections where status='active'`),
+    findInboxSubscription: id => one(`select ${CONNECTION_COLUMNS} from inbox_connections where subscription_id=$1`, [id]),
+    deleteInboxConnection: (userId, provider) => one(`delete from inbox_connections where user_id=$1 and provider=$2 returning ${CONNECTION_COLUMNS}`, [userId, provider]),
+    async hasInboxMessage(userId, key) { return !!(await one('select 1 from inbox_messages where user_id=$1 and key=$2', [userId, key])); },
+    async saveInboxMessage(userId, m) {
+      await pool.query('insert into inbox_messages (user_id, key, connection_id, kind, order_key, fields) values ($1,$2,$3,$4,$5,$6) on conflict (user_id, key) do nothing', [userId, m.key, m.connectionId || null, m.kind, m.orderKey || null, JSON.stringify(m.fields || {})]);
+    },
+    findEmailOrder: (userId, orderKey) => one(`select ${ORDER_COLUMNS} from email_orders where user_id=$1 and order_key=$2`, [userId, orderKey]),
+    listEmailOrders: userId => all(`select ${ORDER_COLUMNS} from email_orders where user_id=$1 order by coalesce(purchased, created_at::date) desc, created_at desc`, [userId]),
+    async saveEmailOrder(userId, o) {
+      await pool.query(`insert into email_orders (user_id, id, connection_id, order_key, retailer_id, store, order_number, purchased, delivered, products) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        on conflict (user_id, id) do update set retailer_id=excluded.retailer_id, store=excluded.store, order_number=excluded.order_number, purchased=excluded.purchased, delivered=excluded.delivered, products=excluded.products, updated_at=now()`,
+      [userId, o.id, o.connectionId || null, o.orderKey, o.retailerId || null, o.store || null, o.orderNumber || null, dateOrNull(o.purchased), dateOrNull(o.delivered), JSON.stringify(o.products || [])]);
+    },
+    /* Disconnect and delete: what was read from one inbox, and its orders nobody has opened yet. Returns those orders' ids. */
+    async deleteInboxData(userId, connectionId) {
+      await pool.query('delete from inbox_messages where user_id=$1 and connection_id=$2', [userId, connectionId]);
+      return (await all(`delete from email_orders o where o.user_id=$1 and o.connection_id=$2 and not exists (select 1 from items i where i.user_id=o.user_id and i.purchase_id=o.id) returning id`, [userId, connectionId])).map(r => r.id);
+    },
+    async saveOAuthState(stateHash, { purpose, userId = null, data = {}, expiresAt }) { await pool.query('insert into oauth_states (state_hash, purpose, user_id, data, expires_at) values ($1,$2,$3,$4,$5)', [stateHash, purpose, userId, JSON.stringify(data), expiresAt]); },
+    takeOAuthState: stateHash => one('delete from oauth_states where state_hash=$1 and expires_at > now() returning purpose, user_id as "userId", data', [stateHash]),
+    async deleteExpiredOAuthStates() { return (await pool.query('delete from oauth_states where expires_at < now()')).rowCount; },
+    findOAuthIdentity: (provider, subject) => one('select user_id as "userId", email from oauth_identities where provider=$1 and subject=$2', [provider, subject]),
+    async saveOAuthIdentity({ provider, subject, userId, email = null }) { await pool.query('insert into oauth_identities (provider, subject, user_id, email) values ($1,$2,$3,$4) on conflict (provider, subject) do nothing', [provider, subject, userId, email]); },
+
     async close() { await pool.end(); }
   };
 }
@@ -474,7 +591,7 @@ function fileStore(file) {
     if (db) return db;
     try { db = JSON.parse(await fs.readFile(file, 'utf8')); } catch { db = {}; }
     // Files written before the data foundation only have users, sessions and data.
-    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, places: {}, lookups: {}, reports: {}, approved: [], snapshots: {}, flags: {}, notices: {}, push: {}, reminderDays: {}, optouts: {}, resets: {}, ...db };
+    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, places: {}, lookups: {}, reports: {}, approved: [], snapshots: {}, flags: {}, notices: {}, push: {}, reminderDays: {}, optouts: {}, resets: {}, inboxAddresses: {}, inboxConnections: {}, inboxMessages: {}, emailOrders: {}, oauthStates: {}, identities: {}, ...db };
     return db;
   };
   // Serialise writes so concurrent requests can't interleave partial files.
@@ -489,6 +606,8 @@ function fileStore(file) {
   const now = () => new Date().toISOString();
   const jobOut = j => j && { id: j.id, name: j.name, payload: j.payload, uniqueKey: j.uniqueKey, status: j.status, runAt: new Date(j.runAt), attempts: j.attempts, maxAttempts: j.maxAttempts, lastError: j.lastError };
   const later = (a, b) => (a > b ? a : new Date(Date.parse(b) + 1).toISOString());
+  const copy = v => v === null || v === undefined ? v : JSON.parse(JSON.stringify(v));
+  const connOut = c => c ? copy(c) : null;
   return {
     async init() { await load(); },
     async createUser({ email, name, passwordHash }) {
@@ -520,6 +639,10 @@ function fileStore(file) {
       for (const [k, r] of Object.entries(db.reports)) if (r.userId === userId) delete db.reports[k];
       for (const [k, n] of Object.entries(db.notices)) if (n.userId === userId) delete db.notices[k];
       for (const l of Object.values(db.lookups)) l.users = l.users.filter(u => u !== userId);
+      delete db.inboxAddresses[userId]; delete db.inboxMessages[userId]; delete db.emailOrders[userId];
+      for (const [k, c] of Object.entries(db.inboxConnections)) if (c.userId === userId) delete db.inboxConnections[k];
+      for (const [k, st] of Object.entries(db.oauthStates)) if (st.userId === userId) delete db.oauthStates[k];
+      for (const [k, i] of Object.entries(db.identities)) if (i.userId === userId) delete db.identities[k];
       await persist();
     },
     async syncPolicies(versions) {
@@ -767,6 +890,65 @@ function fileStore(file) {
       return Object.values(db.notices).filter(n => n.userId === userId && !n.readAt).sort((a, b) => a.createdAt < b.createdAt ? -1 : 1).slice(0, 20).map(({ id, text, itemId, createdAt }) => ({ id, text, itemId, createdAt }));
     },
     async markNoticesRead(userId, ids) { await load(); for (const id of ids) { const n = db.notices[id]; if (n && n.userId === userId) n.readAt = now(); } await persist(); },
+
+
+    /* Purchases from email. */
+    async getInboxAddress(userId) { await load(); const a = db.inboxAddresses[userId]; return a ? copy({ token: a.token, senders: a.senders, request: a.request, createdAt: a.createdAt }) : null; },
+    async findInboxAddress(token) { await load(); const e = Object.entries(db.inboxAddresses).find(([, a]) => a.token === token); return e ? copy({ userId: e[0], token, senders: e[1].senders }) : null; },
+    async setInboxAddress(userId, token) { await load(); db.inboxAddresses[userId] = { token, senders: db.inboxAddresses[userId]?.senders || [], request: null, createdAt: now() }; await persist(); },
+    async setForwardRequest(userId, request) { await load(); const a = db.inboxAddresses[userId]; if (!a) return; a.request = copy(request); await persist(); },
+    async addInboxSender(userId, email) { await load(); const a = db.inboxAddresses[userId]; if (!a) return; a.request = null; if (!a.senders.includes(email)) a.senders.push(email); await persist(); },
+    async saveInboxConnection(c) {
+      await load();
+      const old = Object.values(db.inboxConnections).find(x => x.userId === c.userId && x.provider === c.provider);
+      const row = old ? Object.assign(old, { email: c.email, tokens: c.tokens, status: 'active' }) : (db.inboxConnections[c.id] = { id: c.id, userId: c.userId, provider: c.provider, email: c.email, tokens: c.tokens, status: 'active', syncedAt: null, subscriptionId: null, subscriptionSecret: null, subscriptionExpires: null, createdAt: now() });
+      await persist(); return connOut(row);
+    },
+    async updateInboxConnection(id, patch) {
+      await load(); const c = db.inboxConnections[id]; if (!c) return;
+      for (const k of ['tokens', 'status', 'syncedAt', 'subscriptionId', 'subscriptionSecret', 'subscriptionExpires']) if (k in patch) c[k] = patch[k] instanceof Date ? iso(patch[k]) : patch[k];
+      await persist();
+    },
+    async getInboxConnection(id) { await load(); return connOut(db.inboxConnections[id]); },
+    async listInboxConnections(userId) { await load(); return Object.values(db.inboxConnections).filter(c => c.userId === userId).sort((a, b) => a.provider.localeCompare(b.provider)).map(connOut); },
+    async activeInboxConnections() { await load(); return Object.values(db.inboxConnections).filter(c => c.status === 'active').map(connOut); },
+    async findInboxSubscription(id) { await load(); return connOut(Object.values(db.inboxConnections).find(c => c.subscriptionId && c.subscriptionId === id)); },
+    async deleteInboxConnection(userId, provider) {
+      await load(); const c = Object.values(db.inboxConnections).find(x => x.userId === userId && x.provider === provider);
+      if (!c) return null;
+      delete db.inboxConnections[c.id];
+      for (const o of Object.values(db.emailOrders[userId] || {})) if (o.connectionId === c.id) o.connectionId = null;
+      for (const [k, m] of Object.entries(db.inboxMessages[userId] || {})) if (m.connectionId === c.id) delete db.inboxMessages[userId][k];
+      await persist(); return connOut(c);
+    },
+    async hasInboxMessage(userId, key) { await load(); return !!(db.inboxMessages[userId] || {})[key]; },
+    async saveInboxMessage(userId, m) {
+      await load(); const list = (db.inboxMessages[userId] = db.inboxMessages[userId] || {});
+      if (!list[m.key]) { list[m.key] = { key: m.key, connectionId: m.connectionId || null, kind: m.kind, orderKey: m.orderKey || null, fields: copy(m.fields || {}), createdAt: now() }; await persist(); }
+    },
+    async findEmailOrder(userId, orderKey) { await load(); return copy(Object.values(db.emailOrders[userId] || {}).find(o => o.orderKey === orderKey) || null); },
+    async listEmailOrders(userId) { await load(); return copy(Object.values(db.emailOrders[userId] || {}).sort((a, b) => String(b.purchased || b.createdAt).localeCompare(String(a.purchased || a.createdAt)))); },
+    async saveEmailOrder(userId, o) {
+      await load(); const list = (db.emailOrders[userId] = db.emailOrders[userId] || {}), old = list[o.id];
+      list[o.id] = { id: o.id, connectionId: old ? old.connectionId : o.connectionId || null, orderKey: o.orderKey, retailerId: o.retailerId || null, store: o.store || null, orderNumber: o.orderNumber || null, purchased: dateOrNull(o.purchased), delivered: dateOrNull(o.delivered), products: copy(o.products || []), createdAt: old ? old.createdAt : now(), updatedAt: now() };
+      await persist();
+    },
+    async deleteInboxData(userId, connectionId) {
+      await load(); const out = [];
+      for (const [k, m] of Object.entries(db.inboxMessages[userId] || {})) if (m.connectionId === connectionId) delete db.inboxMessages[userId][k];
+      for (const [id, o] of Object.entries(db.emailOrders[userId] || {})) if (o.connectionId === connectionId && !Object.values(userItems(userId)).some(r => r.purchase_id === id)) { delete db.emailOrders[userId][id]; out.push(id); }
+      await persist(); return out;
+    },
+    async saveOAuthState(stateHash, { purpose, userId = null, data = {}, expiresAt }) { await load(); db.oauthStates[stateHash] = { purpose, userId, data: copy(data), expiresAt: iso(expiresAt) }; await persist(); },
+    async takeOAuthState(stateHash) {
+      await load(); const st = db.oauthStates[stateHash];
+      if (!st) return null;
+      delete db.oauthStates[stateHash]; await persist();
+      return Date.parse(st.expiresAt) > Date.now() ? { purpose: st.purpose, userId: st.userId, data: st.data } : null;
+    },
+    async deleteExpiredOAuthStates() { await load(); let n = 0; for (const [k, st] of Object.entries(db.oauthStates)) if (Date.parse(st.expiresAt) < Date.now()) { delete db.oauthStates[k]; n++; } if (n) await persist(); return n; },
+    async findOAuthIdentity(provider, subject) { await load(); const i = db.identities[`${provider}:${subject}`]; return i ? { userId: i.userId, email: i.email } : null; },
+    async saveOAuthIdentity({ provider, subject, userId, email = null }) { await load(); db.identities[`${provider}:${subject}`] ||= { userId, email, createdAt: now() }; await persist(); },
 
     async close() { await queue; }
   };

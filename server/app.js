@@ -9,6 +9,7 @@ const { buildGuide, placeQueries } = require('./guide');
 const { cleanSubscription, validTimeZone, quiet, notification } = require('./reminders');
 const { ACTIONS, KINDS } = require('./email');
 const { printedWindow } = require('./receipts');
+const { InboxError } = require('./inbox');
 
 const ROOT = path.resolve(__dirname, '..');
 const COOKIE = 'rl_session';
@@ -72,6 +73,34 @@ function readBody(req, maxBytes) {
   });
 }
 
+/* The raw request body, for checking a webhook's signature before parsing it. */
+function readRaw(req, maxBytes) {
+  return new Promise((resolve, reject) => {
+    let size = 0; const chunks = [];
+    req.on('data', c => { size += c.length; if (size > maxBytes) { reject(new HttpError(413, 'Too much data.')); req.destroy(); } else chunks.push(c); });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+/* Resend signs webhooks the Svix way: HMAC-SHA256 of "id.timestamp.body" with the base64 key after "whsec_", sent as
+   "v1,<base64>" (several may be listed). Requests older or newer than five minutes are refused, so they can't be replayed. */
+function verifyWebhook(secret, headers, raw, now = Date.now()) {
+  const id = headers['svix-id'], ts = headers['svix-timestamp'], sigs = String(headers['svix-signature'] || '');
+  if (!secret || !id || !/^\d+$/.test(String(ts || '')) || Math.abs(now / 1000 - Number(ts)) > 300) return false;
+  const want = crypto.createHmac('sha256', Buffer.from(String(secret).replace(/^whsec_/, ''), 'base64')).update(`${id}.${ts}.${raw.toString('utf8')}`).digest();
+  return sigs.split(' ').some(s => { const [v, b64] = s.split(','); const got = Buffer.from(b64 || '', 'base64'); return v === 'v1' && got.length === want.length && crypto.timingSafeEqual(got, want); });
+}
+
+/* Form posts (Sign in with Apple answers with one). */
+function readForm(req, maxBytes) {
+  return new Promise((resolve, reject) => {
+    let size = 0; const chunks = [];
+    req.on('data', c => { size += c.length; if (size > maxBytes) { reject(new HttpError(413, 'Too much data.')); req.destroy(); } else chunks.push(c); });
+    req.on('end', () => resolve(Object.fromEntries(new URLSearchParams(Buffer.concat(chunks).toString('utf8')))));
+    req.on('error', reject);
+  });
+}
+
 function parseCookies(header) {
   const out = {};
   for (const part of String(header || '').split(';')) {
@@ -102,7 +131,7 @@ function receiptDraft(receipt, policy) {
   };
 }
 
-function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, places = null, review = null, push = null, reminders = null, email = null, supportEmail = '' }) {
+function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, places = null, review = null, push = null, reminders = null, email = null, supportEmail = '', inbox = null, oauth = null, publicUrl = '', inboundSecret = '' }) {
   const authLimit = limiter(20, 15 * 60 * 1000);
   // Each classification is an AI call, so it's limited per account.
   const classifyLimit = limiter(300, 60 * 60 * 1000);
@@ -157,6 +186,49 @@ function createApp({ store, data, production = false, policies = null, classifie
   }
 
   const publicUser = user => ({ email: user.email, name: user.name, ...(review && review.isAdmin(user) ? { admin: true } : {}) });
+  // Accounts made with "Continue with Google / Apple" have no password.
+  const NO_PASSWORD = 'none';
+
+  /* OAuth: sign-in with Google or Apple, and connecting Gmail or Outlook. The state value is random, kept (hashed) for ten
+     minutes and bound to this browser by a cookie, so a callback can't be replayed or started from another browser. */
+  const OAUTH_COOKIE = 'rl_oauth';
+  const baseUrl = req => publicUrl || `${isSecure(req) ? 'https' : 'http'}://${req.headers['x-forwarded-host'] || req.headers.host}`;
+  const redirect = (res, location, cookies = []) => { res.writeHead(302, { Location: location, 'Cache-Control': 'no-store', ...(cookies.length ? { 'Set-Cookie': cookies } : {}) }); res.end(); };
+  const oauthCookie = (req, value, maxAge) => `${OAUTH_COOKIE}=${value}; Path=/api/; HttpOnly; SameSite=None; Secure; Max-Age=${maxAge}`;
+  async function startOAuth(req, res, purpose, callbackPath, { userId = null, loginHint } = {}) {
+    const state = crypto.randomBytes(24).toString('base64url'), nonce = crypto.randomBytes(16).toString('base64url'), browser = crypto.randomBytes(24).toString('base64url');
+    await store.saveOAuthState(sha256(state), { purpose, userId, data: { nonce, browser: sha256(browser) }, expiresAt: new Date(Date.now() + 10 * 60 * 1000) });
+    redirect(res, oauth.authUrl(purpose, { state, nonce, redirectUri: baseUrl(req) + callbackPath, loginHint }), [oauthCookie(req, browser, 600)]);
+  }
+  async function finishOAuth(req, purpose, params, userId = null) {
+    const saved = typeof params.state === 'string' && params.state ? await store.takeOAuthState(sha256(params.state)) : null;
+    const browser = parseCookies(req.headers.cookie)[OAUTH_COOKIE];
+    if (!saved || saved.purpose !== purpose || !browser || sha256(browser) !== saved.data.browser || (userId && saved.userId !== userId)) throw new HttpError(400, 'expired');
+    if (params.error || typeof params.code !== 'string' || !params.code) throw new HttpError(400, 'cancelled');
+    return { nonce: saved.data.nonce };
+  }
+  /* Signs in (or up) with the provider's verified email. An existing account with that email is linked, not duplicated. */
+  async function socialSignIn(req, res, provider, claims, name) {
+    const subject = String(claims.sub || ''), email = normEmail(claims.email), verified = claims.email_verified === true || claims.email_verified === 'true';
+    let user = null;
+    const identity = subject ? await store.findOAuthIdentity(provider, subject) : null;
+    if (identity) user = await store.findUserById(identity.userId);
+    if (!user) {
+      if (!subject || !verified || !validEmail(email)) throw new HttpError(400, 'email');
+      const existing = await store.findUserByEmail(email);
+      if (existing) user = { id: existing.id, email: existing.email, name: existing.name };
+      else {
+        const first = String(name || '').trim().split(/\s+/)[0] || email.split('@')[0];
+        try { user = await store.createUser({ email, name: first.slice(0, 40), passwordHash: NO_PASSWORD }); }
+        catch (err) { if (err.code !== 'EXISTS') throw err; const again = await store.findUserByEmail(email); user = { id: again.id, email: again.email, name: again.name }; }
+      }
+      await store.saveOAuthIdentity({ provider, subject, userId: user.id, email });
+    }
+    const token = crypto.randomBytes(32).toString('base64url');
+    await store.createSession(user.id, sha256(token), new Date(Date.now() + SESSION_DAYS * 864e5));
+    redirect(res, '/signin.html?signed-in=' + provider, [cookie(req, token, SESSION_DAYS * 86400), oauthCookie(req, '', 0)]);
+  }
+  const authFailed = (res, err) => { if (!err.status || err.status >= 500) console.error('Sign-in failed:', err.message); redirect(res, '/signin.html?error=' + (['expired', 'cancelled', 'email'].includes(err.message) ? err.message : 'failed')); };
 
   function checkWrite(req) {
     // Blocks cross-site form posts: state changes must be JSON from this site.
@@ -291,10 +363,85 @@ function createApp({ store, data, production = false, policies = null, classifie
       return send(res, 200, { ok: true }, { 'Set-Cookie': cookie(req, '', 0) });
     }
 
+    // "Continue with Google / Apple" on the sign-in and sign-up pages. Separate from inbox access: only name and email.
+    if (route === '/api/auth/providers' && method === 'GET') return send(res, 200, { google: !!(oauth && oauth.available.google), apple: !!(oauth && oauth.available.apple) });
+    const signInStart = /^\/api\/auth\/(google|apple)\/start$/.exec(route);
+    if (signInStart && method === 'GET') {
+      const provider = signInStart[1];
+      if (!oauth || !oauth.available[provider]) return redirect(res, '/signin.html?error=unavailable');
+      if (!authLimit('ip:' + clientIp(req))) return redirect(res, '/signin.html?error=limit');
+      return startOAuth(req, res, provider === 'google' ? 'signinGoogle' : 'signinApple', `/api/auth/${provider}/callback`);
+    }
+    if (route === '/api/auth/google/callback' && method === 'GET') {
+      try {
+        const q = Object.fromEntries(new URL(req.url, 'http://localhost').searchParams);
+        const { nonce } = await finishOAuth(req, 'signinGoogle', q);
+        const t = await oauth.exchange('signinGoogle', { code: q.code, redirectUri: baseUrl(req) + '/api/auth/google/callback', nonce });
+        return await socialSignIn(req, res, 'google', t.claims || {}, t.claims && (t.claims.given_name || t.claims.name));
+      } catch (err) { return authFailed(res, err); }
+    }
+    // Apple answers with a cross-site form post, so the browser binding uses a SameSite=None cookie.
+    if (route === '/api/auth/apple/callback' && method === 'POST') {
+      try {
+        const f = await readForm(req, 20_000);
+        const { nonce } = await finishOAuth(req, 'signinApple', f);
+        const t = await oauth.exchange('signinApple', { code: f.code, redirectUri: baseUrl(req) + '/api/auth/apple/callback', nonce });
+        let name = ''; try { name = JSON.parse(f.user || '{}').name.firstName || ''; } catch {}
+        return await socialSignIn(req, res, 'apple', t.claims, name);
+      } catch (err) { return authFailed(res, err); }
+    }
+    // Forwarded mail: Resend's `email.received` webhook, signed with RESEND_WEBHOOK_SECRET (Svix format). Only the message's
+    // metadata arrives here; mail to an unknown address is dropped, and the rest is fetched and read by a job.
+    if (route === '/api/inbound/email' && method === 'POST') {
+      const raw = await readRaw(req, 1024 * 1024);
+      if (!inbox || !verifyWebhook(inboundSecret, req.headers, raw)) throw new HttpError(401, 'Unauthorized.');
+      let event; try { event = JSON.parse(raw.toString('utf8')); } catch { throw new HttpError(400, 'Invalid request.'); }
+      return send(res, 200, await inbox.inbound(event));
+    }
+    // Microsoft Graph: the subscription handshake echoes validationToken; notifications only say that mail arrived.
+    if (route === '/api/inbox/outlook/notify' && method === 'POST') {
+      const token = new URL(req.url, 'http://localhost').searchParams.get('validationToken');
+      if (token !== null) { res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end(token.slice(0, 1000)); }
+      if (inbox) await inbox.outlookNotify(await readBody(req, 1024 * 1024));
+      return send(res, 202, { ok: true });
+    }
+
     const user = await currentUser(req);
     if (!user) throw new HttpError(401, 'Please sign in.');
 
-    if (route === '/api/me' && method === 'GET') return send(res, 200, { user: publicUser(user) });
+    if (route === '/api/me' && method === 'GET') {
+      const full = await store.findUserByEmail(user.email);
+      return send(res, 200, { user: { ...publicUser(user), ...(full && full.passwordHash === NO_PASSWORD ? { passwordless: true } : {}) } });
+    }
+
+    // Purchases from email: the forwarding address, connected inboxes and the orders found that haven't been opened yet.
+    if (route.startsWith('/api/inbox')) {
+      if (!inbox) throw new HttpError(503, 'Email import isn’t available right now.');
+      try {
+        if (route === '/api/inbox' && method === 'GET') return send(res, 200, await inbox.status(user));
+        if (route === '/api/inbox/address' && method === 'POST') { checkWrite(req); return send(res, 200, await inbox.newAddress(user.id)); }
+        if (route === '/api/inbox/senders' && method === 'POST') { checkWrite(req); return send(res, 200, await inbox.acceptSender(user.id, (await readBody(req, 2_000)).email)); }
+        const m = /^\/api\/inbox\/(gmail|outlook)\/(start|callback|disconnect)$/.exec(route);
+        if (m && m[2] === 'disconnect' && method === 'POST') { checkWrite(req); return send(res, 200, await inbox.disconnect(user.id, m[1])); }
+        if (m && m[2] === 'start' && method === 'GET') {
+          if (!inbox.available()[m[1]]) return redirect(res, '/app.html?inbox_error=unavailable');
+          return await startOAuth(req, res, m[1], `/api/inbox/${m[1]}/callback`, { userId: user.id, loginHint: user.email });
+        }
+        if (m && m[2] === 'callback' && method === 'GET') {
+          try {
+            const q = Object.fromEntries(new URL(req.url, 'http://localhost').searchParams);
+            const { nonce } = await finishOAuth(req, m[1], q, user.id);
+            const t = await oauth.exchange(m[1], { code: q.code, redirectUri: baseUrl(req) + `/api/inbox/${m[1]}/callback`, nonce: m[1] === 'outlook' ? nonce : null });
+            await inbox.connect(user.id, m[1], t);
+            return redirect(res, '/app.html?inbox=' + m[1], [oauthCookie(req, '', 0)]);
+          } catch (err) {
+            if (!err.status || err.status >= 500) console.error('Inbox connect failed:', err.message);
+            return redirect(res, '/app.html?inbox_error=' + (['expired', 'cancelled'].includes(err.message) ? err.message : err.code === 'scope' ? 'scope' : 'failed'));
+          }
+        }
+      } catch (err) { if (err instanceof InboxError) throw new HttpError(err.status, err.message); throw err; }
+      throw new HttpError(404, 'Not found.');
+    }
 
     // Policy engine: the retailer's checked policy applied to one item and the user's answers. Nothing is saved here;
     // the app writes the result into the item's existing fields and syncs it like any other change.
@@ -520,7 +667,11 @@ function createApp({ store, data, production = false, policies = null, classifie
       checkWrite(req);
       const body = await readBody(req, 10_000);
       const full = await store.findUserByEmail(user.email);
-      if (!full || !(await verifyPassword(String(body.password || ''), full.passwordHash))) throw new HttpError(401, 'That password isn’t right.');
+      // An account without a password (Google or Apple sign-in) confirms with its email address instead.
+      if (full && full.passwordHash === NO_PASSWORD) { if (normEmail(body.password) !== full.email) throw new HttpError(401, 'That email isn’t right.'); }
+      else if (!full || !(await verifyPassword(String(body.password || ''), full.passwordHash))) throw new HttpError(401, 'That password isn’t right.');
+      // Connected inboxes are revoked with the provider before anything is deleted.
+      if (inbox) await inbox.forget(user.id);
       await data.deleteAccount(user.id);
       return send(res, 200, { ok: true }, { 'Set-Cookie': cookie(req, '', 0) });
     }
@@ -560,4 +711,4 @@ function createApp({ store, data, production = false, policies = null, classifie
   };
 }
 
-module.exports = { createApp, hashPassword, verifyPassword, receiptDraft };
+module.exports = { createApp, hashPassword, verifyPassword, receiptDraft, verifyWebhook };

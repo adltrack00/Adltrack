@@ -38,7 +38,7 @@ const Account = (() => {
     del(DIRTY_KEY);
   }
   function clearLocal() { [...Object.values(DATA_KEYS), 'back-last-nudge', 'returnly-push-endpoint', ACCOUNT_KEY, SYNCED_KEY, DIRTY_KEY, ITEMS_KEY, SETTINGS_KEY].forEach(del); }
-  function remember(u) { set(ACCOUNT_KEY, JSON.stringify({ email: u.email, name: u.name, ...(u.admin ? { admin: true } : {}) })); }
+  function remember(u) { set(ACCOUNT_KEY, JSON.stringify({ email: u.email, name: u.name, ...(u.admin ? { admin: true } : {}), ...(u.passwordless ? { passwordless: true } : {}) })); }
 
   /* The account stores photos as files and sends back their private URLs; swap them into this browser's copy
      (in memory too, so the next save doesn't upload the photo again). */
@@ -132,6 +132,11 @@ const Account = (() => {
     if (!r.data) { const p = parse(DATA_KEYS.profile, {}); if (!p.name) set(DATA_KEYS.profile, JSON.stringify({ ...p, name: r.user.name })); }
     return r.user;
   }
+  /* After "Continue with Google / Apple": the server has set the session cookie; load the account like signIn does. */
+  async function adoptSession() {
+    const me = await api('GET', '/api/me');
+    return adopt({ user: me.user, data: (await api('GET', '/api/data')).data });
+  }
   // A slow or sleeping server must never leave the user stuck signed in.
   const within = (promise, ms) => Promise.race([promise.catch(() => {}), new Promise(r => setTimeout(r, ms))]);
 
@@ -180,5 +185,5 @@ const Account = (() => {
     }
   }
 
-  return { api, user, queue, flush, signUp, signIn, adopt, signOut, deleteAccount, clearLocal };
+  return { api, user, queue, flush, signUp, signIn, adopt, adoptSession, signOut, deleteAccount, clearLocal };
 })();

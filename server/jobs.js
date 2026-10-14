@@ -68,6 +68,8 @@ function defineJobs(jobs, { store, storage, data = null, reminders = null }) {
     await store.deleteFinishedJobs(new Date(Date.now() - 30 * 24 * HOUR));
     // Cached drop-off places (ids and coordinates) are kept for at most 30 days, as the places provider's terms require.
     await store.deleteOldPlaceCache(new Date(Date.now() - 30 * 24 * HOUR));
+    // Sign-in and inbox-connect requests that were never finished.
+    if (store.deleteExpiredOAuthStates) await store.deleteExpiredOAuthStates();
   }, { every: 6 * HOUR });
   // Scanned receipts whose items were never saved (the scan was abandoned) are deleted after two days.
   if (data) jobs.define('receipts.cleanup', async () => { await data.cleanupReceipts(new Date(Date.now() - 48 * HOUR)); }, { every: 6 * HOUR });
@@ -90,4 +92,13 @@ function defineReviewJobs(jobs, review) {
   jobs.define('policies.freshness', () => review.freshness(), { every: 7 * 24 * HOUR });
 }
 
-module.exports = { createJobs, defineJobs, defineReviewJobs };
+/* Purchases from email: a connected inbox is checked for new shopping mail every 15 minutes (and straight away when Outlook
+   says something arrived); each message is read on its own, and forwarded mail is fetched from Resend by id when its job runs. */
+function defineInboxJobs(jobs, inbox) {
+  jobs.define('inbox.poll', () => inbox.poll(), { every: 15 * 60 * 1000 });
+  jobs.define('inbox.sync', payload => inbox.sync(payload));
+  jobs.define('inbox.message', payload => inbox.readMessage(payload));
+  jobs.define('inbox.forwarded', payload => inbox.readForwarded(payload));
+}
+
+module.exports = { createJobs, defineJobs, defineReviewJobs, defineInboxJobs };
