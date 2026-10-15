@@ -192,8 +192,9 @@ function createData({ store, storage, jobs = null }) {
      "receipt"), which the app's items then join. Sending the pages again (a long receipt, one more photo) replaces the set;
      a page sent before is kept, not stored twice. Deleting the purchase's last item deletes the pages. */
   function receiptPages(dataUrls, max, what = 'receipt') {
-    const one = what === 'receipt' ? 'one receipt' : 'one set of discharge papers', kind = what === 'receipt' ? 'receipt' : 'of the discharge papers';
-    if (!Array.isArray(dataUrls) || !dataUrls.length || dataUrls.length > max) throw new DataError(400, `Scan up to ${max} pages of ${one}.`);
+    const one = { receipt: 'pages of one receipt', discharge: 'pages of one set of discharge papers', label: 'photos of one bottle' }[what];
+    const kind = { receipt: 'receipt', discharge: 'of the discharge papers', label: 'of the bottle' }[what];
+    if (!Array.isArray(dataUrls) || !dataUrls.length || dataUrls.length > max) throw new DataError(400, `Scan up to ${max} ${one}.`);
     return dataUrls.map(u => { const p = parseDataUrl(u, 'receipt'); if (!p) throw new DataError(400, `Use a photo or PDF ${kind}.`); return p; });
   }
   async function saveReceipt(userId, purchaseId, pages) {
