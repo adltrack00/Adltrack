@@ -1,6 +1,8 @@
-# Returnly
+# Adltrack
 
-Track purchases, return deadlines and refunds. Scan a receipt, tap what you're returning, and Returnly reminds you until the money is back.
+Track purchases, return deadlines and refunds. Scan a receipt, tap what you're returning, and Adltrack reminds you until the money is back.
+
+Adltrack is becoming a post-discharge medication app built on this same design: scan the discharge papers, confirm each medication with a photo, and get reminders for doses and refills. The plan is in [docs/adltrack-plan.md](docs/adltrack-plan.md). Step 1 renamed the app and its menu. Step 2 made the scan read discharge papers: `server/discharge.js` sends the pages to Claude and `POST /api/discharge/read` returns one card per medication, with its instructions word for word, the doctor who prescribed it, the pharmacy, follow-up appointments and warning signs. Medications the papers say to stop are left out and named. Nothing the papers don't say is added. The cards after Scan still look like Returnly's until the next steps.
 
 ## Run locally
 
@@ -82,7 +84,7 @@ The Return card teaches how to return the item at its store, below its existing 
 - "Add your QR code or label": a photo, screenshot or PDF, saved privately on the item (`PUT /api/items/:id/label` with a data URL; `DELETE` removes it; stored as `labelFileId`, shown to the app as `label`). It changes only through that call, so a sync from an older copy never drops it, and it's deleted with the item and the account. "Show your QR code or label" opens it full-screen (a PDF opens in a new tab).
 - "Nearest drop-off" (`POST /api/places/nearest`, signed in, 30 lookups per account per hour): asks for the device's location only when tapped, then shows the three closest places that accept this store's returns by the chosen way (the drop-off partners the policy names, or the store itself for in-store returns; mail has none) with distance, today's hours, open now and a directions link. The location is used for that request only and never saved.
 - Places provider: Google Places API (New) (`server/places.js`, key in `GOOGLE_PLACES_API_KEY`). It has the most complete US store listings with opening hours, which a drop-off answer needs. Google's terms only allow keeping place ids and coordinates, for up to 30 days, so that's what's cached (`place_cache`, per store and ~1 km area, never linked to a user, cleared by `maintenance.cleanup`); the name, address and hours of the closest three are fetched fresh. Cost: a cache miss is one Text Search per store or partner (Amazon has five), and every lookup is up to three Place Details calls; see Google's pricing page for current rates and free monthly usage.
-- Returns 101: a row under "How Returnly works" on Support opens a page on receipts, store credit vs. refund, drop-off vs. mail, final sale and keeping proof.
+- Returns 101: a row under "How Adltrack works" on Support opens a page on receipts, store credit vs. refund, drop-off vs. mail, final sale and keeping proof.
 
 ## Any store, always current
 
@@ -97,7 +99,7 @@ The Return card teaches how to return the item at its store, below its existing 
 
 ## Reminders when the app is closed
 
-- Installable: `manifest.webmanifest` (icons in `assets/`, drawn like the favicon) and a service worker, `sw.js`, which caches the app shell (network first, so a new version shows straight away; the cache is used when offline). On iPhone, web push only works once Returnly is added to the Home Screen (Share → Add to Home Screen, iOS 16.4 or later); the Reminders page says so.
+- Installable: `manifest.webmanifest` (icons in `assets/`, drawn like the favicon) and a service worker, `sw.js`, which caches the app shell (network first, so a new version shows straight away; the cache is used when offline). On iPhone, web push only works once Adltrack is added to the Home Screen (Share → Add to Home Screen, iOS 16.4 or later); the Reminders page says so.
 - Web Push with VAPID keys (`web-push` library). The device subscribes at the existing permission moments: "Enable browser notifications" / "Send a test notification" on Reminders, and "Start return". Each open of the app refreshes the subscription and the device's time zone. The server only sends to the browsers' push services (Google, Mozilla, Apple, Microsoft); subscriptions the push service reports as expired (404/410) are deleted. Signing out removes this device's subscription; deleting the account removes them all.
 - One rule, one reminder a day: `server/reminders.js` picks the day's reminder (the most urgent item, "Plus N other return windows", skipping examples, items sent back, kept or received, and items snoozed with `snoozeUntil`). Every minute `reminders.dispatch` finds accounts whose `settings.time` has come in their time zone (with `settings.daily` on) and queues `reminders.send`. The open app asks `POST /api/reminders/claim` instead of choosing for itself, and does so only on devices without push. Both claim the user's local date in `reminder_days` first, so the user never gets the reminder twice. If no device could be reached, the day is released and the send is retried.
 - Tapping a reminder opens that item's Return step (`app.html?remind=<item id>`, or the already open window).
@@ -126,7 +128,7 @@ Still one reminder a day per user at their chosen time, and still "We'll remind 
 - Service: Resend. Sign-up needs no company email address and there's no manual account approval, so it's quick to set up; it sends through Amazon SES with DKIM and SPF on your own domain (on a `send.` subdomain, so it doesn't touch the domain's own mailbox records); its JSON API needs no extra library; and it passes our own unsubscribe headers through. Open and click tracking stay off. Replies go to `SUPPORT_EMAIL`. The free plan sends 3,000 emails a month, at most 100 a day.
 - Support shows the address in `SUPPORT_EMAIL`.
 
-Set up email: create a Resend account (resend.com), add your domain (Domains → Add Domain) and add the DNS records it shows (a DKIM TXT record on `resend._domainkey`, and an MX and an SPF TXT record on `send`), wait until it says Verified, then create an API key with "Sending access" for that domain (API Keys → Create API Key). Set `RESEND_API_KEY`, `EMAIL_FROM` (an address on that domain, for example `Returnly <hello@yourdomain.com>`), `APP_URL` (for example `https://returnly.onrender.com`), `EMAIL_TOKEN_SECRET` (a long random string; Render generates one from the Blueprint) and `SUPPORT_EMAIL`. Without them nothing is emailed, the "Also email me" row says email isn't set up, and "Forgot password?" says reset isn't set up.
+Set up email: create a Resend account (resend.com), add your domain (Domains → Add Domain) and add the DNS records it shows (a DKIM TXT record on `resend._domainkey`, and an MX and an SPF TXT record on `send`), wait until it says Verified, then create an API key with "Sending access" for that domain (API Keys → Create API Key). Set `RESEND_API_KEY`, `EMAIL_FROM` (an address on that domain, for example `Adltrack <hello@yourdomain.com>`), `APP_URL` (for example `https://returnly.onrender.com`), `EMAIL_TOKEN_SECRET` (a long random string; Render generates one from the Blueprint) and `SUPPORT_EMAIL`. Without them nothing is emailed, the "Also email me" row says email isn't set up, and "Forgot password?" says reset isn't set up.
 
 ## Purchases from email
 
@@ -196,4 +198,4 @@ Photos need a bucket. With Cloudflare R2: create a bucket (keep it private), cre
 
 ## Current limits
 
-SMS is not connected. Reminders when the app is closed need notification permission (and, on iPhone, Returnly on the Home Screen), or email set up on the server. Deadlines for stores without a checked policy are estimates, and looked-up policies stay unverified until an admin approves them. Some retailers block automated page fetches, so the freshness check logs those pages as not fetched and can't flag them. The Terms of service page is a draft and needs review before launch.
+SMS is not connected. Reminders when the app is closed need notification permission (and, on iPhone, Adltrack on the Home Screen), or email set up on the server. Deadlines for stores without a checked policy are estimates, and looked-up policies stay unverified until an admin approves them. Some retailers block automated page fetches, so the freshness check logs those pages as not fetched and can't flag them. The Terms of service page is a draft and needs review before launch.

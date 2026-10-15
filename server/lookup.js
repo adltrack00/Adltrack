@@ -108,7 +108,7 @@ function toPolicy(answer, { query, key, today, seen }) {
     receipt: fact({ required: a.receipt_required === 'yes' ? true : a.receipt_required === 'no' ? false : 'unknown', without: '' }),
     refund: { timing: fact(text(a.processing, 200) || 'Not confirmed'), fees: [] },
     methods, unknowns,
-    research: `Found by an automatic web lookup on ${today}. Not checked by Returnly.`
+    research: `Found by an automatic web lookup on ${today}. Not checked by Adltrack.`
   };
   const bad = problems(policy);
   return bad.length ? null : policy;

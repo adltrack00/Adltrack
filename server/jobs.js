@@ -79,6 +79,8 @@ function defineJobs(jobs, { store, storage, data = null, reminders = null }) {
     jobs.define('reminders.dispatch', () => reminders.dispatch(), { every: 60 * 1000 });
     jobs.define('reminders.send', payload => reminders.send(payload));
     jobs.define('reminders.followup', payload => reminders.followup(payload));
+    // A medication's dose time: one push per dose time, queued by the same every-minute dispatch.
+    jobs.define('reminders.dose', payload => reminders.sendDose(payload));
   }
   // Retries deleting stored files that couldn't be removed straight away (for example, after "Delete my account").
   jobs.define('files.delete', async ({ keys }) => {

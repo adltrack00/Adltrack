@@ -85,7 +85,7 @@ const SCHEMA = {
 /* Order numbers compare without spaces, dashes, "#" or case: "#112-3344556-7788990" = "112 3344556 7788990". */
 const orderKey = n => String(n || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
 
-/* The model's answer → the fields Returnly keeps. Dates after `today` (misreads) are dropped. */
+/* The model's answer → the fields Adltrack keeps. Dates after `today` (misreads) are dropped. */
 function cleanEmail(raw, { today = new Date().toISOString().slice(0, 10) } = {}) {
   const r = raw && typeof raw === 'object' ? raw : {};
   const date = v => { const d = realDate(v); return d && d <= today && d >= '2000-01-01' ? d : null; };

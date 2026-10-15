@@ -92,3 +92,20 @@ button.flow-tab:focus-visible{outline:2px solid #111;outline-offset:2px}
 }
 /* The camera box is narrower than its panel on phones (height-capped 3:4), so centre it. */
 .camera-window{margin-left:auto;margin-right:auto}
+
+/* Confirm card: how to take the medication, word for word, under its name in the name's own field style. */
+.guided-form .pick-how{font-weight:400;font-size:13px;color:#555;height:auto;min-height:4em;margin-top:4px}
+/* Confirm card: the three example bottle photos; the next one to take is outlined. */
+.bottle-guide{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0 6px}.bottle-guide figure{min-width:0}.pick-grid:not(.single) .bottle-guide{gap:4px}.pick-grid:not(.single) .bottle-guide figure{padding:4px 1px;font-size:9px;hyphens:auto}.bottle-guide figure{margin:0;padding:6px 4px;border:1px solid #eee;border-radius:10px;text-align:center;font-size:10px;line-height:1.35;color:#555}.bottle-guide figure.is-next{border-color:#111}.bottle-guide b{color:#111}.bottle-svg{width:100%;max-width:90px;height:auto;display:block;margin:0 auto 4px}
+/* Dose times on the Confirm card (pick from the 4 label slots) and today's doses on the Take card. */
+.slot-row{margin:14px 0 4px}
+.slot-picks{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:8px}
+.pick-grid .slot-picks .pick-toggle.slot{display:flex;flex-direction:column;align-items:center;gap:1px;margin:0;padding:8px 4px;min-height:0;border-radius:12px;border:1px solid #d8d6cc;background:white;color:#111;font-size:13px;line-height:1.2}
+.slot-picks .pick-toggle.slot small{font-size:11px;color:inherit;opacity:.7}
+.pick-grid .slot-picks .pick-toggle.slot[aria-pressed="true"]{background:#111;border-color:#111;color:#fff}
+.slot-picks .pick-toggle.slot:disabled{opacity:.35;cursor:default}
+.bottle-line>span{white-space:normal}
+.dose-list{margin:12px 0 4px}
+.dose-row{border-top:1px dashed #ddd;padding:8px 0}
+.dose-row .guided-form{display:flex;gap:8px;margin-top:6px}
+.dose-row .guided-form .pick-toggle{flex:1}

@@ -127,6 +127,13 @@ create table if not exists reminder_days (
 );
 -- The day a reminder was opened (tapped, or an email link used), so an unopened one can be followed by email.
 alter table reminder_days add column if not exists opened_date date;
+-- Each dose reminder sent (one per account, local date and dose time, as "YYYY-MM-DD HH:MM"), so a dose is reminded once.
+create table if not exists dose_reminders (
+  user_id uuid not null references users(id) on delete cascade,
+  slot text not null,
+  sent_at timestamptz not null default now(),
+  primary key (user_id, slot)
+);
 -- Reminder email types an account unsubscribed from ('daily': when push isn't set up; 'unopened': 3 days before a deadline).
 create table if not exists email_optouts (
   user_id uuid not null references users(id) on delete cascade,
@@ -273,7 +280,7 @@ create table if not exists oauth_states (
   data jsonb not null default '{}',
   expires_at timestamptz not null
 );
--- "Continue with Google / Apple": the provider's account id for each Returnly account.
+-- "Continue with Google / Apple": the provider's account id for each Adltrack account.
 create table if not exists oauth_identities (
   provider text not null,
   subject text not null,
@@ -486,6 +493,12 @@ function pgStore(connectionString) {
       if (previous) await pool.query('update reminder_days set last_date=$3 where user_id=$1 and last_date=$2', [userId, date, previous]);
       else await pool.query('delete from reminder_days where user_id=$1 and last_date=$2', [userId, date]);
     },
+    /* Dose reminders: true the first time a dose (local date and time) is claimed; old ones are cleared as new ones come. */
+    async claimDoseReminder(userId, slot) {
+      await pool.query(`delete from dose_reminders where user_id=$1 and sent_at < now() - interval '3 days'`, [userId]);
+      return !!(await one('insert into dose_reminders (user_id, slot) values ($1,$2) on conflict do nothing returning slot', [userId, slot]));
+    },
+    async releaseDoseReminder(userId, slot) { await pool.query('delete from dose_reminders where user_id=$1 and slot=$2', [userId, slot]); },
     /* Store lookups (unverified policies) and how many accounts use each store. */
     getStoreLookup: key => one(`select key, name, status, policy, retailer_id as "retailerId", looked_up_at as "lookedUpAt" from store_lookups where key=$1`, [key]),
     async saveStoreLookup({ key, name, status, policy = null, retailerId = null }) {
@@ -591,7 +604,7 @@ function fileStore(file) {
     if (db) return db;
     try { db = JSON.parse(await fs.readFile(file, 'utf8')); } catch { db = {}; }
     // Files written before the data foundation only have users, sessions and data.
-    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, places: {}, lookups: {}, reports: {}, approved: [], snapshots: {}, flags: {}, notices: {}, push: {}, reminderDays: {}, optouts: {}, resets: {}, inboxAddresses: {}, inboxConnections: {}, inboxMessages: {}, emailOrders: {}, oauthStates: {}, identities: {}, ...db };
+    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, places: {}, lookups: {}, reports: {}, approved: [], snapshots: {}, flags: {}, notices: {}, push: {}, reminderDays: {}, doseReminders: {}, optouts: {}, resets: {}, inboxAddresses: {}, inboxConnections: {}, inboxMessages: {}, emailOrders: {}, oauthStates: {}, identities: {}, ...db };
     return db;
   };
   // Serialise writes so concurrent requests can't interleave partial files.
@@ -634,7 +647,7 @@ function fileStore(file) {
       for (const [k, s] of Object.entries(db.sessions)) if (s.userId === userId) delete db.sessions[k];
       for (const [k, f] of Object.entries(db.files)) if (f.userId === userId) delete db.files[k];
       for (const [k, p] of Object.entries(db.push)) if (p.userId === userId) delete db.push[k];
-      delete db.reminderDays[userId]; delete db.optouts[userId];
+      delete db.reminderDays[userId]; delete db.doseReminders[userId]; delete db.optouts[userId];
       for (const [k, r] of Object.entries(db.resets)) if (r.userId === userId) delete db.resets[k];
       for (const [k, r] of Object.entries(db.reports)) if (r.userId === userId) delete db.reports[k];
       for (const [k, n] of Object.entries(db.notices)) if (n.userId === userId) delete db.notices[k];
@@ -827,6 +840,15 @@ function fileStore(file) {
       await persist();
       return { claimed: true, previous: prev ? prev.lastDate : null };
     },
+    async claimDoseReminder(userId, slot) {
+      await load();
+      const sent = db.doseReminders[userId] = db.doseReminders[userId] || {}, cutoff = Date.now() - 3 * 864e5;
+      for (const [k, at] of Object.entries(sent)) if (Date.parse(at) < cutoff) delete sent[k];
+      if (sent[slot]) return false;
+      sent[slot] = now(); await persist();
+      return true;
+    },
+    async releaseDoseReminder(userId, slot) { await load(); if (db.doseReminders[userId]) { delete db.doseReminders[userId][slot]; await persist(); } },
     async releaseReminderDay(userId, date, previous) {
       await load();
       if (db.reminderDays[userId]?.lastDate !== date) return;
