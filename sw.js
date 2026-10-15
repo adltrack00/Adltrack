@@ -1,4 +1,4 @@
-/* Returnly service worker: keeps the app shell for offline starts, shows daily reminders sent by Web Push while the app is
+/* Adltrack service worker: keeps the app shell for offline starts, shows daily reminders sent by Web Push while the app is
    closed with their action buttons, and opens the item's Return step when one is tapped. Account data (/api/) is never cached here. */
 const SHELL = 'returnly-shell-v3';
 const SHELL_FILES = ['app.html', 'index.html', 'signin.html', 'signup.html', 'forgot.html', 'reset.html', 'email.html', 'style.css', 'on.css', 'klarna.css', 'precision.css', 'guided.css', 'menu.css', 'mobile.css', 'landing.css',
@@ -25,7 +25,7 @@ self.addEventListener('fetch', event => {
 self.addEventListener('push', event => {
   let msg = {};
   try { msg = event.data ? event.data.json() : {}; } catch { msg = { body: event.data ? event.data.text() : '' }; }
-  event.waitUntil(self.registration.showNotification(msg.title || 'Returnly', {
+  event.waitUntil(self.registration.showNotification(msg.title || 'Adltrack', {
     body: msg.body || '',
     icon: 'assets/icon-192.png',
     tag: 'returnly-daily',
@@ -38,7 +38,7 @@ const localDate = () => { const d = new Date(); return `${d.getFullYear()}-${Str
 const post = (url, body) => fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 const ACTION_DONE = { snooze: ['Snoozed until tomorrow', 'Your deadline stays the same.'], sent: ['Marked as sent back', 'We’ll stop reminding you about it.'], keep: ['Keeping it', 'We’ll stop reminding you about it.'] };
 
-// Tapping a reminder opens that item's Return step: in an open Returnly window if there is one, otherwise in a new one.
+// Tapping a reminder opens that item's Return step: in an open Adltrack window if there is one, otherwise in a new one.
 // "Snooze until tomorrow", "I sent it back" and "I'm keeping it" are saved straight away, without opening the app;
 // "Show QR code" opens the item's QR code or label.
 self.addEventListener('notificationclick', event => {

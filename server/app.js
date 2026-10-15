@@ -338,9 +338,9 @@ function createApp({ store, data, production = false, policies = null, classifie
       if (!linkLimit('ip:' + clientIp(req))) throw new HttpError(429, 'Too many attempts. Try again in a few minutes.');
       const body = await readBody(req, 2_000);
       const t = email && email.tokens.verify(body.token);
-      if (!t || t.t !== 'act' || !ACTIONS.includes(t.a) || !reminders) throw new HttpError(400, 'This link has expired. Open Returnly instead.');
+      if (!t || t.t !== 'act' || !ACTIONS.includes(t.a) || !reminders) throw new HttpError(400, 'This link has expired. Open Adltrack instead.');
       const item = await reminders.act(t.u, t.i, t.a, (await reminders.localNow(t.u)).date);
-      if (!item) throw new HttpError(404, 'This purchase isn’t in your Returnly anymore.');
+      if (!item) throw new HttpError(404, 'This purchase isn’t in your Adltrack anymore.');
       return send(res, 200, { ok: true, action: t.a, name: item.name || '' });
     }
     // Unsubscribe from one type of reminder email: from the email's link (JSON) or one-click from the mail app (RFC 8058,
@@ -556,7 +556,7 @@ function createApp({ store, data, production = false, policies = null, classifie
       const sub = push && push.available() && typeof body.endpoint === 'string' ? (await store.listPushSubscriptions(user.id)).find(s => s.endpoint === body.endpoint) : null;
       if (!sub) return send(res, 200, { sent: false });
       if (!pushTestLimit('user:' + user.id)) throw new HttpError(429, 'Too many test notifications. Try again later.');
-      const r = await reminders.sendTo(user.id, [sub], { title: 'Returnly · A little nudge', body: 'Your return radar is ready. Reminders arrive even when Returnly is closed.', url: 'app.html' });
+      const r = await reminders.sendTo(user.id, [sub], { title: 'Adltrack · A little nudge', body: 'Your return radar is ready. Reminders arrive even when Adltrack is closed.', url: 'app.html' });
       return send(res, 200, { sent: r.sent > 0 });
     }
     // The open app's daily notification: the same rule and the same once-a-day claim as push, so only one of them is sent.

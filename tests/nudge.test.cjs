@@ -21,17 +21,17 @@ test('returns due this week are grouped with their total, and the lead item says
 });
 
 test('the wording gets more urgent as the deadline nears: every day, the day before, deadline day', () => {
-  assert.equal(N.compose([item('A', 12)], today).title, 'Returnly · 12 days left');
+  assert.equal(N.compose([item('A', 12)], today).title, 'Adltrack · 12 days left');
   assert.equal(N.compose([item('A', 12)], today).stage, 'daily');
-  assert.equal(N.compose([item('A', 3)], today).title, 'Returnly · Only 3 days left');
-  assert.equal(N.compose([item('A', 1)], today).title, 'Returnly · Deadline tomorrow');
+  assert.equal(N.compose([item('A', 3)], today).title, 'Adltrack · Only 3 days left');
+  assert.equal(N.compose([item('A', 1)], today).title, 'Adltrack · Deadline tomorrow');
   assert.equal(N.compose([item('A', 1)], today).stage, 'tomorrow');
   const last = N.compose([item('A', 0)], today);
-  assert.equal(last.title, 'Returnly · Deadline today');
+  assert.equal(last.title, 'Adltrack · Deadline today');
   assert.equal(last.body, 'A · $40 back · due today. Pack it. Check the exact cutoff time.');
   // The urgent title wins over the group, and the group's total moves to the end.
   const both = N.compose([item('A', 0, { price: 30 }), item('B', 5, { price: 54 })], today);
-  assert.equal(both.title, 'Returnly · Deadline today');
+  assert.equal(both.title, 'Adltrack · Deadline today');
   assert.match(both.body, /Plus 1 other return window \(\$84 due this week\)\.$/);
 });
 

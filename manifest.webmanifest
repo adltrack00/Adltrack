@@ -1,6 +1,6 @@
 {
-  "name": "Returnly",
-  "short_name": "Returnly",
+  "name": "Adltrack",
+  "short_name": "Adltrack",
   "description": "A gentle nudge to return your purchases before their windows close.",
   "start_url": "/app.html",
   "scope": "/",

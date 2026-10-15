@@ -180,7 +180,7 @@ function createReview({ store, data, policies, finder = null, jobs = null, admin
 
   /* --- Freshness (weekly job) --- */
   async function fetchText(url) {
-    const res = await fetchImpl(url, { headers: { 'User-Agent': 'Returnly policy freshness check', Accept: 'text/html,text/plain' }, redirect: 'follow', signal: AbortSignal.timeout(15000) });
+    const res = await fetchImpl(url, { headers: { 'User-Agent': 'Adltrack policy freshness check', Accept: 'text/html,text/plain' }, redirect: 'follow', signal: AbortSignal.timeout(15000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return pageText(await res.text());
   }

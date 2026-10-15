@@ -53,7 +53,7 @@ function nextStep(i) {
   const way = chosenWay(i);
   if (i.label) return way && way.type === 'mail' ? 'Tap for your return label.' : 'Tap for your QR code.';
   if (way && way.steps && way.steps[0]) return sentence(way.steps[0]);
-  return sentence(i.next) || 'Open Returnly for your next step.';
+  return sentence(i.next) || 'Open Adltrack for your next step.';
 }
 
 /* The money at stake: what comes back, as a refund or store credit, when the price is known. */
@@ -106,7 +106,7 @@ function compose(items, today, { gentle = false, examples = false } = {}) {
   // Every day → the day before → deadline day.
   const stage = n === 0 ? 'today' : n === 1 ? 'tomorrow' : n <= 3 ? 'soon' : 'daily';
   const urgent = { today: 'Deadline today', tomorrow: 'Deadline tomorrow', soon: `Only ${n} days left` }[stage] || daysLabel(first, today);
-  const title = week.length > 1 && n > 1 ? `${week.length} returns due this week${total > 0 ? `: ${money(total)} total` : ''}` : 'Returnly · ' + urgent;
+  const title = week.length > 1 && n > 1 ? `${week.length} returns due this week${total > 0 ? `: ${money(total)} total` : ''}` : 'Adltrack · ' + urgent;
   const when = n === 0 ? 'due today' : n === 1 ? 'due tomorrow' : `${n} days left`;
   const parts = [[clip(first.name, 120), stake(first), when].filter(Boolean).join(' · ') + '.', nextStep(first)];
   const place = dropoffLine(first, n, today);

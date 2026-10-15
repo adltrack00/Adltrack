@@ -72,11 +72,11 @@ function instantAt(date, time, tz) {
 test('the daily reminder leads with the most urgent item, its money, days left and next step, plus how many other windows', () => {
   const list = [item('Later', { delivered: C.shift(today, -1) }), item('Soonest', { delivered: C.shift(today, -28) }), item('Middle', { delivered: C.shift(today, -10) })];
   const r = pick(list, today);
-  assert.equal(r.title, 'Returnly · Only 2 days left');
+  assert.equal(r.title, 'Adltrack · Only 2 days left');
   assert.equal(r.body, 'Soonest · $40 back · 2 days left. Pack it. Plus 2 other return windows.');
   assert.equal(r.itemId, 'Soonest');
   assert.equal(r.url, 'app.html?remind=Soonest');
-  assert.equal(pick([item('Last day', { delivered: C.shift(today, -30) })], today).title, 'Returnly · Deadline today');
+  assert.equal(pick([item('Last day', { delivered: C.shift(today, -30) })], today).title, 'Adltrack · Deadline today');
   assert.equal(pick([item('One', { delivered: C.shift(today, -29) })], today).body, 'One · $40 back · due tomorrow. Pack it.');
 });
 
@@ -214,7 +214,7 @@ for (const [label, db] of STORES) {
       const [msg] = app.service.sent;
       assert.equal(msg.endpoint, sub.endpoint);
       assert.deepEqual(msg.keys, sub.keys);
-      assert.deepEqual(msg.message, { title: 'Returnly · 5 days left', body: 'Dress · $40 back · 5 days left. Pack it. Plus 1 other return window.', itemId: 'Dress', url: 'app.html?remind=Dress',
+      assert.deepEqual(msg.message, { title: 'Adltrack · 5 days left', body: 'Dress · $40 back · 5 days left. Pack it. Plus 1 other return window.', itemId: 'Dress', url: 'app.html?remind=Dress',
         actions: [{ action: 'snooze', title: 'Snooze until tomorrow' }, { action: 'sent', title: 'I sent it back' }, { action: 'keep', title: 'I’m keeping it' }] });
       assert.deepEqual(msg.options, { TTL: 43200, urgency: 'normal', topic: 'daily' });
 
@@ -290,7 +290,7 @@ test('"Send a test notification" is pushed only to the caller\'s own device', as
     assert.deepEqual((await ben('POST', '/api/push/test', { endpoint: sub.endpoint })).body, { sent: false });
     assert.equal(app.service.sent.length, 0);
     assert.deepEqual((await ana('POST', '/api/push/test', { endpoint: sub.endpoint })).body, { sent: true });
-    assert.equal(app.service.sent[0].message.title, 'Returnly · A little nudge');
+    assert.equal(app.service.sent[0].message.title, 'Adltrack · A little nudge');
   } finally { await app.close(); }
 });
 

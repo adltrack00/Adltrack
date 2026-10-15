@@ -63,5 +63,5 @@ dialog.menu-drawer{width:min(72vw,280px)}
 }
 .menu-email{font-size:13px;color:#999;margin:-8px 0 14px;overflow-wrap:anywhere}
 
-/* Support: rows stacked under "How Returnly works" share one divider, as in the Settings list. */
+/* Support: rows stacked under "How Adltrack works" share one divider, as in the Settings list. */
 .prose .settings-row+.settings-row{border-top:0}

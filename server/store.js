@@ -273,7 +273,7 @@ create table if not exists oauth_states (
   data jsonb not null default '{}',
   expires_at timestamptz not null
 );
--- "Continue with Google / Apple": the provider's account id for each Returnly account.
+-- "Continue with Google / Apple": the provider's account id for each Adltrack account.
 create table if not exists oauth_identities (
   provider text not null,
   subject text not null,
