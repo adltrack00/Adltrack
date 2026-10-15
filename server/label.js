@@ -19,6 +19,7 @@ const SYSTEM = `You read pharmacy labels on medication bottles and boxes for a f
 - quantity is the number of units dispensed (QTY); refills is the number of refills left; refill_by, filled and discard_after are YYYY-MM-DD. If a date could be read two ways, leave it empty.
 - warnings: each warning or "Important information" line copied word for word.
 - Never write the patient's name or home address, the Rx number, DEA number, NDC, barcode digits, or any insurance or card number anywhere.
+- main_photo: which photo (1 for the first) shows the medication name and the directions most clearly, or null when none does.
 - problem: "blurry", "dark", "cropped" (part of the label is cut off) or "not_label" when that stops you reading something; otherwise "none".`;
 
 const str = { type: 'string' };
@@ -32,7 +33,8 @@ const SCHEMA = obj({
   quantity: nullable({ type: 'integer' }),
   refills: nullable({ type: 'integer' }),
   refill_by: str, filled: str, discard_after: str,
-  warnings: { type: 'array', items: str }
+  warnings: { type: 'array', items: str },
+  main_photo: nullable({ type: 'integer' })
 });
 
 const ID_LINE = /\b(RX|DEA|NDC|MRN|ST DEA)\b\s*[#:]?\s*[A-Z0-9-]{4,}/gi;
@@ -47,7 +49,7 @@ const PROBLEMS = {
   not_label: 'This doesn’t look like a pharmacy label. Photograph the sticker on the bottle.'
 };
 
-function clean(raw) {
+function clean(raw, photos = MAX_PHOTOS) {
   const r = raw && typeof raw === 'object' ? raw : {};
   const p = r.pharmacy && typeof r.pharmacy === 'object' ? r.pharmacy : {};
   const label = {
@@ -58,7 +60,9 @@ function clean(raw) {
     prescriber: text(r.prescriber, 80),
     quantity: count(r.quantity, 2000), refills: count(r.refills, 20),
     refillBy: realDate(r.refill_by), filled: realDate(r.filled), discardAfter: realDate(r.discard_after),
-    warnings: (Array.isArray(r.warnings) ? r.warnings : []).slice(0, 12).map(w => text(w, 300)).filter(Boolean)
+    warnings: (Array.isArray(r.warnings) ? r.warnings : []).slice(0, 12).map(w => text(w, 300)).filter(Boolean),
+    // The photo with the name and directions (0 = the first), used as the card's photo; null when the model didn't say.
+    mainPhoto: Number.isInteger(r.main_photo) && r.main_photo >= 1 && r.main_photo <= photos ? r.main_photo - 1 : null
   };
   label.note = !label.name && !label.directions ? (label.problem ? PROBLEMS[label.problem] : 'We couldn’t read this label. Take another photo of the side with the directions.')
     : label.problem ? PROBLEMS[label.problem] : !label.directions ? 'We couldn’t read the directions. Turn the bottle and add a photo of that side.' : '';
@@ -126,7 +130,7 @@ function createLabelReader({ apiKey = process.env.ANTHROPIC_API_KEY, client = nu
       if (response.usage) log.log(`Bottle label read: ${photos.length} photo(s), ${response.usage.input_tokens} input and ${response.usage.output_tokens} output tokens.`);
       if (response.stop_reason === 'refusal' || response.stop_reason === 'max_tokens') return null;
       const answer = response.content.find(b => b.type === 'text');
-      return answer ? clean(JSON.parse(answer.text)) : null;
+      return answer ? clean(JSON.parse(answer.text), Math.min(photos.length, MAX_PHOTOS)) : null;
     } catch (err) {
       log.error('Bottle label reading failed:', err.message);
       return null;

@@ -90,3 +90,10 @@ test('without a reader the label endpoint says so', async t => {
   assert.equal(r.json.label, null);
   assert.equal(r.json.reason, 'unavailable');
 });
+
+test('the reader names the photo with the name and directions, counted within the photos sent', () => {
+  assert.equal(clean({ name: 'X', main_photo: 2 }, 3).mainPhoto, 1);
+  assert.equal(clean({ name: 'X', main_photo: 4 }, 3).mainPhoto, null);
+  assert.equal(clean({ name: 'X', main_photo: null }, 3).mainPhoto, null);
+  assert.ok(SCHEMA.required.includes('main_photo'));
+});
