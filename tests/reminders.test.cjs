@@ -4,7 +4,7 @@ const { createApp } = require('../server/app');
 const { createStorage } = require('../server/storage');
 const { createData } = require('../server/data');
 const { createJobs, defineJobs } = require('../server/jobs');
-const { pick, localParts, cleanSubscription, vapidConfig, createPush, createReminders } = require('../server/reminders');
+const { pick, localParts, cleanSubscription, vapidConfig, createPush, createReminders, dosesDue } = require('../server/reminders');
 const C = require('../core.js');
 
 // Postgres runs too when TEST_DATABASE_URL points at a throwaway database. These tests use their own schema, so they can run
@@ -336,3 +336,56 @@ test('the real web-push library accepts our message and options (encrypted body 
   assert.match(r.headers.Authorization, /^vapid t=.+, k=/);
   assert.ok(!r.body.toString('latin1').includes('Dress'));
 });
+
+const med = (id, o = {}) => ({ id, name: id, med: true, status: 'deciding', intent: 'return', instructions: 'Take 1 tablet by mouth every morning.', times: ['08:00'], doses: [], price: 0, retailer: '', channel: 'store', purchased: today, window: 30, basis: 'purchase', outcome: 'unknown', requirement: 'unknown', confirmed: false, ...o });
+
+test('a dose is due from its time until an hour after, unless it was marked; as needed, pickups, finished and examples never are', () => {
+  const items = [med('Lisinopril 10 mg'), med('Metoprolol 25 mg', { times: ['08:00', '21:00'] }), med('Taken', { doses: [{ at: today + 'T08:01:00Z', day: today, kind: 'taken', slot: '08:00' }] }),
+    med('Tylenol', { asNeeded: true }), med('Pickup', { pickup: true }), med('Finished', { status: 'received' }), med('Unconfirmed', { status: 'kept' }), med('Example', { demo: true }), item('Dress')];
+  assert.deepEqual(dosesDue(items, today, '07:59'), []);
+  assert.deepEqual(dosesDue(items, today, '08:00').map(d => [d.time, d.items.map(i => i.id)]), [['08:00', ['Lisinopril 10 mg', 'Metoprolol 25 mg']]]);
+  assert.equal(dosesDue(items, today, '08:59').length, 1);
+  assert.deepEqual(dosesDue(items, today, '09:00'), []);
+  assert.deepEqual(dosesDue(items, today, '21:10').map(d => d.items.map(i => i.id)), [['Metoprolol 25 mg']]);
+  // Yesterday's mark doesn't count today.
+  assert.equal(dosesDue([med('Taken', { doses: [{ at: C.shift(today, -1) + 'T08:01:00Z', day: C.shift(today, -1), kind: 'taken', slot: '08:00' }] })], today, '08:05').length, 1);
+});
+
+for (const [label, db] of STORES) {
+  test(`${label}: each dose time is pushed once with the medications due then, in the instructions' own words`, async () => {
+    const app = await boot(db);
+    try {
+      const c = await app.signUp('Ana');
+      await c('PUT', '/api/settings', { settings: { time: '09:00', daily: true }, profile: {} });
+      const sub = subscription('fcm.googleapis.com');
+      await c('POST', '/api/push/subscribe', { subscription: sub, timeZone: 'America/Chicago' });
+      await c('POST', '/api/items', med('Lisinopril 10 mg'));
+      await c('POST', '/api/items', med('Metoprolol 25 mg', { instructions: 'Take 1 tablet by mouth twice a day.', times: ['08:00', '21:00'] }));
+      await c('POST', '/api/items', med('Tylenol', { asNeeded: true, times: [] }));
+
+      app.clock.now = () => new Date(instantAt(today, '07:59', 'America/Chicago'));
+      assert.equal(await app.reminders.dispatch(), 0);
+      app.clock.now = () => new Date(instantAt(today, '08:02', 'America/Chicago'));
+      assert.equal(await app.reminders.dispatch(), 1);
+      await app.jobs.drain();
+      assert.equal(app.service.sent.length, 1);
+      const [msg] = app.service.sent;
+      assert.equal(msg.message.title, 'Adltrack · 8:00 AM medications');
+      assert.equal(msg.message.body, 'Lisinopril 10 mg: Take 1 tablet by mouth every morning. · Metoprolol 25 mg: Take 1 tablet by mouth twice a day.');
+      assert.deepEqual(msg.options, { TTL: 3600, urgency: 'high', topic: 'dose' });
+      // The next minute: already sent, so nothing more.
+      app.clock.now = () => new Date(instantAt(today, '08:03', 'America/Chicago'));
+      assert.equal(await app.reminders.dispatch(), 0);
+      await app.jobs.drain();
+      assert.equal(app.service.sent.length, 1);
+      // Marked taken before its time: no push for it.
+      const anaId = await app.userId('ana@example.com');
+      const meto = (await app.store.listItems(anaId)).find(i => i.id === 'Metoprolol 25 mg');
+      assert.equal((await c('PUT', '/api/items/' + encodeURIComponent(meto.id), { ...meto, doses: [{ at: new Date().toISOString(), day: today, kind: 'taken', slot: '21:00' }] })).status, 200);
+      app.clock.now = () => new Date(instantAt(today, '21:00', 'America/Chicago'));
+      await app.reminders.dispatch();
+      await app.jobs.drain();
+      assert.equal(app.service.sent.length, 1);
+    } finally { await app.close(); }
+  });
+}

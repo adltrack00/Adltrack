@@ -222,3 +222,20 @@ test('the bottle-photo guide shows the 3 example shots, marks the next one, and 
   const row = vm.runInContext(`bottleRow({labelPhotos:[]},0)`, x.ctx);
   assert.match(row, /Photo 1: the front/);
 });
+
+test('the Take card lists today’s dose times, each marked once, and as needed has no times', () => {
+  const x = journey({});
+  const med = { id: 'm2', med: true, name: 'Metoprolol 25 mg', status: 'deciding', instructions: 'Take 1 tablet by mouth twice a day.', times: ['08:00', '21:00'], doses: [] };
+  x.ctx.items.push(med); x.ctx.selected = 'm2'; x.ctx.view = 'plan';
+  const rows = () => vm.runInContext('doseRows(find("m2"))', x.ctx);
+  assert.match(rows(), /Morning.*data-slot="08:00".*Bedtime.*data-slot="21:00"/s);
+  x.click({ dataset: { medDose: 'taken', slot: '08:00' }, hasAttribute: () => false });
+  assert.equal(med.doses[0].slot, '08:00');
+  assert.equal(med.doses[0].day, '2026-10-12');
+  assert.doesNotMatch(rows(), /data-slot="08:00"/);
+  assert.match(rows(), /✓ Taken/);
+  assert.match(rows(), /data-slot="21:00"/);
+  const prn = vm.runInContext('doseRows({asNeeded:true,times:[],doses:[]})', x.ctx);
+  assert.match(prn, /Only when needed/);
+  assert.doesNotMatch(prn, /Skipped/);
+});
