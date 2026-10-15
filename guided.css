@@ -95,3 +95,5 @@ button.flow-tab:focus-visible{outline:2px solid #111;outline-offset:2px}
 
 /* Confirm card: how to take the medication, word for word, under its name in the name's own field style. */
 .guided-form .pick-how{font-weight:400;font-size:13px;color:#555;height:auto;min-height:4em;margin-top:4px}
+/* Confirm card: the three example bottle photos; the next one to take is outlined. */
+.bottle-guide{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 6px}.bottle-guide figure{margin:0;padding:6px 4px;border:1px solid #eee;border-radius:10px;text-align:center;font-size:10px;line-height:1.35;color:#555}.bottle-guide figure.is-next{border-color:#111}.bottle-guide b{color:#111}.bottle-svg{width:100%;max-width:90px;height:auto;display:block;margin:0 auto 4px}

@@ -206,3 +206,19 @@ test('on the Take card a skipped dose is only recorded, Needs refill starts the 
   click({ medDone: 'finished' });
   assert.equal(med.status, 'received');
 });
+
+test('the bottle-photo guide shows the 3 example shots, marks the next one, and hides once all 3 are taken', () => {
+  const x = journey({});
+  const guide = n => vm.runInContext(`bottleGuide(${n})`, x.ctx);
+  const none = guide(0);
+  assert.match(none, /<details class="pick-edit" open>/);
+  assert.equal((none.match(/<figure/g) || []).length, 3);
+  assert.match(none, /1\. Front/); assert.match(none, /2\. Turn it/); assert.match(none, /3\. Turn again/);
+  assert.match(none, /not a real prescription/);
+  const one = guide(1);
+  assert.doesNotMatch(one, / open>/);
+  assert.match(one, /✓ 1\. Front/);
+  assert.match(one, /<figure class="is-next">.*2\. Turn it/s);
+  const row = vm.runInContext(`bottleRow({labelPhotos:[]},0)`, x.ctx);
+  assert.match(row, /Photo 1: the front/);
+});
