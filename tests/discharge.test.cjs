@@ -239,3 +239,43 @@ test('the Take card lists today’s dose times, each marked once, and as needed 
   assert.match(prn, /Only when needed/);
   assert.doesNotMatch(prn, /Skipped/);
 });
+
+test('bottles only: 3 label photos are read as one label, the card fills itself in, and only what wasn’t read is typed', async () => {
+  const label = { name: 'LISINOPRIL', strength: '10 MG', directions: 'Take 1 tablet by mouth every day', pharmacy: { name: 'Main St Pharmacy', address: '', phone: '' }, prescriber: 'M. Patel', warnings: [], mainPhoto: 1, note: '' };
+  // Uploaded: the photo with the name and directions becomes the card's photo, no extra photo asked for.
+  const up = journey({ label, check: [] });
+  vm.runInContext('startBottles()', up.ctx);
+  assert.equal(up.ctx.view, 'upload');
+  assert.match(vm.runInContext('uploadPage()', up.ctx), /Photo 1 of 3/);
+  await vm.runInContext('addBottleShots(["front","side"],"upload")', up.ctx);
+  assert.equal(up.requests.length, 0, 'not read until all 3 are in');
+  assert.match(vm.runInContext('uploadPage()', up.ctx), /Photo 3 of 3/);
+  await vm.runInContext('addBottleShots(["back"],"upload")', up.ctx);
+  assert.equal(up.requests[0].url, '/api/label/read');
+  assert.deepEqual(up.requests[0].body, { photos: ['front', 'side', 'back'], med: null });
+  assert.equal(up.ctx.view, 'review');
+  const [p] = up.ctx.draft.products;
+  assert.equal(p.name, 'LISINOPRIL 10 MG');
+  assert.equal(p.photo, 'side');
+  up.ctx.photo = () => '';
+  const card = vm.runInContext('reviewPage()', up.ctx);
+  assert.doesNotMatch(card, /<textarea class="pick-name" name="name-0"/, 'what was read is not retyped');
+  assert.match(card, /Fix a mistake/);
+  // Camera: once read, one clear photo for the card.
+  const cam = journey({ label, check: [] });
+  vm.runInContext('startBottles()', cam.ctx);
+  await vm.runInContext('addBottleShots(["a"],"camera").then(()=>addBottleShots(["b"],"camera")).then(()=>addBottleShots(["c"],"camera"))', cam.ctx);
+  assert.equal(vm.runInContext('journey.step', cam.ctx), 'cardPhoto');
+  assert.match(vm.runInContext('uploadPage()', cam.ctx), /One photo for the card/);
+  vm.runInContext('finishBottleScan("card")', cam.ctx);
+  assert.equal(cam.ctx.draft.products[0].photo, 'card');
+  assert.equal(cam.ctx.view, 'review');
+  // Not read: the card opens to type it in.
+  const none = journey({ label: null, reason: 'failed' });
+  vm.runInContext('startBottles()', none.ctx);
+  await vm.runInContext('addBottleShots(["a","b","c"],"camera")', none.ctx);
+  assert.equal(none.ctx.view, 'review');
+  none.ctx.photo = () => '';
+  assert.match(vm.runInContext('reviewPage()', none.ctx), /<textarea class="pick-name" name="name-0"/);
+  assert.match(vm.runInContext('journey.error', none.ctx), /Type it in from the bottle/);
+});
