@@ -9,6 +9,7 @@ const { buildGuide, placeQueries } = require('./guide');
 const { cleanSubscription, validTimeZone, quiet, notification } = require('./reminders');
 const { ACTIONS, KINDS } = require('./email');
 const { printedWindow } = require('./receipts');
+const { dischargeDraft, MAX_PAGES: MAX_DISCHARGE_PAGES } = require('./discharge');
 const { InboxError } = require('./inbox');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -131,7 +132,7 @@ function receiptDraft(receipt, policy) {
   };
 }
 
-function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, places = null, review = null, push = null, reminders = null, email = null, supportEmail = '', inbox = null, oauth = null, publicUrl = '', inboundSecret = '' }) {
+function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, discharge = null, places = null, review = null, push = null, reminders = null, email = null, supportEmail = '', inbox = null, oauth = null, publicUrl = '', inboundSecret = '' }) {
   const authLimit = limiter(20, 15 * 60 * 1000);
   // Each classification is an AI call, so it's limited per account.
   const classifyLimit = limiter(300, 60 * 60 * 1000);
@@ -531,6 +532,20 @@ function createApp({ store, data, production = false, policies = null, classifie
       const policy = match && policies.get(match.id);
       await data.describeReceiptPurchase(user.id, purchaseId, { store: policy ? policy.name : receipt.store, channel: receipt.channel, orderNumber: receipt.orderNumber, purchased: receipt.purchased, retailerId: policy ? policy.id : null });
       return send(res, 200, { purchaseId, files, receipt, retailer: policy ? { id: policy.id, name: policy.name } : null, draft: receiptDraft(receipt, policy) });
+    }
+    // Discharge papers: saved privately like a receipt's pages, read by the AI model, and returned as the draft the Confirm
+    // card opens with, one card per medication. Nothing the papers don't say is added.
+    if (route === '/api/discharge/read' && method === 'POST') {
+      checkWrite(req);
+      const body = await readBody(req, 60 * 1024 * 1024);
+      const purchaseId = typeof body.purchaseId === 'string' ? body.purchaseId : '';
+      const pages = data.receiptPages(body.pages, MAX_DISCHARGE_PAGES, 'discharge');
+      const files = await data.saveReceipt(user.id, purchaseId, pages);
+      if (!discharge || !discharge.available()) return send(res, 200, { purchaseId, files, papers: null, reason: 'unavailable' });
+      if (!receiptLimit('user:' + user.id)) return send(res, 200, { purchaseId, files, papers: null, reason: 'limit' });
+      const papers = await discharge.read(pages);
+      if (!papers) return send(res, 200, { purchaseId, files, papers: null, reason: 'failed' });
+      return send(res, 200, { purchaseId, files, papers, draft: dischargeDraft(papers) });
     }
     // Web Push: the public key the browser subscribes with (null when push isn't set up), and this device's subscription.
     if (route === '/api/push/key' && method === 'GET') return send(res, 200, { key: push && push.available() ? push.publicKey() : null });
