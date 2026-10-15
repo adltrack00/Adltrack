@@ -138,7 +138,7 @@ function journey(response) {
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync('guided.js', 'utf8'), ctx);
   const file = { name: 'Discharge-page-1.jpg', type: 'image/jpeg', size: 30000 };
-  return { ctx, requests, scan: () => ctx.acceptReceipt(file, page), submit: () => listeners.submit.forEach(fn => fn({ target: { id: 'flow-item-form' }, preventDefault() {} })) };
+  return { ctx, requests, scan: () => ctx.acceptReceipt(file, page), submit: () => listeners.submit.forEach(fn => fn({ target: { id: 'flow-item-form' }, preventDefault() {} })), click: button => listeners.click.forEach(fn => fn({ target: { closest: () => button }, preventDefault() {} })) };
 }
 
 test('scanning fills the Confirm card with each medication as printed, and saving keeps it on the card', async () => {
@@ -185,4 +185,24 @@ test('a cut-off page keeps the pages, so the next photo is read together with th
   await x.scan();
   assert.equal(x.requests[1].body.pages.length, 2);
   assert.equal(x.ctx.draft.products.length, 3);
+});
+
+test('on the Take card a skipped dose is only recorded, Needs refill starts the call to the prescriber, and Finished stops it', async () => {
+  const x = journey({});
+  const med = { id: 'm1', med: true, name: 'Lisinopril 10 mg', status: 'deciding', prescriber: { name: 'Dr. Maya Patel', phone: '(555) 201-3344' }, times: ['08:00'] };
+  x.ctx.items.push(med); x.ctx.selected = 'm1'; x.ctx.view = 'plan';
+  const toasts = []; x.ctx.toast = t => toasts.push(t);
+  const click = attrs => x.click({ dataset: attrs, hasAttribute: k => k in attrs || k.replace(/^data-/, '').replace(/-(\w)/g, (_, c) => c.toUpperCase()) in attrs });
+  click({ medDose: 'skipped' });
+  assert.equal(med.doses.length, 1);
+  assert.equal(med.doses[0].kind, 'skipped');
+  assert.deepEqual(med.times, ['08:00'], 'a skipped dose never moves or adds a dose');
+  assert.match(toasts[0], /Don’t take an extra dose/);
+  click({ medDone: 'refill' });
+  assert.deepEqual(med.refill.step, 'call');
+  assert.match(toasts[1], /Call Dr\. Maya Patel for a refill/);
+  click({ medRefill: 'called' }); click({ medRefill: 'ready' }); click({ medRefill: 'picked' });
+  assert.equal(med.refill, null);
+  click({ medDone: 'finished' });
+  assert.equal(med.status, 'received');
 });
