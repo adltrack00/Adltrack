@@ -1,0 +1,27 @@
+/* Home: Today and the care radar, in the gallery's own type, greys and hairlines. */
+.home-today{display:grid;grid-template-columns:3fr 2fr;gap:48px;margin:0 0 34px}
+.home-today h2{font-size:14px;font-weight:600;letter-spacing:-.2px;margin:0 0 6px;padding-bottom:10px;border-bottom:1px solid #eee}
+.home-today h2 span{font-weight:400;color:#777;font-size:12px}
+.today-list,.radar-list{list-style:none;margin:0;padding:0}
+.home-today h2+.today-list{margin-top:12px}
+.today-list{background:#f4f4f4;border-radius:22px;padding:8px;display:grid;gap:8px;margin-top:12px}
+.today-row{display:grid;grid-template-columns:64px 1fr auto;gap:4px 16px;align-items:center;background:#fff;border-radius:18px;padding:10px 12px}
+.today-thumb .product-photo{width:64px;height:64px;aspect-ratio:1!important;border-radius:12px;background:linear-gradient(#aaa6aa,#6e6a70)}
+.today-thumb .product-photo img{border-radius:12px}
+.today-thumb .bottle-svg{max-width:60%!important;margin:0 auto}
+.today-icon{color:#fff}.today-icon .icon{width:26px;height:26px}
+.today-what strong,.radar-list strong{display:block;font-size:13px;font-weight:600}
+.today-what small,.radar-list small{display:block;font-size:11px;color:#777;line-height:1.5;margin-top:2px}
+.today-more{display:flex;gap:12px;margin-top:4px}
+.today-more button{border:0;background:none;font-size:11px;text-decoration:underline;text-underline-offset:3px;padding:2px 0;color:#555;cursor:pointer}
+.today-pill{border:0;border-radius:999px;background:#1c1c1c;color:#fff;font-size:13px;font-weight:600;padding:11px 22px;white-space:nowrap;cursor:pointer}
+.today-pill.is-marked{background:#f0f0f0;color:#777;font-weight:400;cursor:default}
+.today-row.is-done .today-what strong,.today-row.is-skipped .today-what strong{color:#777;font-weight:400}
+.today-help{grid-column:2/-1;font-size:11px;color:#555;line-height:1.6}
+.today-help p{margin:0 0 4px}
+.today-help .flow-text-link{margin-right:12px}
+.radar-list li{padding:11px 0;border-bottom:1px solid #f2f2f2}
+.today-empty{font-size:12px;color:#777;margin:12px 0}
+.product-photo.medication{aspect-ratio:1}.product-photo.medication .bottle-svg{max-width:40%}
+@media(max-width:760px){.home-today{grid-template-columns:1fr;gap:26px}}
+@media(max-width:650px){.today-row{grid-template-columns:52px 1fr auto;gap:4px 12px}.today-thumb .product-photo{width:52px;height:52px}.today-pill{padding:10px 18px}.today-help{grid-column:1/-1}}

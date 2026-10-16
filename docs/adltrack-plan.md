@@ -112,10 +112,10 @@ The AI reader (sections 2 and 3) needs `ANTHROPIC_API_KEY`. The server reads it 
 
 ## 5. Home: Your medications
 
-**Status:** Partly done. Confirmed medications move to **In progress** (e7e3c24); tabs read All medications, In progress, Finished.
+**Status:** Done (this section's PR). Today is a list of cards like a lock list: the bottle photo, what to do with a short line from the papers, and one black **Done** button, with Skipped and Need help under each line. Totals sit in the menu, where refunds and store credit were.
 **Needs:** section 4.
 **Reuses:** Your purchases dashboard.
-**Build (what's left):**
+**Build:**
 - **Today** at the top, the family's daily checklist: "Today, Wednesday October 14 · 2 of 5 done", every dose, appointment and refill step due today in time order, each with **Done**, **Skipped** or **Need help**.
 - Medication cards: bottle photo, name and strength as printed, how to take it, next dose time, and a label: **Due now**, **Taken**, **Skipped**, **Needs refill** or **Pick up**.
 - Totals across the top (where refunds and store credit sit): **Doses taken today**, **Doses left today**, **Refills to get**.
