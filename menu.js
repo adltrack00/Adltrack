@@ -11,7 +11,7 @@ profileTools=()=>'';
 const galleryBeforeMenu=gallery,profileHeaderBeforeMenu=profileHeader;
 gallery=function(){const el=document.createElement('div');el.innerHTML=galleryBeforeMenu();el.querySelectorAll('.profile-hero>p,.profile-hero .return-results,.profile-hero .caption').forEach(n=>n.remove());return el.innerHTML};
 profileHeader=()=>profileHeaderBeforeMenu().replace('<p>Keep the things you love. Return the rest.</p>','');
-function menuStats(){const r=resultValues();return `<dl class="menu-stats">${[['Returned',r.returned],['Refunds',money(r.refund)],['Store credit',money(r.credit)]].map(([k,v])=>`<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>`}
+function menuStats(){const r=homeTotals();return `<dl class="menu-stats">${[['Doses taken today',r.taken],['Doses left today',r.left],['Refills to get',r.refills]].map(([k,v])=>`<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>`}
 
 function welcomeName(){return profile.name&&profile.name.toLowerCase()!=='you'?profile.name:''}
 function drawerHTML(){return `<dialog id="menu-drawer" class="menu-drawer" aria-label="Menu"><div class="menu-head"><h2>Welcome${welcomeName()?`,<br>${esc(welcomeName())}!`:'!'}</h2>${Account.user()?`<p class="menu-email">${esc(Account.user().email)}</p>`:''}${menuStats()}</div><nav class="menu-list">${menuItems.map(([v,label,ic])=>`<button data-menu-go="${v}" class="${view===v||(v==='settings'&&settingsParent[view])?'active':''}">${menuIcon(menuIcons[ic])}<span>${label}</span></button>`).join('')}</nav><div class="menu-foot"><strong>Adltrack.</strong><span>v.${APP_VERSION}</span></div></dialog>`}
