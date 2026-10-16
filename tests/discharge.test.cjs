@@ -279,3 +279,14 @@ test('bottles only: 3 label photos are read as one label, the card fills itself 
   assert.match(vm.runInContext('reviewPage()', none.ctx), /<textarea class="pick-name" name="name-0"/);
   assert.match(vm.runInContext('journey.error', none.ctx), /Type it in from the bottle/);
 });
+
+test('the camera stays ready between bottle photos: the shutter works for photos 2 and 3 and for the card photo', async () => {
+  const x = journey({});
+  const els = { '#flow-video': { play: async () => {} }, '#camera-message': { hidden: false }, '#flow-shutter': { disabled: true } };
+  x.ctx.$ = s => els[s] || null;
+  vm.runInContext('cameraStream={getTracks:()=>[]};view="upload";journey.mode="bottles";journey.step="capture"', x.ctx);
+  await vm.runInContext('startJourneyCamera()', x.ctx);
+  assert.equal(els['#flow-shutter'].disabled, false);
+  assert.equal(els['#camera-message'].hidden, true);
+  assert.equal(vm.runInContext('journey.step="cardPhoto";cameraStep()', x.ctx), true);
+});
