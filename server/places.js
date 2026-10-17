@@ -33,14 +33,14 @@ function createPlaces({ apiKey = process.env.GOOGLE_PLACES_API_KEY || '', store,
 
   /* Place ids and coordinates of one store or partner around one area, from the cache or one Text Search. Only places whose
      name carries the store's name count, so "Apple" never returns an Applebee's. */
-  async function search(query, lat, lng) {
-    const key = `${words(query)}@${cell(lat, lng)}`;
+  async function search(query, lat, lng, anyName = false) {
+    const key = `${anyName ? 'any:' : ''}${words(query)}@${cell(lat, lng)}`;
     const cached = await store.getPlaceCache(key, new Date(Date.now() - CACHE_DAYS * 24 * 3600 * 1000));
     if (cached) return cached;
     const center = { latitude: Number(lat.toFixed(2)), longitude: Number(lng.toFixed(2)) };
     const r = await call(SEARCH_URL, { method: 'POST', body: JSON.stringify({ textQuery: query, locationBias: { circle: { center, radius: RADIUS_M } }, pageSize: 5 }) }, 'places.id,places.location,places.displayName');
     const want = words(query);
-    const places = (r.places || []).filter(p => p.id && p.location && ` ${words(p.displayName && p.displayName.text)} `.includes(` ${want} `))
+    const places = (r.places || []).filter(p => p.id && p.location && (anyName || ` ${words(p.displayName && p.displayName.text)} `.includes(` ${want} `)))
       .map(p => ({ id: p.id, lat: p.location.latitude, lng: p.location.longitude, query }));
     await store.putPlaceCache(key, places);
     return places;
@@ -52,11 +52,12 @@ function createPlaces({ apiKey = process.env.GOOGLE_PLACES_API_KEY || '', store,
     return { name: r.displayName ? r.displayName.text : '', address: r.shortFormattedAddress || '', openNow: h && typeof h.openNow === 'boolean' ? h.openNow : null, hours: h && Array.isArray(h.weekdayDescriptions) ? h.weekdayDescriptions.slice(0, 7) : [] };
   }
 
-  /* queries: store or partner names from the policy; lat/lng: the device's location. Closest first, at most three. */
-  async function nearest(queries, lat, lng) {
+  /* queries: store or partner names from the policy, or a kind of place ("pharmacy") with anyName, where any name counts;
+     lat/lng: the device's location. Closest first, at most three. */
+  async function nearest(queries, lat, lng, { anyName = false } = {}) {
     if (!validPoint(lat, lng)) throw Object.assign(new Error('That location isn’t valid.'), { status: 400 });
     const here = { lat, lng };
-    const found = (await Promise.all(queries.map(q => search(q, lat, lng)))).flat();
+    const found = (await Promise.all(queries.map(q => search(q, lat, lng, anyName)))).flat();
     const seen = new Set();
     const closest = found.filter(p => !seen.has(p.id) && seen.add(p.id))
       .map(p => ({ ...p, miles: miles(here, p) })).filter(p => p.miles <= RADIUS_M / 1609.34)
