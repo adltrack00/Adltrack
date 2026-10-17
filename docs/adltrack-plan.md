@@ -161,7 +161,7 @@ The AI reader (sections 2 and 3) needs `ANTHROPIC_API_KEY`. The server reads it 
 
 ## 8. Follow-up appointments
 
-**Status:** To do. The papers already read appointments (a6a57a0); nothing shows them yet.
+**Status:** Done (this section's PR). Each visit on the papers becomes its own card to confirm (unconfirmed ones show nowhere else and aren't reminded); one with no date asks the family to book it. Confirmed visits show on Today on their day, the care radar and Your schedule, and are pushed the day before and 2 hours before. "Add an appointment +" sits in the home shortcuts.
 **Needs:** section 2.
 **Reuses:** a Confirm card (to check them) and the Return card layout (to show one).
 **Build:**

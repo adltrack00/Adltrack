@@ -77,6 +77,27 @@ function doseNotification({ time, items }) {
   return { title: `Adltrack · ${clock12(time)} medication${items.length > 1 ? 's' : ''}`, body: lines.join(' · ').slice(0, 500), itemId: items[0].id, url: 'app.html?remind=' + encodeURIComponent(items[0].id), actions: [] };
 }
 
+/* Follow-up appointment reminders: the day before (from the user's reminder time, outside quiet hours) and 2 hours before
+   (when the time is known), one push each. Only appointments the family confirmed, with a date, that they haven't marked
+   Went; never examples. Moving the date reminds again for the new date. */
+const SOON_MIN = 120;
+function appointmentsDue(items, date, time, settings = {}) {
+  const at = minutes(time), out = [];
+  for (const i of items || []) {
+    if (!i || !i.appt || i.demo || i.status !== 'deciding' || !C.parseDate(i.date) || (i.steps && i.steps.went)) continue;
+    if (C.days(i.date, date) === 1 && isDue(settings, time)) out.push({ item: i, kind: 'day' });
+    else if (i.date === date && validTime(i.time) && at >= minutes(i.time) - SOON_MIN && at < minutes(i.time)) out.push({ item: i, kind: 'soon' });
+  }
+  return out;
+}
+function appointmentNotification({ item: i, kind }) {
+  const when = kind === 'day' ? 'tomorrow' : 'today';
+  const what = 'Follow-up visit' + (i.with ? ' with ' + i.with : '');
+  const body = [[validTime(i.time) ? clock12(i.time) : '', i.place].filter(Boolean).join(' · '), i.phone ? 'Call ' + i.phone + ' to change it.' : ''].filter(Boolean).join('. ');
+  return { title: `Adltrack · ${what} ${when}`.slice(0, 120), body: body.slice(0, 500), itemId: i.id, url: 'app.html?remind=' + encodeURIComponent(i.id), actions: [] };
+}
+const appointmentSlot = (i, kind) => `${i.date} appt ${kind} ${String(i.id).slice(0, 100)}`;
+
 /* VAPID settings from the environment, or null when push isn't set up. */
 function vapidConfig(env) {
   const publicKey = env.VAPID_PUBLIC_KEY || '', privateKey = env.VAPID_PRIVATE_KEY || '';
@@ -167,12 +188,19 @@ function createReminders({ store, push, email = null, data = null, now = () => n
     let queued = 0;
     for (const c of candidates) {
       if (!c.hasPush || (c.settings || {}).daily === false) continue;
-      const local = localParts(now(), c.timeZone);
-      for (const d of dosesDue(await store.listItems(c.userId), local.date, local.time)) {
+      const local = localParts(now(), c.timeZone), items = await store.listItems(c.userId);
+      for (const d of dosesDue(items, local.date, local.time)) {
         const slot = `${local.date} ${d.time}`;
         if (!(await store.claimDoseReminder(c.userId, slot))) continue;
         queued++;
         await store.enqueueJob({ name: 'reminders.dose', payload: { userId: c.userId, date: local.date, time: d.time }, runAt: new Date(), uniqueKey: `dose:${c.userId}:${slot}`, maxAttempts: 4 });
+      }
+      // Follow-up appointments, claimed the same way so each one is reminded once the day before and once 2 hours before.
+      for (const a of appointmentsDue(items, local.date, local.time, c.settings || {})) {
+        const slot = appointmentSlot(a.item, a.kind);
+        if (!(await store.claimDoseReminder(c.userId, slot))) continue;
+        queued++;
+        await store.enqueueJob({ name: 'reminders.appointment', payload: { userId: c.userId, id: a.item.id, kind: a.kind, slot }, runAt: new Date(), uniqueKey: `appt:${c.userId}:${slot}`, maxAttempts: 4 });
       }
     }
     return queued;
@@ -186,6 +214,16 @@ function createReminders({ store, push, email = null, data = null, now = () => n
     if (!due || !subs.length) return;
     const { sent, failed } = await sendTo(userId, subs, doseNotification(due), { topic: 'dose', ttl: DOSE_WINDOW_MIN * 60, urgency: 'high' });
     if (!sent && failed) { await store.releaseDoseReminder(userId, slot); throw new Error(`Dose push failed for all ${failed} device${failed === 1 ? '' : 's'}.`); }
+  }
+
+  /* One appointment's push, if it's still due (not marked Went or moved since it was queued). */
+  async function sendAppointment({ userId, id, kind, slot }) {
+    const settings = await settingsOf(userId), local = localParts(now(), await timeZoneOf(userId, settings));
+    const due = appointmentsDue(await store.listItems(userId), local.date, local.time, settings).find(a => a.item.id === id && a.kind === kind && appointmentSlot(a.item, kind) === slot);
+    const subs = push.available() ? await store.listPushSubscriptions(userId) : [];
+    if (!due || !subs.length) return;
+    const { sent, failed } = await sendTo(userId, subs, appointmentNotification(due), { topic: 'appointment', ttl: SOON_MIN * 60, urgency: 'high' });
+    if (!sent && failed) { await store.releaseDoseReminder(userId, slot); throw new Error(`Appointment push failed for all ${failed} device${failed === 1 ? '' : 's'}.`); }
   }
 
   async function send({ userId, date }) {
@@ -255,7 +293,7 @@ function createReminders({ store, push, email = null, data = null, now = () => n
   /* The user's local date and time now. */
   const localNow = async userId => localParts(now(), await timeZoneOf(userId, await settingsOf(userId)));
 
-  return { claim, dispatch, send, sendDose, sendTo, followup, opened, act, localNow, settingsOf };
+  return { claim, dispatch, send, sendDose, sendAppointment, sendTo, followup, opened, act, localNow, settingsOf };
 }
 
-module.exports = { pick, notification, dosesDue, doseNotification, daysLabel, localParts, validTimeZone, reminderTime, quiet, sendTime, isDue, cleanSubscription, vapidConfig, createPush, createReminders, PUSH_HOSTS };
+module.exports = { pick, notification, dosesDue, doseNotification, appointmentsDue, appointmentNotification, daysLabel, localParts, validTimeZone, reminderTime, quiet, sendTime, isDue, cleanSubscription, vapidConfig, createPush, createReminders, PUSH_HOSTS };
