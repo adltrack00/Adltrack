@@ -517,6 +517,17 @@ function createApp({ store, data, production = false, policies = null, classifie
       try { return send(res, 200, { places: await places.nearest(queries, Number(body.lat), Number(body.lng)) }); }
       catch (err) { if (err.status) throw new HttpError(err.status, err.message); console.error('Places lookup failed:', err.message); return send(res, 200, { places: [], reason: 'failed' }); }
     }
+    // A medication's pharmacy: the nearest branches of the pharmacy on its label or papers, or the three nearest pharmacies
+    // when none is named, with today's hours and directions. The location is used for this request only.
+    if (route === '/api/places/pharmacies' && method === 'POST') {
+      checkWrite(req);
+      const body = await readBody(req, 2_000);
+      const name = typeof body.name === 'string' ? body.name.replace(/\s+/g, ' ').trim().slice(0, 100) : '';
+      if (!places || !places.available()) return send(res, 200, { places: [], reason: 'unavailable' });
+      if (!placesLimit('user:' + user.id)) return send(res, 200, { places: [], reason: 'limit' });
+      try { return send(res, 200, { places: await places.nearest([name || 'pharmacy'], Number(body.lat), Number(body.lng), { anyName: !name }) }); }
+      catch (err) { if (err.status) throw new HttpError(err.status, err.message); console.error('Places lookup failed:', err.message); return send(res, 200, { places: [], reason: 'failed' }); }
+    }
     // Receipt reading: the pages of one receipt are saved privately on the scan's purchase, read by the AI model, and
     // returned as the draft the Item card opens with. Fields the model wasn't sure about come back empty.
     if (route === '/api/receipts/read' && method === 'POST') {

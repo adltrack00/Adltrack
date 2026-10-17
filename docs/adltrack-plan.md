@@ -128,7 +128,7 @@ The AI reader (sections 2 and 3) needs `ANTHROPIC_API_KEY`. The server reads it 
 
 ## 6. Take: the medication's card
 
-**Status:** Partly done (d259112, 1858ab4, 0648527).
+**Status:** Done (this section's PR). The Take card now shows the next dose, how to take it, label warnings, the doctor and pharmacy with Call, Directions and the nearest pharmacies with today's hours, the page of the papers the medication came from, and who marked each dose.
 **Needs:** section 4.
 **Reuses:** the Return card.
 **Build (check, then fill gaps):**
