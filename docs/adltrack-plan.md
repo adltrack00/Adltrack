@@ -144,7 +144,7 @@ The AI reader (sections 2 and 3) needs `ANTHROPIC_API_KEY`. The server reads it 
 
 ## 7. Refill
 
-**Status:** Partly done. Steps exist (d259112); the label's refills are read (1858ab4).
+**Status:** Done (section 7 PR). Steps exist (d259112); the label's refills are read (1858ab4).
 **Needs:** section 3.
 **Reuses:** Get paid.
 **Build (what's left):**

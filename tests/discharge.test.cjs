@@ -133,7 +133,7 @@ function journey(response) {
   const listeners = {}, requests = [];
   const ctx = { render() {}, exampleOrder() {}, view: 'upload', draft: { products: [], channel: 'online', evidence: [], retailer: '', purchased: '2026-10-12', delivered: '' }, evidenceFiles: [], items: [], settings: { time: '09:00', daily: false }, selected: null,
     document: { body: { classList: { toggle() {} } }, addEventListener(n, fn) { (listeners[n] = listeners[n] || []).push(fn); }, hidden: false, createElement() { return {}; } },
-    window: { scrollTo() {}, addEventListener() {} }, navigator: {}, $: () => null, crypto: { randomUUID: () => 'scan-1' }, today: () => '2026-10-12', save() {}, toast() {}, find: id => ctx.items.find(i => i.id === id), gallery() {}, C: {}, esc: s => s, icon: () => '',
+    window: { scrollTo() {}, addEventListener() {} }, navigator: {}, $: () => null, crypto: { randomUUID: () => 'scan-1' }, today: () => '2026-10-12', save() {}, toast() {}, find: id => ctx.items.find(i => i.id === id), gallery() {}, C: require('../core.js'), esc: s => s, icon: () => '',
     fetch: async (url, opts) => { requests.push({ url, body: JSON.parse(opts.body) }); return { ok: true, json: async () => typeof response === 'function' ? response() : response }; } };
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync('guided.js', 'utf8'), ctx);
@@ -191,7 +191,7 @@ test('a cut-off page keeps the pages, so the next photo is read together with th
 
 test('on the Take card a skipped dose is only recorded, Needs refill starts the call to the prescriber, and Finished stops it', async () => {
   const x = journey({});
-  const med = { id: 'm1', med: true, name: 'Lisinopril 10 mg', status: 'deciding', prescriber: { name: 'Dr. Maya Patel', phone: '(555) 201-3344' }, times: ['08:00'] };
+  const med = { id: 'm1', med: true, name: 'Lisinopril 10 mg', status: 'deciding', prescriber: { name: 'Dr. Maya Patel', phone: '(555) 201-3344' }, times: ['08:00'], refills: 0 };
   x.ctx.items.push(med); x.ctx.selected = 'm1'; x.ctx.view = 'plan';
   const toasts = []; x.ctx.toast = t => toasts.push(t);
   const click = attrs => x.click({ dataset: attrs, hasAttribute: k => k in attrs || k.replace(/^data-/, '').replace(/-(\w)/g, (_, c) => c.toUpperCase()) in attrs });
@@ -202,7 +202,7 @@ test('on the Take card a skipped dose is only recorded, Needs refill starts the 
   assert.match(toasts[0], /Check the label or call your pharmacist about a missed dose/);
   click({ medDone: 'refill' });
   assert.deepEqual(med.refill.step, 'call');
-  assert.match(toasts[1], /Call Dr\. Maya Patel for a refill/);
+  assert.match(toasts[1], /Call Dr\. Maya Patel for a new prescription/);
   click({ medRefill: 'called' }); click({ medRefill: 'ready' }); click({ medRefill: 'picked' });
   assert.equal(med.refill, null);
   click({ medDone: 'finished' });
@@ -321,4 +321,64 @@ test('with no pharmacy named, the Take card offers the nearest pharmacies; a PDF
   const html = vm.runInContext('medPage(find("m2"))', x.ctx);
   assert.match(html, /Nearest pharmacies/);
   assert.match(html, /href="\/api\/files\/pdf#page=3"/);
+});
+
+test('Refill: a 60-tablet, once-a-day medication with 2 refills runs out on the right day, starts the steps a week before, and picking up counts the refills down', () => {
+  const x = journey({});
+  x.ctx.fmt = d => d; x.ctx.photo = () => ''; x.ctx.howText = i => i.instructions; x.ctx.slotName = () => ''; x.ctx.clockText = t => t;
+  const med = { id: 'm1', med: true, name: 'Lisinopril 10 mg', status: 'deciding', instructions: 'Take 1 tablet by mouth every morning.', times: ['08:00'], quantity: 60, refills: 2, filled: '2026-09-20', pharmacy: { name: 'CVS', phone: '(555) 300-1200' }, prescriber: { name: 'Dr. Maya Patel' } };
+  x.ctx.items.push(med); x.ctx.selected = 'm1'; x.ctx.view = 'plan';
+  assert.equal(x.ctx.C.runsOut(med), '2026-11-19');
+  assert.equal(vm.runInContext('startRefills()', x.ctx), 0, 'more than a week left: no steps yet');
+  vm.runInContext("planTab={id:'m1',tab:'paid'}", x.ctx);
+  const card = () => vm.runInContext('medPage(find("m1"))', x.ctx);
+  assert.match(card(), /Runs out around<\/span>2026-11-19/);
+  assert.match(card(), /start by themselves on November 12/);
+  assert.equal(vm.runInContext("startRefills(items,'2026-11-12')", x.ctx), 1);
+  assert.deepEqual({ ...med.refill }, { step: 'call', since: '2026-11-12', auto: true });
+  assert.match(card(), /Step 1<\/span>Call CVS for a refill/);
+  assert.match(card(), /2 refills left on the label/);
+  const toasts = []; x.ctx.toast = t => toasts.push(t);
+  const click = attrs => x.click({ dataset: attrs, hasAttribute: k => k in attrs });
+  click({ medRefill: 'called' });
+  assert.match(card(), /Step 1<\/span>Call CVS for a refill · ✓ Done/);
+  assert.match(card(), /The pharmacy says it’s ready/);
+  click({ medRefill: 'ready' }); click({ medRefill: 'picked' });
+  assert.equal(med.refill, null);
+  assert.equal(med.refills, 1, 'picking up counts the refills down');
+  assert.equal(med.refilledOn, '2026-10-12');
+  assert.equal(x.ctx.C.runsOut(med), '2026-12-11', 'the run-out date resets from the refill');
+  assert.match(card(), /Refilled<\/span>October 12/);
+  assert.match(toasts.at(-1), /Refilled October 12\. Runs out around 2026-12-11/);
+});
+
+test('Refill: no refills left or past the refill-by date goes to the doctor; unclear directions give no date; the bottle expiry shows a week before', () => {
+  const C = require('../core.js');
+  const base = { med: true, instructions: 'Take 1 tablet twice a day.', times: ['08:00', '20:00'], quantity: 60, filled: '2026-10-01', refills: 3 };
+  assert.equal(C.runsOut(base), '2026-10-31');
+  assert.equal(C.refillFrom(base, '2026-10-12'), 'pharmacy');
+  assert.equal(C.refillFrom({ ...base, refills: 0 }, '2026-10-12'), 'doctor');
+  assert.equal(C.refillFrom({ ...base, refillBy: '2026-10-01' }, '2026-10-12'), 'doctor');
+  assert.equal(C.runsOut({ ...base, instructions: 'Take 1 to 2 tablets twice a day.' }), null, 'a range is never guessed');
+  assert.equal(C.runsOut({ ...base, instructions: 'Take 2 tablets twice a day.' }), '2026-10-16');
+  assert.equal(C.runsOut({ ...base, instructions: 'Take 5 mL twice a day.' }), null);
+  assert.equal(C.runsOut({ ...base, asNeeded: true }), null);
+  assert.equal(C.runsOut({ ...base, quantity: null }), null);
+  assert.equal(C.expiresSoon({ discardAfter: '2026-10-19' }, '2026-10-12'), true);
+  assert.equal(C.expiresSoon({ discardAfter: '2026-10-20' }, '2026-10-12'), false);
+});
+
+test('Refill: the daily reminder names each refill step until it is done, starts a week before it runs out, and says when a bottle expires', () => {
+  const N = require('../nudge.js');
+  const med = { id: 'm1', med: true, status: 'deciding', name: 'Lisinopril 10 mg', instructions: 'Take 1 tablet every morning.', times: ['08:00'], quantity: 60, refills: 2, filled: '2026-09-20', pharmacy: { name: 'CVS' }, prescriber: { name: 'Dr. Patel' } };
+  assert.equal(N.compose([med], '2026-11-11'), null, 'more than a week before it runs out: nothing');
+  const r = N.compose([med], '2026-11-12');
+  assert.equal(r.title, 'Adltrack · Refill Lisinopril 10 mg');
+  assert.equal(r.body, 'Call CVS to refill Lisinopril 10 mg.');
+  assert.equal(N.compose([{ ...med, refill: { step: 'called' } }], '2026-10-12').body, 'Lisinopril 10 mg: ask CVS if the refill is ready.');
+  assert.equal(N.compose([{ ...med, refill: { step: 'ready' } }], '2026-10-12').body, 'Pick up the refill of Lisinopril 10 mg at CVS.');
+  assert.equal(N.compose([{ ...med, refills: 0, refill: { step: 'call' } }], '2026-10-12').body, 'Call Dr. Patel for a new prescription for Lisinopril 10 mg.');
+  assert.match(N.compose([{ ...med, discardAfter: '2026-10-15' }], '2026-10-12').body, /This bottle of Lisinopril 10 mg expires on October 15/);
+  assert.equal(N.compose([{ ...med, refill: { step: 'call' }, status: 'received' }], '2026-10-12'), null, 'finished: no reminders');
+  assert.equal(N.compose([{ ...med, refill: { step: 'call' }, demo: true }], '2026-10-12'), null, 'examples are never reminded');
 });
