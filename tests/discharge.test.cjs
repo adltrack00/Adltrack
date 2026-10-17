@@ -11,9 +11,9 @@ const PAPERS = {
   hospital: 'Riverside General Hospital',
   discharge_date: '2026-10-13',
   medications: [
-    { name: 'Lisinopril', strength: '10 mg', dose: '1 tablet', route: 'by mouth', frequency: 'once a day', times: ['08:00'], instructions: 'Take 1 tablet by mouth every morning.', duration: '', status: 'new', prescriber_name: 'Dr. Maya Patel', prescriber_phone: '(555) 201-3344' },
-    { name: 'Acetaminophen', strength: '500 mg', dose: '2 tablets', route: 'by mouth', frequency: 'every 6 hours as needed for pain', times: [], instructions: 'Take 2 tablets every 6 hours as needed for pain. Do not take more than 8 tablets in 24 hours.', duration: 'for 7 days', status: 'continue', prescriber_name: 'Dr. Maya Patel', prescriber_phone: '(555) 201-3344' },
-    { name: 'Metoprolol', strength: '25 mg', dose: '', route: '', frequency: '', times: ['20:00', '08:00', '8 AM', '25:00'], instructions: '', duration: '', status: 'changed', prescriber_name: '', prescriber_phone: '' },
+    { name: 'Lisinopril', strength: '10 mg', dose: '1 tablet', route: 'by mouth', frequency: 'once a day', times: ['08:00'], instructions: 'Take 1 tablet by mouth every morning.', duration: '', status: 'new', prescriber_name: 'Dr. Maya Patel', prescriber_phone: '(555) 201-3344', page: 1 },
+    { name: 'Acetaminophen', strength: '500 mg', dose: '2 tablets', route: 'by mouth', frequency: 'every 6 hours as needed for pain', times: [], instructions: 'Take 2 tablets every 6 hours as needed for pain. Do not take more than 8 tablets in 24 hours.', duration: 'for 7 days', status: 'continue', prescriber_name: 'Dr. Maya Patel', prescriber_phone: '(555) 201-3344', page: 2 },
+    { name: 'Metoprolol', strength: '25 mg', dose: '', route: '', frequency: '', times: ['20:00', '08:00', '8 AM', '25:00'], instructions: '', duration: '', status: 'changed', prescriber_name: '', prescriber_phone: '', page: 99 },
     { name: 'Ibuprofen', strength: '200 mg', dose: '', route: '', frequency: '', times: [], instructions: 'Stop taking ibuprofen.', duration: '', status: 'stop', prescriber_name: '', prescriber_phone: '' },
     { name: '', strength: '5 mg', dose: '', route: '', frequency: '', times: [], instructions: '', duration: '', status: 'unknown', prescriber_name: '', prescriber_phone: '' }
   ],
@@ -155,6 +155,8 @@ test('scanning fills the Confirm card with each medication as printed, and savin
   assert.equal(lis.purchaseId, 'scan-1');
   assert.equal(lis.instructions, 'Take 1 tablet by mouth every morning.');
   assert.deepEqual(lis.times, ['08:00']);
+  assert.deepEqual([...lis.papers], ['/api/files/x'], 'the saved pages go with the medication');
+  assert.deepEqual(x.ctx.items.map(i => i.page), [1, 2, 0], 'a page number outside the papers is left blank');
   assert.equal(lis.prescriber.name, 'Dr. Maya Patel');
   assert.equal(lis.pharmacy.name, 'Main Street Pharmacy');
   assert.equal(lis.discharge.hospital, 'Riverside General Hospital');
@@ -197,7 +199,7 @@ test('on the Take card a skipped dose is only recorded, Needs refill starts the 
   assert.equal(med.doses.length, 1);
   assert.equal(med.doses[0].kind, 'skipped');
   assert.deepEqual(med.times, ['08:00'], 'a skipped dose never moves or adds a dose');
-  assert.match(toasts[0], /Don’t take an extra dose/);
+  assert.match(toasts[0], /Check the label or call your pharmacist about a missed dose/);
   click({ medDone: 'refill' });
   assert.deepEqual(med.refill.step, 'call');
   assert.match(toasts[1], /Call Dr\. Maya Patel for a refill/);
@@ -289,4 +291,34 @@ test('the camera stays ready between bottle photos: the shutter works for photos
   assert.equal(els['#flow-shutter'].disabled, false);
   assert.equal(els['#camera-message'].hidden, true);
   assert.equal(vm.runInContext('journey.step="cardPhoto";cameraStep()', x.ctx), true);
+});
+
+test('the Take card shows the next dose, the pill, how to take it, warnings, the doctor and pharmacy with Call, the papers page, and who marked each dose', () => {
+  const x = journey({});
+  Object.assign(x.ctx, { photo: () => '', nextDose: () => 'due 8:00 PM', welcomeName: () => 'George' });
+  const med = { id: 'm1', med: true, name: 'Lisinopril 10 mg', status: 'deciding', instructions: 'Take 1 tablet by mouth every evening.', pillLooks: 'Pink round tablet', warnings: ['May cause dizziness.'],
+    prescriber: { name: 'Dr. Maya Patel', phone: '(555) 201-3344' }, pharmacy: { name: 'Main Street Pharmacy', address: '12 Main St', phone: '(555) 300-1200' }, times: ['20:00'], papers: ['/api/files/p1', '/api/files/p2'], page: 2, discharge: {} };
+  x.ctx.items.push(med); x.ctx.selected = 'm1'; x.ctx.view = 'plan';
+  const page = () => vm.runInContext('medPage(find("m1"))', x.ctx);
+  let html = page();
+  for (const want of ['<span>Next dose</span>8:00 PM · Due now', '<span>Looks like</span>Pink round tablet', '<span>How to take it</span>', 'Take 1 tablet by mouth every evening.', 'Warnings from the label', 'May cause dizziness.', '<span>Prescribed by</span>Dr. Maya Patel', 'href="tel:5552013344"', '<span>Your pharmacy</span>Main Street Pharmacy', 'href="tel:5553001200"', 'Directions to Main Street Pharmacy', 'data-med-nearest', 'href="/api/files/p2"', 'Page 2 of the discharge papers', 'data-med-done="finished"', 'data-med-done="refill"'])
+    assert.ok(html.includes(want), want);
+  assert.doesNotMatch(html.replace(/<[^>]*>/g, ' '), /return|refund|price|store|receipt|purchase/i, 'no return wording');
+  const click = attrs => x.click({ dataset: attrs, hasAttribute: k => k in attrs || k.replace(/^data-/, '').replace(/-(\w)/g, (_, c) => c.toUpperCase()) in attrs });
+  click({ medDose: 'skipped', slot: '20:00' });
+  assert.equal(med.doses[0].by, 'George');
+  html = page();
+  assert.match(html, /Skipped at [^<]+ by George/);
+  assert.ok(html.includes('Check the label or call your pharmacist about a missed dose.'));
+  click({ medHelp: '' });
+  assert.match(page(), /href="tel:911"/);
+});
+
+test('with no pharmacy named, the Take card offers the nearest pharmacies; a PDF opens at the medication’s page', () => {
+  const x = journey({});
+  Object.assign(x.ctx, { photo: () => '', nextDose: () => '', welcomeName: () => '' });
+  x.ctx.items.push({ id: 'm2', med: true, name: 'Metoprolol 25 mg', status: 'deciding', times: [], papers: ['/api/files/pdf'], page: 3 });
+  const html = vm.runInContext('medPage(find("m2"))', x.ctx);
+  assert.match(html, /Nearest pharmacies/);
+  assert.match(html, /href="\/api\/files\/pdf#page=3"/);
 });

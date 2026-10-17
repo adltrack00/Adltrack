@@ -21,6 +21,7 @@ const SYSTEM = `You read hospital discharge papers for a family caregiver app. T
   - duration is how long to take it as printed ("for 7 days", "until gone"), or "".
   - status: "new", "changed", "continue" or "stop" only when the papers say so; otherwise "unknown".
   - prescriber_name and prescriber_phone: the doctor or clinician who prescribed it, when printed for this medication or for the discharge as a whole.
+  - page: the number of the page (1 for the first page sent) where this medication's instruction line is printed, or 0 if you aren't sure.
 - pharmacy: the pharmacy named on the papers (name, address, phone), or empty.
 - hospital is the hospital or clinic name; discharge_date is YYYY-MM-DD as printed. If a date could be read two ways (03/04/26), leave it empty.
 - appointments: follow-up visits with who, where, date (YYYY-MM-DD), time (HH:MM), phone, and note copied as printed (for example "Call to schedule within 1 week").
@@ -36,7 +37,7 @@ const SCHEMA = obj({
   problem: { type: 'string', enum: ['none', 'blurry', 'dark', 'cropped', 'not_discharge'] },
   hospital: str,
   discharge_date: str,
-  medications: { type: 'array', items: obj({ name: str, strength: str, dose: str, route: str, frequency: str, times: { type: 'array', items: str }, instructions: str, duration: str, status: { type: 'string', enum: STATUSES }, prescriber_name: str, prescriber_phone: str }) },
+  medications: { type: 'array', items: obj({ name: str, strength: str, dose: str, route: str, frequency: str, times: { type: 'array', items: str }, instructions: str, duration: str, status: { type: 'string', enum: STATUSES }, prescriber_name: str, prescriber_phone: str, page: { type: 'integer' } }) },
   pharmacy: obj({ name: str, address: str, phone: str }),
   appointments: { type: 'array', items: obj({ with: str, place: str, date: str, time: str, phone: str, note: str }) },
   warning_signs: { type: 'array', items: obj({ text: str, urgent: { type: 'boolean' } }) },
@@ -80,7 +81,8 @@ function clean(raw) {
       instructions: text(m.instructions, 600),
       duration: text(m.duration, 80),
       status: STATUSES.includes(m.status) ? m.status : 'unknown',
-      prescriber: { name: text(m.prescriber_name, 80), phone: phone(m.prescriber_phone) }
+      prescriber: { name: text(m.prescriber_name, 80), phone: phone(m.prescriber_phone) },
+      page: Number.isInteger(m.page) && m.page >= 1 && m.page <= MAX_PAGES ? m.page : 0
     });
   }
   const p = r.pharmacy && typeof r.pharmacy === 'object' ? r.pharmacy : {};
@@ -121,7 +123,7 @@ function dischargeDraft(d) {
   return {
     products: d.medications.filter(m => m.status !== 'stop').map(m => ({
       name: label(m), dose: m.dose, route: m.route, frequency: m.frequency, times: m.times, instructions: m.instructions,
-      duration: m.duration, medStatus: m.status, prescriber: m.prescriber, pharmacy: shared, price: ''
+      duration: m.duration, medStatus: m.status, prescriber: m.prescriber, pharmacy: shared, page: m.page, price: ''
     })),
     discharge: { hospital: d.hospital, discharged: d.discharged, appointments: d.appointments, warningSigns: d.warningSigns, contacts: d.contacts },
     notes: d.notes
