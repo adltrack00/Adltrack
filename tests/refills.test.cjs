@@ -1,0 +1,11 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const core=require('../core.js');
+function page(){const src=fs.readFileSync('refills.js','utf8'),fn=src.slice(0,src.indexOf('function refillRow('))+src.slice(src.indexOf('/* One printable page'),src.indexOf("document.addEventListener("));const ctx={C:core,items:[],today:()=>'2026-10-18',esc:core.escape,howText:i=>i.instructions||'',clockText:t=>({'08:00':'8:00 AM','18:00':'6:00 PM'})[t]};vm.runInNewContext(fn+';this.refillGroups=refillGroups;this.medListHTML=medListHTML',ctx);return ctx}
+const ph={name:'CVS',phone:'(555) 300-1200',address:'1 Main St'},doc={name:'Dr. Patel',phone:'(555) 201-3344'};
+const meds=()=>[{id:'a',med:true,status:'deciding',name:'Lisinopril 10 mg',instructions:'Take 1 tablet every morning.',times:['08:00'],refill:{step:'call'},pharmacy:ph,prescriber:doc,discharge:{}},
+{id:'b',med:true,status:'deciding',name:'Metoprolol 25 mg',times:['08:00','18:00'],refill:{step:'called'}},{id:'c',med:true,status:'deciding',name:'New one',pickup:true},
+{id:'d',med:true,status:'deciding',name:'Ready one',refill:{step:'ready'}},{id:'e',med:true,status:'deciding',name:'Refilled',refilledOn:'2026-10-02'},
+{id:'f',med:true,status:'deciding',name:'Last month',refilledOn:'2026-09-30'},{id:'g',med:true,status:'kept',name:'Unconfirmed',refill:{step:'call'}},{id:'h',med:true,status:'received',name:'Finished',refilledOn:'2026-10-03'}];
+test('refills fall into Needs refill, Waiting at the pharmacy and Picked up this month; unconfirmed and finished stay out',()=>{const g=page().refillGroups(meds());assert.deepEqual([g.need,g.waiting,g.picked].map(l=>l.map(i=>i.id).join('')),['a','bcd','e'])});
+test('the medication list shows confirmed medications word for word with the doctor and pharmacy, no money',()=>{const h=page().medListHTML(meds());assert.match(h,/Take 1 tablet every morning\./);assert.match(h,/Dr\. Patel/);assert.match(h,/1 Main St/);assert.match(h,/8:00 AM<br>6:00 PM/);assert.doesNotMatch(h,/Unconfirmed|Finished|\$/);assert.match(h,/discharge papers/)});
+test('in bottles-only mode the list asks for a pharmacist or doctor review',()=>{const h=page().medListHTML(meds().filter(i=>i.id!=='a'));assert.match(h,/Ask your pharmacist or doctor to review this list\./)});
