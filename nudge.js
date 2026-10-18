@@ -94,9 +94,32 @@ function dropoffLine(i, n, today) {
   return d ? `Nearest drop-off: ${name}, ${d.miles} mi.` : '';
 }
 
+/* Refills (Adltrack): each confirmed medication with a refill step, or within a week of running out (the steps start by
+   themselves then), and each bottle within a week of its discard-after date. Once a day at the reminder time until each
+   step is done. Examples only for the preview. */
+const longDay = d => C.parseDate(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+function refillLines(items, today, { examples = false } = {}) {
+  const meds = (items || []).filter(i => i && i.med && i.status === 'deciding' && !i.pickup && (examples || !i.demo) && (!i.snoozeUntil || i.snoozeUntil <= today));
+  const out = [];
+  for (const i of meds) {
+    const step = (i.refill && i.refill.step) || (C.refillDue(i, today) ? 'call' : '');
+    const name = clip(i.name, 120), pharmacy = clip(i.pharmacy && i.pharmacy.name, 60) || 'the pharmacy', doctor = clip(i.prescriber && i.prescriber.name, 60) || 'the doctor';
+    if (step === 'call') out.push({ i, line: C.refillFrom(i, today) === 'pharmacy' ? `Call ${pharmacy} to refill ${name}.` : `Call ${doctor} for a new prescription for ${name}.` });
+    else if (step === 'called') out.push({ i, line: `${name}: ask ${pharmacy} if the refill is ready.` });
+    else if (step === 'ready') out.push({ i, line: `Pick up the refill of ${name} at ${pharmacy}.` });
+    if (C.expiresSoon(i, today)) out.push({ i, line: `This bottle of ${name} expires on ${longDay(i.discardAfter)}. Ask the pharmacy about a new one.` });
+  }
+  return out;
+}
+
 /* The day's reminder for these items on `today` (the user's local date), or null when nothing needs one.
    options: gentle (only on gentle days), examples (include example items, for the preview). */
 function compose(items, today, { gentle = false, examples = false } = {}) {
+  const refills = refillLines(items, today, { examples });
+  if (refills.length) {
+    const ids = [...new Set(refills.map(r => r.i.id))], first = refills[0].i;
+    return { title: ids.length > 1 ? `Adltrack · ${ids.length} medications to refill` : 'Adltrack · Refill ' + clip(first.name, 80), body: refills.map(r => r.line).join(' ').slice(0, 500), itemId: first.id, url: 'app.html?remind=' + encodeURIComponent(first.id), stage: 'refill', items: ids, days: {}, actions: [{ action: 'snooze', title: 'Snooze until tomorrow' }] };
+  }
   let list = due(items, today, { examples });
   if (gentle) list = list.filter(i => gentleDay(i, today));
   if (!list.length) return null;
@@ -124,6 +147,6 @@ function compose(items, today, { gentle = false, examples = false } = {}) {
   return { title, body: parts.join(' '), itemId: first.id, url, stage, items: list.map(i => i.id), days: Object.fromEntries(list.map(i => [i.id, C.days(C.due(i), today)])), actions };
 }
 
-const api = { compose, due, gentleDay, nextStep, stake, closesToday, daysLabel, money };
+const api = { compose, refillLines, due, gentleDay, nextStep, stake, closesToday, daysLabel, money };
 if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.ReturnlyNudge = api;
 })(typeof window !== 'undefined' ? window : globalThis);

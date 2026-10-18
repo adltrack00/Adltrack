@@ -1,0 +1,9 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+function history(items){const src=fs.readFileSync('menu.js','utf8'),line=src.split('\n').find(l=>l.startsWith('function historyPage(')),ctx={items,esc:s=>String(s),photo:()=>'<img>',subHeader:t=>`<h1>${t}</h1>`};vm.runInNewContext(line+';this.historyPage=historyPage',ctx);return ctx.historyPage()}
+const rows=html=>[...html.matchAll(/<strong>(.*?)<\/strong><small>(.*?)<\/small><\/span><em class="history-status">(.*?)<\/em>/g)].map(m=>[m[1],m[3],m[2]]);
+const meds=()=>[{id:'a',med:true,status:'deciding',name:'Lisinopril 10 mg',doses:[{at:'2026-10-18T08:02:00',day:'2026-10-18',slot:'08:00',kind:'taken',by:'George'},{at:'2026-10-17T08:10:00',day:'2026-10-17',slot:'08:00',kind:'skipped'}]},
+{id:'b',med:true,status:'received',name:'Amoxicillin 500 mg',returnedOn:'2026-10-18',finishedAt:'2026-10-18T09:00:00',finishedBy:'Ann',doses:[{at:'2026-10-18T07:00:00',kind:'taken'}]},
+{id:'c',status:'kept',name:'Old purchase',retailer:'Zara'}];
+test('History lists finished medications and every Taken or Skipped dose, newest first, with who marked it',()=>{const r=rows(history(meds()));assert.deepEqual(r.map(x=>[x[0],x[1]]),[['Amoxicillin 500 mg','Finished'],['Lisinopril 10 mg','Taken'],['Amoxicillin 500 mg','Taken'],['Lisinopril 10 mg','Skipped']]);assert.match(r[0][2],/by Ann$/);assert.match(r[1][2],/dose · .* · by George$/);assert.doesNotMatch(r[3][2],/by/)});
+test('a dose just marked Taken goes to the top of History',()=>{const m=meds();m[0].doses.push({at:new Date().toISOString(),day:'today',slot:'20:00',kind:'taken'});assert.deepEqual(rows(history(m))[0].slice(0,2),['Lisinopril 10 mg','Taken'])});
+test('History is empty until something is marked',()=>{assert.match(history([{id:'x',med:true,status:'deciding',name:'New',doses:[]}]),/Nothing here yet/)});

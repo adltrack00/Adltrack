@@ -600,7 +600,9 @@ function createApp({ store, data, production = false, policies = null, classifie
       const sub = push && push.available() && typeof body.endpoint === 'string' ? (await store.listPushSubscriptions(user.id)).find(s => s.endpoint === body.endpoint) : null;
       if (!sub) return send(res, 200, { sent: false });
       if (!pushTestLimit('user:' + user.id)) throw new HttpError(429, 'Too many test notifications. Try again later.');
-      const r = await reminders.sendTo(user.id, [sub], { title: 'Adltrack · A little nudge', body: 'Your return radar is ready. Reminders arrive even when Adltrack is closed.', url: 'app.html' });
+      // A real dose with its Taken, Snooze and Skipped buttons when there's a medication to show.
+      const dose = await reminders.testDose(user.id);
+      const r = await reminders.sendTo(user.id, [sub], dose || { title: 'Adltrack · Reminders are on', body: 'Reminders arrive at each dose time, even when Adltrack is closed.', url: 'app.html' });
       return send(res, 200, { sent: r.sent > 0 });
     }
     // The open app's daily notification: the same rule and the same once-a-day claim as push, so only one of them is sent.
@@ -627,6 +629,14 @@ function createApp({ store, data, production = false, policies = null, classifie
       const item = await reminders.act(user.id, body.itemId, body.action, today);
       if (!item) throw new HttpError(404, 'Not found.');
       return send(res, 200, { item });
+    }
+    // A dose reminder's buttons ("Taken", "Snooze 15 minutes", "Skipped"), sent by the service worker.
+    if (route === '/api/reminders/dose' && method === 'POST') {
+      checkWrite(req);
+      const body = await readBody(req, 8_000);
+      const saved = reminders ? await reminders.actDose(user.id, body) : null;
+      if (!saved) throw new HttpError(400, 'Invalid action.');
+      return send(res, 200, { items: saved });
     }
     // The daily reminder was opened (tapped), so no "unopened" email follows it.
     if (route === '/api/reminders/opened' && method === 'POST') {

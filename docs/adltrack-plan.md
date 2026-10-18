@@ -144,7 +144,7 @@ The AI reader (sections 2 and 3) needs `ANTHROPIC_API_KEY`. The server reads it 
 
 ## 7. Refill
 
-**Status:** Partly done. Steps exist (d259112); the label's refills are read (1858ab4).
+**Status:** Done (section 7 PR). Steps exist (d259112); the label's refills are read (1858ab4).
 **Needs:** section 3.
 **Reuses:** Get paid.
 **Build (what's left):**
@@ -161,7 +161,7 @@ The AI reader (sections 2 and 3) needs `ANTHROPIC_API_KEY`. The server reads it 
 
 ## 8. Follow-up appointments
 
-**Status:** To do. The papers already read appointments (a6a57a0); nothing shows them yet.
+**Status:** Done (this section's PR). Each visit on the papers becomes its own card to confirm (unconfirmed ones show nowhere else and aren't reminded); one with no date asks the family to book it. Confirmed visits show on Today on their day, the care radar and Your schedule, and are pushed the day before and 2 hours before. "Add an appointment +" sits in the home shortcuts.
 **Needs:** section 2.
 **Reuses:** a Confirm card (to check them) and the Return card layout (to show one).
 **Build:**
@@ -175,7 +175,7 @@ The AI reader (sections 2 and 3) needs `ANTHROPIC_API_KEY`. The server reads it 
 
 ## 9. When to call for help
 
-**Status:** To do. The papers already read warning signs (a6a57a0).
+**Status:** Done (this section's PR). **When to call** sits under the care radar on home, in both Need help sheets (Today and the Take card) and on Support: the papers' warning signs word for word under the heading the papers print them under, with the papers' question number (or the prescribing doctor) and Call 911 for emergency lines. With no papers, only the one line and Call 911.
 **Needs:** section 2.
 **Build:**
 - **When to call** on the home page, the Need help sheet and Support: the warning signs printed on the papers, word for word, grouped as the papers group them ("Call your doctor if…", "Call 911 if…"), with the numbers.
@@ -186,7 +186,7 @@ The AI reader (sections 2 and 3) needs `ANTHROPIC_API_KEY`. The server reads it 
 
 ## 10. Your schedule
 
-**Status:** To do (menu label only).
+**Status:** Done (section 10 PR): `schedule.js`.
 **Reuses:** Your returns calendar.
 **Build:** the same monthly calendar. Each day shows its doses, appointments and refill steps. Tap a day to see only that day; Taken and Skipped doses show their label. **Export reminders ↓** stays for Google, Apple and Outlook.
 **Done when:** no return deadlines show; a day with doses lists each dose time.
@@ -195,7 +195,7 @@ The AI reader (sections 2 and 3) needs `ANTHROPIC_API_KEY`. The server reads it 
 
 ## 11. Your refills and the medication list
 
-**Status:** To do (menu label only).
+**Status:** Done (section 11 PR).
 **Reuses:** Your results.
 **Build:**
 - Three groups: **Needs refill**, **Waiting at the pharmacy**, **Picked up this month**.
@@ -206,7 +206,7 @@ The AI reader (sections 2 and 3) needs `ANTHROPIC_API_KEY`. The server reads it 
 
 ## 12. Reminders page
 
-**Status:** Partly done (dose reminders in 0648527).
+**Status:** Done (dose reminders in 0648527; preview and notification buttons in section 12 PR).
 **Reuses:** the Reminders page and its settings rows.
 **Build:** same rows (reminder time for refill and appointment steps, daily on/off, notifications, test, email, quiet hours, Gentle). The **preview** reads "8:00 PM: Lisinopril 10 mg, 1 tablet" with the bottle photo. Buttons on the notification: **Taken**, **Snooze 15 minutes**, **Skipped**, working without opening the app.
 **Done when:** the test notification shows a dose with those three buttons and they mark the dose.
