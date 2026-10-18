@@ -10,17 +10,18 @@ const proofImg=src=>/^data:image\/jpeg;base64,/.test(src)||/^\/api\/files\/[0-9a
 const proofRow=(photos,remove)=>photos.length?`<div class="take-shots">${photos.map((p,n)=>`<div class="take-shot">${proofImg(p)}${remove?`<button class="take-shot-x" data-take-remove="${n}" aria-label="Remove photo ${n+1}">×</button>`:''}</div>`).join('')}</div>`:'';
 
 /* Laid out like the profile: the bottle's photo on top so they know it's the right one, its name and dose under it, then how to
-   take it. Photos (up to 3) appear only once added; the + sits at the end of the Photo line. More details fold away. */
+   take it with the label's details and the prescriber. Photos (up to 3) appear only once added; the + sits at the end of the Photo
+   line. Instructions (who to call, warning signs) fold away under the buttons. */
 function takePage(){const x=takeTask();if(!x)return '';const i=x.item,d=takeDose(x),full=takeDraft.photos.length>=TAKE_PHOTOS;
 const top=`<div class="take-hero">${medPhoto(i)}<h1>${esc(i.name)}</h1><p>${esc([i.dose,'Today at '+clockText(x.slot)].filter(Boolean).join(' · '))}${i.demo?' · Example':''}</p></div>`;
-const how=`<section class="take-block"><h2>How to take it</h2><p>${esc(howText(i)||'Add how to take it from the discharge papers.')}</p></section>`;
-const more=[i.pillLooks?`<p><b>Looks like</b> ${esc(i.pillLooks)}</p>`:'',...(i.warnings||[]).map(w=>`<p>${esc(w)}</p>`),i.prescriber&&i.prescriber.name?`<p><b>Prescribed by</b> ${esc(i.prescriber.name)}</p>`:''].join('');
-const details=`<details class="take-more"><summary>Instructions</summary><p>${esc(howText(i)||'Not on the papers.')}</p>${more}</details>`;
+const how=`<section class="take-block"><h2>How to take it</h2><p>${esc(howText(i)||'Add how to take it from the discharge papers.')}</p>${i.pillLooks?`<p class="take-sub"><b>Looks like</b> ${esc(i.pillLooks)}</p>`:''}${(i.warnings||[]).map(w=>`<p class="take-sub">${esc(w)}</p>`).join('')}${i.prescriber&&i.prescriber.name?`<p class="take-sub"><b>Prescribed by</b> ${esc(i.prescriber.name)}</p>`:''}</section>`;
+/* Instructions: who to call and the papers' warning signs, folded away; Need help opens it. */
+const details=`<details class="take-more" id="take-help"${takeDraft.help?' open':''}><summary>Instructions</summary>${helpNote(i)}</details>`;
 const photos=d?(d.photos||[]):[];
 const body=d?`<section class="take-block"><h2>${d.kind==='taken'?'Taken':'Skipped'}</h2><p>${d.kind==='taken'?'Taken':'Skipped'} at ${esc(takeAt(d.at))}${d.by?' by '+esc(d.by):''}.</p>${proofRow(photos,false)}${d.note?`<p class="take-note-text">${esc(d.note)}</p>`:''}</section>`
 :`<section class="take-block"><div class="take-line"><h2>Photo <span>${takeDraft.photos.length} of ${TAKE_PHOTOS}</span></h2>${full?'':`<label class="take-add" for="take-photo" aria-label="Add a photo">+</label>`}</div><input type="file" id="take-photo" accept="image/*" multiple hidden>${proofRow(takeDraft.photos,true)}<p class="take-muted">Up to ${TAKE_PHOTOS} photos showing the dose was taken.</p></section>
 <section class="take-block"><h2>Note</h2><textarea id="take-note" maxlength="500" placeholder="How did it go?">${esc(takeDraft.note)}</textarea></section>
-<div class="take-actions"><button class="today-pill" data-take="done"${takeDraft.busy?' disabled':''}>Done</button><button class="today-pill is-light" data-take="skipped"${takeDraft.busy?' disabled':''}>Skipped</button><button class="today-pill is-light${takeDraft.help?' is-open':''}" data-take="help" aria-expanded="${takeDraft.help}">Need help</button></div>${takeDraft.help?helpNote(i):''}`;
+<div class="take-actions"><button class="today-pill" data-take="done"${takeDraft.busy?' disabled':''}>Done</button><button class="today-pill is-light" data-take="skipped"${takeDraft.busy?' disabled':''}>Skipped</button><button class="today-pill is-light" data-take="help">Need help</button></div>`;
 return `<section class="sub-page take-page"><div class="sub-top"><button class="sub-back" data-menu-go="overview" aria-label="Back">${menuIcon(menuIcons.back)}</button></div>${top}${how}${body}${details}</section>`}
 
 /* A smaller copy of a photo, kept on the dose itself when it can't be saved to the account right now. */
@@ -38,7 +39,8 @@ document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)r
 if(b.dataset.todayStart){const [id,key]=b.dataset.todayStart.split('|'),i=find(id);if(!i)return;if(key==='appt'){showDetail(id);return}
 if(takeRef!==b.dataset.todayStart)takeDraft=blankTake();takeRef=b.dataset.todayStart;view='take';render();window.scrollTo(0,0);return}
 if(view!=='take')return;if(b.dataset.takeRemove){takeDraft.photos.splice(Number(b.dataset.takeRemove),1);render();return}
-if(!b.dataset.take)return;if(b.dataset.take==='help'){takeDraft.help=!takeDraft.help;render();return}finishTake(b.dataset.take)});
+if(!b.dataset.take)return;if(b.dataset.take==='help'){takeDraft.help=true;const h=$('#take-help');if(h){h.open=true;h.scrollIntoView({behavior:'smooth',block:'start'})}return}finishTake(b.dataset.take)});
+document.addEventListener('toggle',e=>{if(e.target.id==='take-help')takeDraft.help=e.target.open},true);
 document.addEventListener('input',e=>{if(e.target.id==='take-note')takeDraft.note=e.target.value});
 document.addEventListener('change',async e=>{if(e.target.id!=='take-photo')return;const files=[...e.target.files].slice(0,TAKE_PHOTOS-takeDraft.photos.length);
 try{for(const f of files)takeDraft.photos.push(await readPhoto(f));if(e.target.files.length>files.length)toast(`Up to ${TAKE_PHOTOS} photos.`)}catch(err){toast(err.message)}render()});

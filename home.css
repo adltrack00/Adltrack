@@ -62,12 +62,12 @@
 .take-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0 12px}
 .take-actions .today-pill{width:100%;padding:15px 8px;font-size:15px;text-align:center}
 .take-actions .today-pill.is-light{background:#f0f0f0;color:#1c1c1c}
-.take-actions .today-pill.is-open{background:#e2e2e2}
 .take-actions .today-pill:disabled{opacity:.6;cursor:default}
-.take-page .today-help{background:#f4f4f4;border-radius:22px;padding:16px 18px;margin:0 0 12px;font-size:13px}
 .take-more{border-top:1px solid #eee;border-bottom:1px solid #eee;margin-top:18px}
 .take-more summary{list-style:none;cursor:pointer;padding:16px 2px;font-size:15px;font-weight:600;display:flex;justify-content:space-between}
 .take-more summary::-webkit-details-marker{display:none}
 .take-more summary::after{content:"+";font-weight:400;font-size:20px;line-height:1}.take-more[open] summary::after{content:"−"}
-.take-more p{font-size:14px;line-height:1.6;color:#444;margin:0 0 10px}
+.take-more .today-help{font-size:14px;line-height:1.6;color:#444;padding:0 2px 12px;margin:0;background:none}
+.take-more .today-help p{margin:0 0 8px}
+.take-block .take-sub{font-size:13px;color:#666;margin-top:8px}
 @media(max-width:650px){.take-hero .product-photo{width:128px;height:128px;border-radius:28px}.take-hero h1{font-size:26px}.take-actions{gap:8px}.take-actions .today-pill{font-size:14px}}
