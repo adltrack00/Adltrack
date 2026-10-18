@@ -4,7 +4,7 @@ const { createApp } = require('../server/app');
 const { createStorage } = require('../server/storage');
 const { createData } = require('../server/data');
 const { createJobs, defineJobs } = require('../server/jobs');
-const { pick, localParts, cleanSubscription, vapidConfig, createPush, createReminders, dosesDue } = require('../server/reminders');
+const { pick, localParts, cleanSubscription, vapidConfig, createPush, createReminders, dosesDue, appointmentsDue } = require('../server/reminders');
 const C = require('../core.js');
 
 // Postgres runs too when TEST_DATABASE_URL points at a throwaway database. These tests use their own schema, so they can run
@@ -386,6 +386,52 @@ for (const [label, db] of STORES) {
       await app.reminders.dispatch();
       await app.jobs.drain();
       assert.equal(app.service.sent.length, 1);
+    } finally { await app.close(); }
+  });
+}
+
+const visit = (id, o = {}) => ({ id, name: 'Follow-up visit with ' + id, appt: true, with: id, place: 'Heart Clinic', date: C.shift(today, 1), time: '14:00', phone: '(555) 201-3344', note: '', status: 'deciding', confirmed: true, steps: {}, window: null, price: 0, retailer: '', purchased: today, ...o });
+
+test('a follow-up visit is reminded the day before from the reminder time, and in the 2 hours before it; never unconfirmed, went, undated or examples', () => {
+  const tomorrow = C.shift(today, 1), settings = { time: '09:00' };
+  const items = [visit('Dr. Patel'), visit('Unconfirmed', { status: 'kept' }), visit('Went', { steps: { went: today } }), visit('No date', { date: '' }), visit('Example', { demo: true }), med('Lisinopril 10 mg')];
+  assert.deepEqual(appointmentsDue(items, today, '08:59', settings), []);
+  assert.deepEqual(appointmentsDue(items, today, '09:00', settings).map(a => [a.item.id, a.kind]), [['Dr. Patel', 'day']]);
+  assert.deepEqual(appointmentsDue(items, today, '22:00', settings).map(a => a.kind), ['day']);
+  // Not inside quiet hours.
+  assert.deepEqual(appointmentsDue(items, today, '22:00', { ...settings, quietStart: '21:00', quietEnd: '07:00' }), []);
+  // On the day: from 2 hours before until it starts, only when the time is known.
+  assert.deepEqual(appointmentsDue(items, tomorrow, '11:59', settings), []);
+  assert.deepEqual(appointmentsDue(items, tomorrow, '12:00', settings).map(a => [a.item.id, a.kind]), [['Dr. Patel', 'soon']]);
+  assert.deepEqual(appointmentsDue(items, tomorrow, '14:00', settings), []);
+  assert.deepEqual(appointmentsDue([visit('No time', { time: '' })], tomorrow, '12:00', settings), []);
+});
+
+for (const [label, db] of STORES) {
+  test(`${label}: a confirmed follow-up visit is pushed once the day before and once 2 hours before`, async () => {
+    const app = await boot(db);
+    try {
+      const c = await app.signUp('Ana');
+      await c('PUT', '/api/settings', { settings: { time: '09:00', daily: true }, profile: {} });
+      await c('POST', '/api/push/subscribe', { subscription: subscription('fcm.googleapis.com'), timeZone: 'America/Chicago' });
+      await c('POST', '/api/items', visit('Dr. Patel'));
+      await c('POST', '/api/items', visit('Unconfirmed', { status: 'kept' }));
+      app.clock.now = () => new Date(instantAt(today, '09:01', 'America/Chicago'));
+      await app.reminders.dispatch();
+      await app.jobs.drain();
+      const visits = () => app.service.sent.filter(m => m.options.topic === 'appointment');
+      assert.equal(visits().length, 1);
+      assert.equal(visits()[0].message.title, 'Adltrack · Follow-up visit with Dr. Patel tomorrow');
+      assert.equal(visits()[0].message.body, '2:00 PM · Heart Clinic. Call (555) 201-3344 to change it.');
+      app.clock.now = () => new Date(instantAt(today, '15:00', 'America/Chicago'));
+      await app.reminders.dispatch();
+      await app.jobs.drain();
+      assert.equal(visits().length, 1);
+      app.clock.now = () => new Date(instantAt(C.shift(today, 1), '12:30', 'America/Chicago'));
+      await app.reminders.dispatch();
+      await app.jobs.drain();
+      assert.equal(visits().length, 2);
+      assert.equal(visits()[1].message.title, 'Adltrack · Follow-up visit with Dr. Patel today');
     } finally { await app.close(); }
   });
 }
