@@ -56,8 +56,10 @@ document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)r
 
 /* Example medications on day one, labelled as examples, in place of Returnly's example purchases. */
 function exampleMeds(day=today(),now=hmNow()){const base={med:true,demo:true,status:'deciding',intent:'return',confirmed:true,retailer:'',price:0,category:'box',channel:'store',purchased:day,delivered:'',photoKey:'medication',prescriber:EXAMPLE_DOCTOR,pharmacy:EXAMPLE_PHARMACY,doses:[]},given=t=>now>=t?[{at:new Date(day+'T'+t).toISOString(),day,kind:'taken',slot:t}]:[];
-return [{...base,id:'demo-lisinopril',name:'Lisinopril 10 mg',instructions:'Take 1 tablet by mouth every morning.',pillLooks:'Pink round tablet',warnings:['May cause dizziness.','Take exactly as directed.'],times:['08:00'],refills:2,doses:given('08:00'),discharge:{appointments:[{with:EXAMPLE_DOCTOR.name,place:'Example Clinic',date:C.shift(day,2),time:'14:00',phone:EXAMPLE_DOCTOR.phone,note:''}]}},
-{...base,id:'demo-metoprolol',name:'Metoprolol 25 mg',instructions:'Take 1 tablet by mouth twice a day.',times:['08:00','18:00'],doses:given('08:00')},
-{...base,id:'demo-atorvastatin',name:'Atorvastatin 20 mg',instructions:'Take 1 tablet by mouth at bedtime.',times:['21:00'],refills:0,refill:{step:'call',since:day}},
+return [{...base,id:'demo-lisinopril',name:'Lisinopril 10 mg',dose:'1 tablet',instructions:'Take 1 tablet by mouth every morning.',pillLooks:'Pink round tablet',warnings:['May cause dizziness.','Take exactly as directed.'],times:['08:00'],refills:2,doses:given('08:00'),discharge:{appointments:[{with:EXAMPLE_DOCTOR.name,place:'Example Clinic',date:C.shift(day,2),time:'14:00',phone:EXAMPLE_DOCTOR.phone,note:''}]}},
+{...base,id:'demo-metoprolol',name:'Metoprolol 25 mg',dose:'1 tablet',instructions:'Take 1 tablet by mouth twice a day.',times:['08:00','18:00'],doses:given('08:00')},
+{...base,id:'demo-atorvastatin',name:'Atorvastatin 20 mg',dose:'1 tablet',instructions:'Take 1 tablet by mouth at bedtime.',times:['21:00'],refills:0,refill:{step:'call',since:day}},
 {...base,id:'demo-acetaminophen',name:'Acetaminophen 500 mg',instructions:'Take 2 tablets every 6 hours as needed for pain. Do not take more than 8 tablets in 24 hours.',times:[],asNeeded:true}]}
 if(items.some(i=>i.demo&&!i.med))items=[...items.filter(i=>!i.demo),...exampleMeds()];
+// Example medications saved before the amount was added get it, so the reminder preview reads "Lisinopril 10 mg, 1 tablet".
+{const ex=Object.fromEntries(exampleMeds().map(i=>[i.id,i]));let added=false;for(const i of items)if(i.demo&&i.med&&!i.dose&&ex[i.id]&&ex[i.id].dose){i.dose=ex[i.id].dose;added=true}if(added)save()}
