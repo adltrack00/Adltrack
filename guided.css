@@ -115,3 +115,7 @@ button.flow-tab:focus-visible{outline:2px solid #111;outline-offset:2px}
 .preview-actions span{font-size:11px;padding:5px 10px;border:1px solid #e1ddd8;border-radius:999px;background:#fff}
 .reminder-row .product-photo{width:44px;height:44px;flex:none;border-radius:8px;overflow:hidden}
 .reminder-row button{margin-left:auto}
+.dose-times{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto}
+.dose-times label{display:flex;flex-direction:column;gap:3px;font-size:10px;color:#999e8e}
+.dose-times input{font:inherit;font-size:12px;color:#222;padding:6px 8px;border:1px solid #e1ddd8;border-radius:8px;background:#fff}
+.dose-times-note{font-size:11px;color:#777;margin:4px 0 0}
