@@ -195,7 +195,7 @@ The AI reader (sections 2 and 3) needs `ANTHROPIC_API_KEY`. The server reads it 
 
 ## 11. Your refills and the medication list
 
-**Status:** Done (section 10 PR): `schedule.js`.
+**Status:** Done (section 11 PR).
 **Reuses:** Your results.
 **Build:**
 - Three groups: **Needs refill**, **Waiting at the pharmacy**, **Picked up this month**.
