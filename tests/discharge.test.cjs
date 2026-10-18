@@ -19,7 +19,7 @@ const PAPERS = {
   ],
   pharmacy: { name: 'Main Street Pharmacy', address: '12 Main St, Springfield', phone: '555-300-1200' },
   appointments: [{ with: 'Dr. Maya Patel, cardiology', place: 'Riverside Heart Clinic', date: '2026-10-20', time: '14:00', phone: '555-201-3344', note: 'Bring your medication list.' }],
-  warning_signs: [{ text: 'Call your doctor if you have a fever over 101°F.', urgent: false }, { text: 'Call 911 if you have chest pain or trouble breathing.', urgent: true }],
+  warning_signs: [{ text: 'A fever over 101°F.', heading: 'Call your doctor if you have:', urgent: false }, { text: 'Call 911 if you have chest pain or trouble breathing.', urgent: true }],
   contacts: [{ name: 'Nurse line', phone: '555-201-9000' }, { name: 'MRN 00482913', phone: 'none' }]
 };
 const mockClient = (answer, calls = []) => ({ beta: { messages: { create: async req => { calls.push(req); return { stop_reason: 'end_turn', usage: { input_tokens: 4000, output_tokens: 900 }, content: [{ type: 'text', text: JSON.stringify(answer) }] }; } } } });
@@ -39,6 +39,8 @@ test('discharge papers are read as printed: medications, prescriber, pharmacy, a
   assert.deepEqual(d.pharmacy, { name: 'Main Street Pharmacy', address: '12 Main St, Springfield', phone: '555-300-1200' });
   assert.equal(d.appointments[0].date, '2026-10-20');
   assert.equal(d.warningSigns.filter(w => w.urgent).length, 1);
+  assert.deepEqual(d.warningSigns[0], { text: 'A fever over 101°F.', heading: 'Call your doctor if you have:', urgent: false }, 'the heading it is printed under is kept word for word');
+  assert.equal(d.warningSigns[1].heading, '', 'a missing heading stays blank');
   assert.deepEqual(d.contacts, [{ name: 'Nurse line', phone: '555-201-9000' }], 'a contact without a phone number is dropped');
 });
 
