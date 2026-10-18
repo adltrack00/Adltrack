@@ -664,6 +664,13 @@ function createApp({ store, data, production = false, policies = null, classifie
       return send(res, 200, { updatedAt: await data.putData(user.id, payload) });
     }
 
+    // A photo of a dose being taken: POST it as a data URL, kept with the dose by its file URL.
+    if (route === '/api/files/proof' && method === 'POST') {
+      checkWrite(req);
+      const body = await readBody(req, 14 * 1024 * 1024);
+      return send(res, 201, await data.saveProof(user.id, body && body.data));
+    }
+
     // Owner-only file, such as an item photo. Anyone else gets the same 404 as a file that doesn't exist.
     const fileMatch = /^\/api\/files\/([0-9a-f-]{36})$/i.exec(route);
     if (fileMatch && method === 'GET') {

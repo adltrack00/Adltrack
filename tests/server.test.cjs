@@ -123,3 +123,22 @@ test('app files are served but server code, tests and package files are not', as
       assert.equal((await fetch(app.base + p)).status, 404, p);
   } finally { await app.close(); }
 });
+
+test('a dose photo is saved privately to the account and removed with its medication', async () => {
+  const app = await boot();
+  try {
+    const a = app.client(), b = app.client();
+    await a('POST', '/api/signup', { name: 'Ann', email: 'ann@example.com', password: 'password123' });
+    await b('POST', '/api/signup', { name: 'Bo', email: 'bo@example.com', password: 'password123' });
+    const jpg = 'data:image/jpeg;base64,' + fs.readFileSync(path.join(__dirname, 'fixtures/receipts/blurry.jpg')).toString('base64');
+    assert.equal((await a('POST', '/api/files/proof', { data: 'data:text/plain;base64,aGk=' })).status, 400);
+    const r = await a('POST', '/api/files/proof', { data: jpg });
+    assert.equal(r.status, 201); assert.match(r.body.url, /^\/api\/files\/[0-9a-f-]{36}$/);
+    assert.equal((await a('GET', r.body.url)).status, 200);
+    assert.equal((await b('GET', r.body.url)).status, 404, 'only the owner can open it');
+    await a('POST', '/api/items', { id: 'm1', med: true, doses: [{ day: '2026-10-18', slot: '08:00', kind: 'taken', note: 'Fine.', photos: [r.body.url] }] });
+    assert.equal((await a('GET', '/api/items')).body.items[0].doses[0].photos[0], r.body.url, 'the dose keeps its photo');
+    assert.equal((await a('DELETE', '/api/items/m1', {})).status, 200);
+    assert.equal((await a('GET', r.body.url)).status, 404);
+  } finally { await app.close(); }
+});
