@@ -206,7 +206,7 @@ The AI reader (sections 2 and 3) needs `ANTHROPIC_API_KEY`. The server reads it 
 
 ## 12. Reminders page
 
-**Status:** Partly done (dose reminders in 0648527).
+**Status:** Done (dose reminders in 0648527; preview and notification buttons in section 12 PR).
 **Reuses:** the Reminders page and its settings rows.
 **Build:** same rows (reminder time for refill and appointment steps, daily on/off, notifications, test, email, quiet hours, Gentle). The **preview** reads "8:00 PM: Lisinopril 10 mg, 1 tablet" with the bottle photo. Buttons on the notification: **Taken**, **Snooze 15 minutes**, **Skipped**, working without opening the app.
 **Done when:** the test notification shows a dose with those three buttons and they mark the dose.

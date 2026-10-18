@@ -30,25 +30,35 @@ self.addEventListener('push', event => {
     icon: 'assets/icon-192.png',
     tag: 'returnly-daily',
     actions: (Array.isArray(msg.actions) ? msg.actions : []).slice(0, 4).map(a => ({ action: a.action, title: a.title })),
-    data: { url: msg.url || 'app.html', itemId: msg.itemId || null }
+    data: { url: msg.url || 'app.html', itemId: msg.itemId || null, dose: msg.dose || null }
   }));
 });
 
 const localDate = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const post = (url, body) => fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+const DOSE_DONE = { taken: ['Marked taken', 'Saved for everyone on this account.'], skipped: ['Marked skipped', 'Only recorded. Check the instructions or call your pharmacist about a missed dose.'], snooze15: ['Snoozed 15 minutes', 'We’ll remind you again in 15 minutes.'] };
 const ACTION_DONE = { snooze: ['Snoozed until tomorrow', 'Your deadline stays the same.'], sent: ['Marked as sent back', 'We’ll stop reminding you about it.'], keep: ['Keeping it', 'We’ll stop reminding you about it.'] };
 
 // Tapping a reminder opens that item's Return step: in an open Adltrack window if there is one, otherwise in a new one.
 // "Snooze until tomorrow", "I sent it back" and "I'm keeping it" are saved straight away, without opening the app;
-// "Show QR code" opens the item's QR code or label.
+// "Show QR code" opens the item's QR code or label. On a dose reminder, "Taken", "Skipped" and "Snooze 15 minutes" are saved the same way.
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const { url = 'app.html', itemId = null } = event.notification.data || {};
+  const { url = 'app.html', itemId = null, dose = null } = event.notification.data || {};
   const action = event.action || '';
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const open = windows.find(w => new URL(w.url).pathname.endsWith('/app.html'));
-    if (itemId && ACTION_DONE[action]) {
+    if (dose && DOSE_DONE[action]) {
+      const r = await post('/api/reminders/dose', { action, ...dose }).catch(() => null);
+      if (r && r.ok) {
+        const { items = [] } = await r.json().catch(() => ({}));
+        for (const w of windows) w.postMessage({ type: 'returnly-dose-action', action, items });
+        await self.registration.showNotification(DOSE_DONE[action][0], { body: DOSE_DONE[action][1], icon: 'assets/icon-192.png', tag: 'returnly-daily' });
+        return;
+      }
+      // Not signed in on this device any more (or offline): open the medication instead, where the dose can be marked.
+    } else if (itemId && ACTION_DONE[action]) {
       const r = await post('/api/reminders/action', { itemId, action, today: localDate() }).catch(() => null);
       if (r && r.ok) {
         const { item = null } = await r.json().catch(() => ({}));
