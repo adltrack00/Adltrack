@@ -25,7 +25,7 @@ const SYSTEM = `You read hospital discharge papers for a family caregiver app. T
 - pharmacy: the pharmacy named on the papers (name, address, phone), or empty.
 - hospital is the hospital or clinic name; discharge_date is YYYY-MM-DD as printed. If a date could be read two ways (03/04/26), leave it empty.
 - appointments: follow-up visits with who, where, date (YYYY-MM-DD), time (HH:MM), phone, and note copied as printed (for example "Call to schedule within 1 week").
-- warning_signs: each "call your doctor if" or "go to the emergency room / call 911 if" line, copied word for word. urgent is true for emergency or 911 lines.
+- warning_signs: each "call your doctor if" or "go to the emergency room / call 911 if" line, copied word for word. heading is the heading or lead-in it is printed under, word for word (for example "Call your doctor if you have:"), or "" when there is none. urgent is true for emergency or 911 lines.
 - contacts: phone numbers printed for questions (name or role, and phone).
 - Never write insurance numbers, medical record numbers, account numbers or card numbers anywhere.
 - problem: "blurry", "dark", "cropped" (part of a page is cut off) or "not_discharge" (these aren't discharge papers) when that stops you reading something; otherwise "none".`;
@@ -40,7 +40,7 @@ const SCHEMA = obj({
   medications: { type: 'array', items: obj({ name: str, strength: str, dose: str, route: str, frequency: str, times: { type: 'array', items: str }, instructions: str, duration: str, status: { type: 'string', enum: STATUSES }, prescriber_name: str, prescriber_phone: str, page: { type: 'integer' } }) },
   pharmacy: obj({ name: str, address: str, phone: str }),
   appointments: { type: 'array', items: obj({ with: str, place: str, date: str, time: str, phone: str, note: str }) },
-  warning_signs: { type: 'array', items: obj({ text: str, urgent: { type: 'boolean' } }) },
+  warning_signs: { type: 'array', items: obj({ text: str, heading: str, urgent: { type: 'boolean' } }) },
   contacts: { type: 'array', items: obj({ name: str, phone: str }) }
 });
 
@@ -93,7 +93,7 @@ function clean(raw) {
     medications,
     pharmacy: { name: text(p.name, 100), address: text(p.address, 200), phone: phone(p.phone) },
     appointments: list(r.appointments, 10).map(a => ({ with: text(a.with, 100), place: text(a.place, 160), date: realDate(a.date), time: clock(a.time), phone: phone(a.phone), note: text(a.note, 300) })).filter(a => a.with || a.place || a.note || a.date),
-    warningSigns: list(r.warning_signs, 20).map(w => ({ text: text(w.text, 300), urgent: w.urgent === true })).filter(w => w.text),
+    warningSigns: list(r.warning_signs, 20).map(w => ({ text: text(w.text, 300), heading: text(w.heading, 120), urgent: w.urgent === true })).filter(w => w.text),
     contacts: list(r.contacts, 10).map(c => ({ name: text(c.name, 80), phone: phone(c.phone) })).filter(c => c.phone)
   };
   out.notes = notes(out);

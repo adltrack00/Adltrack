@@ -175,7 +175,7 @@ The AI reader (sections 2 and 3) needs `ANTHROPIC_API_KEY`. The server reads it 
 
 ## 9. When to call for help
 
-**Status:** To do. The papers already read warning signs (a6a57a0).
+**Status:** Done (this section's PR). **When to call** sits under the care radar on home, in both Need help sheets (Today and the Take card) and on Support: the papers' warning signs word for word under the heading the papers print them under, with the papers' question number (or the prescribing doctor) and Call 911 for emergency lines. With no papers, only the one line and Call 911.
 **Needs:** section 2.
 **Build:**
 - **When to call** on the home page, the Need help sheet and Support: the warning signs printed on the papers, word for word, grouped as the papers group them ("Call your doctor if…", "Call 911 if…"), with the numbers.

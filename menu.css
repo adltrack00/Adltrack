@@ -65,3 +65,4 @@ dialog.menu-drawer{width:min(72vw,280px)}
 
 /* Support: rows stacked under "How Adltrack works" share one divider, as in the Settings list. */
 .prose .settings-row+.settings-row{border-top:0}
+.prose .call-links .flow-text-link{color:#111;text-decoration:underline;text-underline-offset:3px;margin-right:12px}
