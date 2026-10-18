@@ -66,13 +66,13 @@ function createData({ store, storage, jobs = null }) {
     if (r.deleted) for (const id of [r.receiptFileId, ...(r.receiptPages || [])]) if (id) await deleteFile(userId, id);
   }
 
-  /* A photo taken as proof of a dose: stored like an item photo; the dose keeps its /api/files/<id> URL. */
+  /* A photo taken as proof of a dose: stored like an item photo; the dose keeps its /api/files/<id> URL in `photos`. */
   async function saveProof(userId, value) {
     const parsed = parseDataUrl(value, 'item');
     if (!parsed) throw new DataError(400, 'Use a JPG, PNG or WebP photo.');
     return { url: fileUrl(await saveFile(userId, 'item', parsed)) };
   }
-  const proofFiles = item => (Array.isArray(item.doses) ? item.doses : []).map(d => d && fileIdFromUrl(d.photo)).filter(Boolean);
+  const proofFiles = item => (Array.isArray(item.doses) ? item.doses : []).flatMap(d => d && Array.isArray(d.photos) ? d.photos.map(fileIdFromUrl) : []).filter(Boolean);
 
   /* Items. */
   async function saveItem(userId, input, { position = null, touch = true, mustBeNew = false } = {}) {
