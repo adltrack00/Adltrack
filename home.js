@@ -1,8 +1,7 @@
-/* Home: Your medications. Today's checklist and the care radar sit between the profile and the medication cards, and today's
-   totals sit in the menu where refunds and store credit were. Everything shown is what the papers or the label say; a skipped
-   dose is only recorded, never moved or doubled, and Need help points to the doctor, the pharmacist and 911. */
+/* Home: Your medications. Today's task cards sit under the profile; the medication cards and their tabs are on All medications
+   (today.js), and today's totals sit in the menu where refunds and store credit were. Everything shown is what the papers or the
+   label say; a skipped dose is only recorded, never moved or doubled, and Need help points to the doctor, the pharmacist and 911. */
 const galleryBeforeHome=gallery;
-let homeHelp='';
 const hmNow=(now=new Date())=>String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
 const dayOf=d=>d.day||String(d.at||'').slice(0,10);
 const activeMed=i=>i.med&&i.status==='deciding';
@@ -27,7 +26,7 @@ return {taken:t.filter(x=>x.state==='done').length+asNeeded,left:t.filter(x=>!x.
 
 const dayLabel=(date,day=today())=>{const n=C.days(date,day);return n===0?'Today':n===1?'Tomorrow':n>1&&n<7?C.parseDate(date).toLocaleDateString('en-US',{weekday:'long'}):C.parseDate(date).toLocaleDateString('en-US',{month:'short',day:'numeric'})};
 
-/* The care radar: the next things to do, most urgent first. */
+/* The care radar: the next things to do, most urgent first. No longer shown on Home (the Today cards carry it). */
 function careRadar(list=items,day=today(),now=hmNow()){const out=[],meds=list.filter(activeMed),times=new Map();
 for(const x of todayTasks(list,day))if(x.slot&&!x.state){if(!times.has(x.slot))times.set(x.slot,[]);times.get(x.slot).push(x.item.name)}
 for(const [t,names] of times)out.push({title:`${slotName(t)||'Medication'}${slotName(t)?' medication':''} at ${clockText(t)}`,sub:(t<now?'Not marked yet · ':'')+names.join(', ')});
@@ -43,21 +42,17 @@ return out.slice(0,5)}
 function helpNote(i,phone){const doc=i.prescriber||{},ph=i.pharmacy||{};return `<div class="today-help"><p>Not sure what to do? Call the doctor or the pharmacist. In an emergency, call 911.</p><p>${[telLink('Doctor:',doc.phone),telLink('Pharmacy:',ph.phone),telLink('Clinic:',phone),call911].filter(Boolean).join(' ')}</p>${helpSigns()}</div>`}
 /* When to call, under the care radar: the papers' warning signs as printed, or the one line for when there are none. */
 function whenToCallHTML(){const groups=whenToCall();return `<h2 class="call-head">When to call</h2>${groups.length?`<ol class="radar-list call-list">${groups.map(g=>`<li><strong>${esc(g.head)}</strong>${g.signs.map(t=>`<small>${esc(t)}</small>`).join('')}<small>${callLinks(g)}</small></li>`).join('')}</ol>`:`<p class="today-empty">${esc(NO_SIGNS)}</p><ol class="radar-list call-list"><li><small>${call911}</small></li></ol>`}`}
-/* One card per row, like a list of locks: the bottle's photo, what to do with a short line from the papers, and one button at the end. */
+/* One card per row, like a list of locks: the bottle's photo, the medication and its dose, and Start at the end. The whole card
+   opens the Take page (today.js); a visit opens its own card. Refill steps and pick-ups live on Your refills, not here. */
 function todayThumb(x){if(x.item.appt)return apptPhoto(x.item);return x.slot||x.key==='pickup'||x.key.startsWith('refill:')?medPhoto(x.item):`<div class="product-photo today-icon">${icon('clock')}</div>`}
-function todayRow(x){const id=esc(x.item.id+'|'+x.key),line=[x.time?clockText(x.time):'',x.sub].filter(Boolean).join(' · ');return `<li class="today-row${x.state?' is-'+x.state:''}"><div class="today-thumb">${todayThumb(x)}</div><div class="today-what"><strong>${esc(x.title)}</strong>${line?`<small>${esc(line)}</small>`:''}${x.state?'':`<span class="today-more"><button data-today-skip="${id}">Skipped</button><button data-today-help="${id}">Need help</button></span>`}</div>${x.state?`<span class="today-pill is-marked">${x.state==='done'?'✓ Done':'Skipped'}</span>`:`<button class="today-pill" data-today-done="${id}">Done</button>`}${homeHelp===x.item.id+'|'+x.key?helpNote(x.item,x.phone):''}</li>`}
-function todayHTML(){if(!items.some(i=>(i.med||i.appt)&&i.status!=='received'))return '';const day=today(),tasks=todayTasks(items,day),done=tasks.filter(x=>x.state==='done').length,d=C.parseDate(day),radar=careRadar(items,day);
+function todayRow(x){const line=[x.slot?x.item.dose:'',x.time?clockText(x.time):''].filter(Boolean).join(' · '),pill=x.state==='done'?'✓ Done':x.state==='skipped'?'Skipped':x.item.appt?'Open':'Start';
+return `<li class="today-row${x.state?' is-'+x.state:''}"><button class="today-card" data-today-start="${esc(x.item.id+'|'+x.key)}"><span class="today-thumb">${todayThumb(x)}</span><span class="today-what"><strong>${esc(x.title)}</strong>${line?`<small>${esc(line)}</small>`:''}</span><span class="today-pill${x.state?' is-marked':''}">${pill}</span></button></li>`}
+const homeTasks=(day=today())=>todayTasks(items,day).filter(x=>x.slot||x.key==='appt');
+function todayHTML(){if(!items.some(i=>(i.med||i.appt)&&i.status!=='received'))return '';const day=today(),tasks=homeTasks(day),done=tasks.filter(x=>x.state==='done').length,d=C.parseDate(day);
 const date=d.toLocaleDateString('en-US',{weekday:'long'})+' '+d.toLocaleDateString('en-US',{month:'long',day:'numeric'});
-return `<section class="home-today"><div><h2>Today, ${esc(date)} <span>· ${done} of ${tasks.length} done${tasks.some(x=>x.item.demo)?' · Examples':''}</span></h2>${tasks.length?`<ul class="today-list">${tasks.map(todayRow).join('')}</ul>`:'<p class="today-empty">Nothing due today.</p>'}</div><div><h2>Your care radar</h2>${radar.length?`<ol class="radar-list">${radar.map(r=>`<li><strong>${esc(r.title)}</strong>${r.sub?`<small>${esc(r.sub)}</small>`:''}</li>`).join('')}</ol>`:'<p class="today-empty">Nothing coming up.</p>'}${whenToCallHTML()}</div></section>`}
+return `<section class="home-today"><h2>Today, ${esc(date)} <span>· ${done} of ${tasks.length} done${tasks.some(x=>x.item.demo)?' · Examples':''}</span></h2>${tasks.length?`<ul class="today-list">${tasks.map(todayRow).join('')}</ul>`:'<p class="today-empty">Nothing due today.</p>'}</section>`}
 
 gallery=function(){const el=document.createElement('div');el.innerHTML=galleryBeforeHome();const hero=el.querySelector('.profile-hero');if(hero)hero.insertAdjacentHTML('afterend',todayHTML());el.querySelectorAll('.utility-links #import-purchases').forEach(n=>n.remove());return el.innerHTML};
-
-/* Marking a row on Today: a dose goes into the same record as the Take card, a pick-up or refill step moves on the same way. */
-function markToday(ref,kind){const [id,key]=ref.split('|'),i=find(id);if(!i)return;const day=today(),at=new Date().toISOString();
-if(key.startsWith('dose:'))i.doses=[...(i.doses||[]),{at,day,kind:kind==='done'?'taken':'skipped',slot:key.slice(5),...(markedBy()?{by:markedBy()}:{})}].slice(-200);
-else{if(kind==='done'){if(key==='pickup')i.pickup=false;if(key==='refill:call')i.refill={...i.refill,step:'called'};if(key==='refill:ready')pickedUp(i,day);if(key==='appt'){i.steps={...i.steps,went:day};i.status='received';i.returnedOn=day}}i.marks=[...(i.marks||[]),{day,key,kind,at}].slice(-100)}
-homeHelp='';save();render();toast(kind==='skipped'?(key.startsWith('dose:')?'Marked skipped. Don’t take an extra dose to make up for it unless the papers or your pharmacist say so.':'Marked skipped.'):key.startsWith('dose:')?'Marked taken.':'Marked done.')}
-document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.todayDone)markToday(b.dataset.todayDone,'done');else if(b.dataset.todaySkip)markToday(b.dataset.todaySkip,'skipped');else if(b.dataset.todayHelp){homeHelp=homeHelp===b.dataset.todayHelp?'':b.dataset.todayHelp;render()}});
 
 /* Follow-up appointments: each visit on the papers becomes its own card to confirm, like a medication: who, where, date, time
    and phone as printed. Until it's confirmed it shows nowhere else and gets no reminder; then it shows on Today on its day, on

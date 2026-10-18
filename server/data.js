@@ -66,6 +66,14 @@ function createData({ store, storage, jobs = null }) {
     if (r.deleted) for (const id of [r.receiptFileId, ...(r.receiptPages || [])]) if (id) await deleteFile(userId, id);
   }
 
+  /* A photo taken as proof of a dose: stored like an item photo; the dose keeps its /api/files/<id> URL. */
+  async function saveProof(userId, value) {
+    const parsed = parseDataUrl(value, 'item');
+    if (!parsed) throw new DataError(400, 'Use a JPG, PNG or WebP photo.');
+    return { url: fileUrl(await saveFile(userId, 'item', parsed)) };
+  }
+  const proofFiles = item => (Array.isArray(item.doses) ? item.doses : []).map(d => d && fileIdFromUrl(d.photo)).filter(Boolean);
+
   /* Items. */
   async function saveItem(userId, input, { position = null, touch = true, mustBeNew = false } = {}) {
     if (!input || typeof input !== 'object' || Array.isArray(input) || !validId(input.id)) throw new DataError(400, 'Invalid item.');
@@ -90,6 +98,7 @@ function createData({ store, storage, jobs = null }) {
     if (!removed) return { deleted: false, updatedAt: null };
     if (removed.photoFileId) await deleteFile(userId, removed.photoFileId);
     if (removed.item.labelFileId) await deleteFile(userId, removed.item.labelFileId);
+    for (const id of proofFiles(removed.item)) await deleteFile(userId, id);
     await cleanupPurchase(userId, removed.item.purchaseId);
     return { deleted: true, updatedAt: touch ? await store.touch(userId) : null };
   }
@@ -232,7 +241,7 @@ function createData({ store, storage, jobs = null }) {
     await removeStorage(files.map(f => f.storageKey));
   }
 
-  return { getData, putData, saveItem, deleteItem, setLabel, listItems: userId => store.listItems(userId), putSettings, listPurchases, attachReceipt, receiptPages, saveReceipt, describeReceiptPurchase, cleanupReceipts, readFile, deleteAccount, migrate, migrateAll, removeStorage };
+  return { getData, putData, saveItem, saveProof, deleteItem, setLabel, listItems: userId => store.listItems(userId), putSettings, listPurchases, attachReceipt, receiptPages, saveReceipt, describeReceiptPurchase, cleanupReceipts, readFile, deleteAccount, migrate, migrateAll, removeStorage };
 }
 
 module.exports = { createData, DataError };
