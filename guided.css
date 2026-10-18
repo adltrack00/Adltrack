@@ -109,3 +109,4 @@ button.flow-tab:focus-visible{outline:2px solid #111;outline-offset:2px}
 .dose-row{border-top:1px dashed #ddd;padding:8px 0}
 .dose-row .guided-form{display:flex;gap:8px;margin-top:6px}
 .dose-row .guided-form .pick-toggle{flex:1}
+.calendar-note #export-schedule{font-size:inherit;color:#111;text-decoration:underline;padding:0;margin-left:4px;background:none;border:0;cursor:pointer}
