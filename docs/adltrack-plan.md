@@ -186,7 +186,7 @@ The AI reader (sections 2 and 3) needs `ANTHROPIC_API_KEY`. The server reads it 
 
 ## 10. Your schedule
 
-**Status:** To do (menu label only).
+**Status:** Done (section 10 PR): `schedule.js`.
 **Reuses:** Your returns calendar.
 **Build:** the same monthly calendar. Each day shows its doses, appointments and refill steps. Tap a day to see only that day; Taken and Skipped doses show their label. **Export reminders ↓** stays for Google, Apple and Outlook.
 **Done when:** no return deadlines show; a day with doses lists each dose time.
@@ -195,7 +195,7 @@ The AI reader (sections 2 and 3) needs `ANTHROPIC_API_KEY`. The server reads it 
 
 ## 11. Your refills and the medication list
 
-**Status:** To do (menu label only).
+**Status:** Done (section 10 PR): `schedule.js`.
 **Reuses:** Your results.
 **Build:**
 - Three groups: **Needs refill**, **Waiting at the pharmacy**, **Picked up this month**.
