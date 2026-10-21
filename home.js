@@ -65,9 +65,9 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-vitals]');
 document.addEventListener('submit',e=>{if(e.target.id!=='vitals-form')return;e.preventDefault();const d=new FormData(e.target),v={};for(const [k] of VITALS){const x=String(d.get(k)||'').trim().slice(0,9);if(x)v[k]=x}
 settings.vitals={...v,at:new Date().toISOString()};vitalsOpen=false;save();render();toast('Vital signs saved.')});
 
-/* Home: the profile picture on top, the vital signs, then today's task cards. */
-function todayHTML(){const has=items.some(i=>(i.med||i.appt)&&i.status!=='received');if(!has)return `<section class="home-today">${vitalsHTML()}</section>`;const day=today(),tasks=homeTasks(day);
-return `<section class="home-today">${vitalsHTML()}${tasks.length?`<ul class="today-list">${tasks.map(todayRow).join('')}</ul>`:'<p class="today-empty">Nothing due today.</p>'}</section>`}
+/* Home: the profile picture on top, the vital signs, how many of today's tasks are done as a line, then the task cards. */
+function todayHTML(){const has=items.some(i=>(i.med||i.appt)&&i.status!=='received');if(!has)return `<section class="home-today">${vitalsHTML()}</section>`;const day=today(),tasks=homeTasks(day),done=tasks.filter(x=>x.state==='done').length,pct=tasks.length?Math.round(done/tasks.length*100):0;
+return `<section class="home-today">${vitalsHTML()}${tasks.length?`<div class="today-progress"><span>${done}/${tasks.length}</span><div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${tasks.length}" aria-valuenow="${done}" aria-label="${done} of ${tasks.length} done today"><i style="width:${pct}%"></i></div></div>`:''}${tasks.length?`<ul class="today-list">${tasks.map(todayRow).join('')}</ul>`:'<p class="today-empty">Nothing due today.</p>'}</section>`}
 
 gallery=function(){const el=document.createElement('div');el.innerHTML=galleryBeforeHome();const hero=el.querySelector('.profile-hero');if(hero){const t=hero.querySelector('h1');if(t)t.remove();hero.insertAdjacentHTML('afterend',todayHTML())}el.querySelectorAll('.utility-links #import-purchases').forEach(n=>n.remove());return el.innerHTML};
 
