@@ -161,3 +161,14 @@
 @media print{.global-header,.menu-open,.tasks-sheet,.report-tabs,#report-print,.profile-hero{display:none!important}#main{padding:0!important}.report-banner{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 /* Home: the profile picture sits a little higher and the report's tabs sit close under it. */
 #main>.profile-hero:not(.profile-hero-compact):has(+.report){margin-top:-58px;padding-bottom:14px}
+/* Every page but Home: a round white back button with a soft shadow where the menu lines are; the page's own back arrow is
+   hidden and its profile picture sits at the top, as on Home. */
+.global-header .menu-open.is-back{width:46px;height:46px;background:#fff;border-radius:50%;box-shadow:0 6px 26px rgba(0,0,0,.09),0 1px 3px rgba(0,0,0,.05)}
+.global-header .menu-open.is-back .menu-icon{width:24px;height:24px;stroke-width:2}
+body.not-home #main .sub-top{display:none}
+body.not-home #main>.profile-hero{margin-top:-58px;padding-top:0;position:relative;z-index:21;pointer-events:none}
+body.not-home #main>.profile-hero .profile-circle{pointer-events:auto}
+body.not-home #main>.page-heading:first-child{margin-top:0}
+body.not-home #main>.sub-page{padding-top:0}
+body.not-home #main>.sub-page>.sub-title{margin-top:8px}
+@media(max-width:650px){.global-header .menu-open.is-back{margin-left:8px}}
