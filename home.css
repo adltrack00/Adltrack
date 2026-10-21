@@ -159,3 +159,5 @@
 .report-photos figcaption{margin-top:8px;font-size:13px;color:#777}.report-photos figcaption strong{display:block;color:#111;font-size:14px}
 @media(max-width:650px){.report-grid{grid-template-columns:1fr}.report-section:not(.wide):nth-child(odd of :not(.wide)){border-right:0}.report-section{padding:14px 16px 16px}.report-banner{padding:14px 16px}.report-photos{grid-template-columns:1fr 1fr;gap:12px}}
 @media print{.global-header,.menu-open,.tasks-sheet,.report-tabs,#report-print,.profile-hero{display:none!important}#main{padding:0!important}.report-banner{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+/* Home: the profile picture sits a little higher and the report's tabs sit close under it. */
+#main>.profile-hero:not(.profile-hero-compact):has(+.report){margin-top:-58px;padding-bottom:14px}
