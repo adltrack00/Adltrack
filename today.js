@@ -58,5 +58,5 @@ menuItems.splice(1,0,['purchases','All medications','meds']);
 const renderBeforeTake=render;
 render=function(){if(view==='take'&&!takeTask())view='overview';
 if(view==='take'){ensureMenuChrome();if(typeof stopJourneyCamera==='function')stopJourneyCamera();document.body.classList.remove('flow-active');const fp=$('#flow-profile');if(fp)fp.hidden=true;$('#main').innerHTML=takePage();paintIcons()}else renderBeforeTake();
-document.querySelectorAll('.global-header [data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===(view==='take'?'overview':view)))};
+document.body.classList.toggle('home-grey',view==='overview');document.querySelectorAll('.global-header [data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===(view==='take'?'overview':view)))};
 render();

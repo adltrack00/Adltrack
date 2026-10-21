@@ -71,3 +71,46 @@
 .take-more .today-help p{margin:0 0 8px}
 .take-block .take-sub{font-size:13px;color:#666;margin-top:8px}
 @media(max-width:650px){.take-hero .product-photo{width:128px;height:128px;border-radius:28px}.take-hero h1{font-size:26px}.take-actions{gap:8px}.take-actions .today-pill{font-size:14px}}
+
+/* All medications on Home: four vital-sign tiles in their own colors, today's progress as a bar, then the task cards. */
+.vitals{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:0 0 26px}
+.vital-tile{display:flex;flex-direction:column;align-items:center;gap:4px;border:0;border-radius:22px;background:#f4f4f4;padding:16px 6px 14px;font:inherit;color:inherit;cursor:pointer}
+.vital-tile:hover{background:#eeeeee}
+.vital-icon{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;margin-bottom:8px}
+.vital-icon svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.vital-pink .vital-icon{background:#fce3ee;color:#e0357f}
+.vital-orange .vital-icon{background:#fdebd8;color:#e8731a}
+.vital-blue .vital-icon{background:#e1ecfb;color:#3b7ddd}
+.vital-purple .vital-icon{background:#efe3fb;color:#8a3fd9}
+.vital-tile strong{font-size:20px;font-weight:700;letter-spacing:-.4px;white-space:nowrap}
+.vital-tile small{font-size:13px;color:#777}
+.vitals-form{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;background:#f4f4f4;border-radius:22px;padding:14px;margin:-14px 0 26px}
+.vitals-form label span{display:block;font-size:12px;color:#777;margin:0 0 6px 2px}
+.vitals-form input{width:100%;border:0;border-radius:12px;background:#fff;padding:12px;font:inherit;font-size:15px}
+.vitals-actions{grid-column:1/-1;display:flex;gap:10px}.vitals-actions .is-light{background:#fff;color:#1c1c1c}
+.vitals-form .today-empty{grid-column:1/-1;margin:0}
+.today-progress{margin:0 0 16px}
+.home-today .today-progress h2{display:flex;justify-content:space-between;align-items:baseline;font-size:20px;font-weight:600;letter-spacing:-.4px;margin:0 0 12px;padding:0;border:0}
+.home-today .today-progress h2 span{font-size:20px;color:#777;font-weight:400}
+.progress-bar{height:8px;border-radius:999px;background:#eee;overflow:hidden}.progress-bar i{display:block;height:100%;background:#1c1c1c;border-radius:999px;transition:width .3s}
+.today-progress p{font-size:12px;color:#777;margin:10px 0 0}
+.home-today .today-progress+.today-list{margin-top:0}
+@media(max-width:650px){.vitals{gap:8px;margin-left:-12px;margin-right:-12px}.vital-tile{border-radius:18px;padding:12px 4px}.vital-icon{width:42px;height:42px;border-radius:12px;margin-bottom:6px}.vital-icon svg{width:22px;height:22px}.vital-tile strong{font-size:16px}.vital-tile small{font-size:12px}
+.vitals-form{grid-template-columns:repeat(2,1fr);margin-left:-12px;margin-right:-12px}.home-today .today-progress h2,.home-today .today-progress h2 span{font-size:18px}}
+
+/* Home in grey with white cards: the grey page behind, the profile circle, vital tiles and task cards in white. Each task card
+   is 98px tall with a blue arrow at the end, 10px apart. */
+body.home-grey,body.home-grey #main{background:#f2f2f2}
+body.home-grey .profile-hero .profile-circle{background:#fff}
+body.home-grey .vital-tile,body.home-grey .vitals-form{background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+body.home-grey .vital-tile:hover{background:#fafafa}
+body.home-grey .vitals-form input{background:#f2f2f2}
+body.home-grey .vitals-actions .is-light{background:#f2f2f2}
+body.home-grey .progress-bar{background:#e2e2e2}
+.home-today .today-list{gap:10px}
+.home-today .today-card{grid-template-columns:72px 1fr auto;gap:18px;min-height:98px;border-radius:16px;background:#fff linear-gradient(#f9f9f9,#fff 18px);box-shadow:0 1px 2px rgba(0,0,0,.04);padding:13px 24px 13px 13px}
+.home-today .today-card:hover{background:#fafafa}
+.today-arrow{width:10px;height:18px;fill:none;stroke:#0089ff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;justify-self:end}
+.home-today .today-card .today-what strong{font-size:17px;font-weight:500;letter-spacing:-.2px;color:#000}
+.home-today .today-row.is-done .today-what strong,.home-today .today-row.is-skipped .today-what strong{color:#777;font-weight:400}
+@media(max-width:650px){.vitals,.vitals-form,.home-today .today-list{margin-left:-8px;margin-right:-8px}.home-today .today-card{grid-template-columns:60px 1fr auto;gap:14px;border-radius:16px;padding:13px 24px 13px 13px}.home-today .today-card .today-what strong{font-size:17px}}
