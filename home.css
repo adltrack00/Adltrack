@@ -113,7 +113,7 @@
 /* My Tasks: a white sheet at the bottom of Home with a grab handle, like a pull-up drawer. Small, it shows only its title;
    open, it fills the screen under the header and scrolls on its own. */
 #main:has(.tasks-sheet){padding-bottom:150px}
-.tasks-sheet{position:fixed;left:0;right:0;bottom:0;z-index:40;max-width:760px;margin:0 auto;height:118px;display:flex;flex-direction:column;background:#fff;border-radius:24px 24px 0 0;box-shadow:0 -1px 0 rgba(0,0,0,.04),0 -8px 28px rgba(0,0,0,.09);transition:height .32s cubic-bezier(.2,.8,.2,1)}
+.tasks-sheet{position:fixed;left:0;right:0;bottom:0;z-index:40;height:118px;display:flex;flex-direction:column;background:#fff;border-radius:24px 24px 0 0;box-shadow:0 -1px 0 rgba(0,0,0,.04),0 -8px 28px rgba(0,0,0,.09);transition:height .32s cubic-bezier(.2,.8,.2,1)}
 .tasks-sheet.open{height:calc(100dvh - 72px)}
 .tasks-sheet.dragging{transition:none}
 .tasks-top{flex:none;padding:0 24px;cursor:grab;touch-action:none;user-select:none}
