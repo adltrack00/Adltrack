@@ -39,6 +39,8 @@ if(view==='purchases'){el.querySelectorAll(':scope>.profile-hero,:scope>.home-to
 const hero=el.querySelector(':scope>.profile-hero'),sheet=el.querySelector(':scope>.tasks-sheet');return (hero?hero.outerHTML:'')+reportHTML()+(sheet?sheet.outerHTML:'')};
 
 menuItems.unshift(['purchases','All medications','meds']);
+/* History is no longer in the menu; the daily report on Home holds the day's record. */
+menuItems.splice(menuItems.findIndex(([v])=>v==='history-log'),1);
 
 /* Only Home has the menu lines. Every other page has a round back button in their place, top left, that goes back one step
    (to Settings or Support from their pages, otherwise Home); the page's own back arrow is hidden, so its picture or title

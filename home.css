@@ -172,3 +172,7 @@ body.not-home #main>.page-heading:first-child{margin-top:0}
 body.not-home #main>.sub-page{padding-top:0}
 body.not-home #main>.sub-page>.sub-title{margin-top:8px}
 @media(max-width:650px){.global-header .menu-open.is-back{margin-left:8px}}
+/* Every page but Home starts with its large headline: no profile picture, no "<name>'s medications" and no small line above it. */
+body.not-home #main>.profile-hero{display:none}
+body.not-home #main .page-heading .eyebrow{display:none}
+body.not-home #main>.page-heading{margin-top:0}
