@@ -39,4 +39,13 @@ if(view==='purchases'){el.querySelectorAll(':scope>.profile-hero,:scope>.home-to
 const hero=el.querySelector(':scope>.profile-hero'),sheet=el.querySelector(':scope>.tasks-sheet');return (hero?hero.outerHTML:'')+reportHTML()+(sheet?sheet.outerHTML:'')};
 
 menuItems.unshift(['purchases','All medications','meds']);
+
+/* Only Home has the menu lines. Every other page has a round back button in their place, top left, that goes back one step
+   (to Settings or Support from their pages, otherwise Home); the page's own back arrow is hidden, so its picture or title
+   moves up to the top. */
+function paintMenuButton(){const b=$('#menu-open');if(!b)return;const back=view!=='overview';document.body.classList.toggle('not-home',back);
+if(b.classList.contains('is-back')===back)return;b.classList.toggle('is-back',back);b.setAttribute('aria-label',back?'Back':'Open menu');b.toggleAttribute('aria-haspopup',!back);if(!back)b.setAttribute('aria-haspopup','dialog');b.innerHTML=menuIcon(back?menuIcons.back:menuIcons.menu)}
+document.addEventListener('click',e=>{if(!e.target.closest('#menu-open.is-back'))return;e.stopPropagation();const own=$('#main .sub-back');go(own&&own.dataset.menuGo||'overview')},true);
+const renderBeforeBack=render;
+render=function(){renderBeforeBack();paintMenuButton()};
 render();
