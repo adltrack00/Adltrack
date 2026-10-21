@@ -1,6 +1,6 @@
 /* Today's cards and the Take page. Tapping a dose on Today opens one page for it: how to take it, a photo as proof, a note on
-   how it went, then Done, Skipped or Need help. The photos (up to 3) and note are kept with the dose. Home shows only the profile and
-   Today; the medication cards with their tabs (All medications, Due today, Needs refill, Finished) are on All medications. */
+   how it went, then Done, Skipped or Need help. The photos (up to 3) and note are kept with the dose. Home shows the profile and
+   the medication cards with their tabs (All medications, Due today, Needs refill, Finished); Today is in the My Tasks sheet. */
 let takeRef='';const blankTake=()=>({photos:[],note:'',help:false,busy:false});let takeDraft=blankTake();
 const TAKE_PHOTOS=3;
 const takeTask=()=>{const [id,key]=takeRef.split('|');return todayTasks(items,today()).find(x=>x.item.id===id&&x.key===key&&x.slot)};
@@ -45,18 +45,30 @@ document.addEventListener('input',e=>{if(e.target.id==='take-note')takeDraft.not
 document.addEventListener('change',async e=>{if(e.target.id!=='take-photo')return;const files=[...e.target.files].slice(0,TAKE_PHOTOS-takeDraft.photos.length);
 try{for(const f of files)takeDraft.photos.push(await readPhoto(f));if(e.target.files.length>files.length)toast(`Up to ${TAKE_PHOTOS} photos.`)}catch(err){toast(err.message)}render()});
 
-/* Home keeps the profile and Today; everything else in the gallery moves to All medications, with When to call under it. */
+/* Home: the profile picture with All medications under it (tabs, cards, When to call). The vital signs, the done count and
+   today's task cards sit in My Tasks, a sheet at the bottom of Home: drag its handle up to open it and down to make it small,
+   or tap the handle. */
+let tasksOpen=false;
+const TASKS_CHEVRON='<svg viewBox="0 0 44 12" aria-hidden="true"><path d="M3 9 22 3l19 6"/></svg>';
+const tasksSheet=inner=>`<section class="tasks-sheet${tasksOpen?' open':''}" id="tasks-sheet" aria-label="My Tasks"><div class="tasks-top" id="tasks-top"><button class="tasks-handle" id="tasks-handle" aria-expanded="${tasksOpen}" aria-controls="tasks-body" aria-label="${tasksOpen?'Make My Tasks smaller':'Open My Tasks'}">${TASKS_CHEVRON}</button><h2>My Tasks</h2></div><div class="tasks-body" id="tasks-body">${inner}</div></section>`;
 const galleryBeforeTake=gallery;
-gallery=function(){const el=document.createElement('div');el.innerHTML=galleryBeforeTake();
-if(view==='purchases'){el.querySelectorAll(':scope>.profile-hero,:scope>.home-today').forEach(n=>n.remove());el.insertAdjacentHTML('afterbegin','<div class="page-heading"><div><h1>All medications.</h1><p>Due today, needs refill and finished.</p></div></div>');el.insertAdjacentHTML('beforeend',`<section class="home-today">${whenToCallHTML()}</section>`)}
-else el.querySelectorAll(':scope>*:not(.profile-hero):not(.home-today)').forEach(n=>n.remove());
+gallery=function(){if(view!=='overview')return galleryBeforeTake();const el=document.createElement('div');el.innerHTML=galleryBeforeTake();
+const tasks=el.querySelector(':scope>.home-today');if(tasks)tasks.remove();
+el.insertAdjacentHTML('beforeend',`<section class="home-today">${whenToCallHTML()}</section>${tasksSheet(tasks?tasks.outerHTML:'')}`);
 return el.innerHTML};
-
-menuIcons.meds='<rect x="2.5" y="8.5" width="19" height="7" rx="3.5" transform="rotate(-45 12 12)"/><path d="m9.5 9.5 5 5"/>';
-menuItems.splice(1,0,['purchases','All medications','meds']);
+function setTasksOpen(open){tasksOpen=open;const s=$('#tasks-sheet'),h=$('#tasks-handle');if(!s)return;s.style.height='';s.classList.toggle('open',open);h.setAttribute('aria-expanded',open);h.setAttribute('aria-label',open?'Make My Tasks smaller':'Open My Tasks');if(!open)$('#tasks-body').scrollTop=0}
+/* Dragging: the sheet follows the finger, then settles open (dragged up) or small (dragged down). A tap just flips it. */
+let tasksDrag=null;
+document.addEventListener('pointerdown',e=>{const top=e.target.closest('#tasks-top');if(!top)return;const s=$('#tasks-sheet');tasksDrag={y:e.clientY,h:s.getBoundingClientRect().height,moved:false};s.classList.add('dragging');top.setPointerCapture(e.pointerId)});
+document.addEventListener('pointermove',e=>{if(!tasksDrag)return;const s=$('#tasks-sheet'),dy=tasksDrag.y-e.clientY;if(Math.abs(dy)>6)tasksDrag.moved=true;if(tasksDrag.moved)s.style.height=Math.max(0,tasksDrag.h+dy)+'px'});
+const endTasksDrag=e=>{if(!tasksDrag)return;const s=$('#tasks-sheet'),d=tasksDrag,dy=d.y-e.clientY;tasksDrag=null;if(!s)return;s.classList.remove('dragging');
+setTasksOpen(e.type==='pointercancel'?tasksOpen:!d.moved?!tasksOpen:dy>40?true:dy<-40?false:tasksOpen)};
+document.addEventListener('pointerup',endTasksDrag);document.addEventListener('pointercancel',endTasksDrag);
+/* Keyboard: Enter or Space on the handle. */
+document.addEventListener('click',e=>{if(e.detail===0&&e.target.closest('#tasks-handle'))setTasksOpen(!tasksOpen)});
 
 const renderBeforeTake=render;
-render=function(){if(view==='take'&&!takeTask())view='overview';
+render=function(){if(view==='take'&&!takeTask()||view==='purchases')view='overview';
 if(view==='take'){ensureMenuChrome();if(typeof stopJourneyCamera==='function')stopJourneyCamera();document.body.classList.remove('flow-active');const fp=$('#flow-profile');if(fp)fp.hidden=true;$('#main').innerHTML=takePage();paintIcons()}else renderBeforeTake();
 document.querySelectorAll('.global-header [data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===(view==='take'?'overview':view)))};
 render();

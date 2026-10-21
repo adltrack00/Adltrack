@@ -110,3 +110,19 @@
 .today-progress{margin:0 0 18px}
 .today-progress span{display:block;text-align:right;font-size:18px;color:#777;margin:0 0 10px}
 .progress-bar{height:8px;border-radius:999px;background:#eee;overflow:hidden}.progress-bar i{display:block;height:100%;background:#1c1c1c;border-radius:999px;transition:width .3s}
+/* My Tasks: a white sheet at the bottom of Home with a grab handle, like a pull-up drawer. Small, it shows only its title;
+   open, it fills the screen under the header and scrolls on its own. */
+#main:has(.tasks-sheet){padding-bottom:150px}
+.tasks-sheet{position:fixed;left:0;right:0;bottom:0;z-index:40;height:118px;display:flex;flex-direction:column;background:#fff;border-radius:24px 24px 0 0;box-shadow:0 -1px 0 rgba(0,0,0,.04),0 -8px 28px rgba(0,0,0,.09);transition:height .32s cubic-bezier(.2,.8,.2,1)}
+.tasks-sheet.open{height:calc(100dvh - 72px)}
+.tasks-sheet.dragging{transition:none}
+.tasks-top{flex:none;padding:0 24px;cursor:grab;touch-action:none;user-select:none}
+.tasks-sheet.dragging .tasks-top{cursor:grabbing}
+.tasks-handle{display:block;width:100%;height:30px;padding:10px 0 0;border:0;background:none;cursor:inherit}
+.tasks-handle svg{display:block;width:44px;height:12px;margin:0 auto;fill:none;stroke:#c8c8c8;stroke-width:4.5;stroke-linecap:round;stroke-linejoin:round;transition:transform .32s}
+.tasks-sheet.open .tasks-handle svg{transform:scaleY(-1)}
+.tasks-top h2{margin:6px 0 22px;font-size:34px;line-height:1.1;letter-spacing:-1px;font-weight:700;color:#000}
+.tasks-body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:4px 24px 40px}
+.tasks-sheet:not(.open):not(.dragging) .tasks-body{visibility:hidden}
+.tasks-body .home-today{margin:0}
+@media(max-width:650px){.tasks-top,.tasks-body{padding-left:20px;padding-right:20px}.tasks-top h2{font-size:30px}}
