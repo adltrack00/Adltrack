@@ -110,19 +110,51 @@
 .today-progress{margin:0 0 18px}
 .today-progress span{display:block;text-align:right;font-size:18px;color:#777;margin:0 0 10px}
 .progress-bar{height:8px;border-radius:999px;background:#eee;overflow:hidden}.progress-bar i{display:block;height:100%;background:#1c1c1c;border-radius:999px;transition:width .3s}
-/* My Tasks: a white sheet at the bottom of Home with a grab handle, like a pull-up drawer. Small, it shows only its title;
-   open, it fills the screen under the header and scrolls on its own. */
-#main:has(.tasks-sheet){padding-bottom:150px}
-.tasks-sheet{position:fixed;left:0;right:0;bottom:0;z-index:40;height:118px;display:flex;flex-direction:column;background:#fff;border-radius:24px 24px 0 0;box-shadow:0 -1px 0 rgba(0,0,0,.04),0 -8px 28px rgba(0,0,0,.09);transition:height .32s cubic-bezier(.2,.8,.2,1)}
-.tasks-sheet.open{height:calc(100dvh - 72px)}
+/* My Tasks: a white sheet at the bottom of Home with a grab handle, like a pull-up drawer. Small, it shows only the handle and
+   its title, with no space under it; open, it fills the whole screen to the top and scrolls on its own. */
+#main:has(.tasks-sheet){padding-bottom:100px}
+.tasks-sheet{position:fixed;left:0;right:0;bottom:0;z-index:40;height:74px;display:flex;flex-direction:column;background:#fff;border-radius:24px 24px 0 0;box-shadow:0 -1px 0 rgba(0,0,0,.04),0 -8px 28px rgba(0,0,0,.09);transition:height .32s cubic-bezier(.2,.8,.2,1)}
+.tasks-sheet.open{height:100dvh}
 .tasks-sheet.dragging{transition:none}
 .tasks-top{flex:none;padding:0 24px;cursor:grab;touch-action:none;user-select:none}
 .tasks-sheet.dragging .tasks-top{cursor:grabbing}
 .tasks-handle{display:block;width:100%;height:30px;padding:10px 0 0;border:0;background:none;cursor:inherit}
 .tasks-handle svg{display:block;width:44px;height:12px;margin:0 auto;fill:none;stroke:#c8c8c8;stroke-width:4.5;stroke-linecap:round;stroke-linejoin:round;transition:transform .32s}
 .tasks-sheet.open .tasks-handle svg{transform:scaleY(-1)}
-.tasks-top h2{margin:6px 0 22px;font-size:34px;line-height:1.1;letter-spacing:-1px;font-weight:700;color:#000}
-.tasks-body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:4px 24px 40px}
+.tasks-top h2{margin:6px 0 0;font-size:34px;line-height:1.1;letter-spacing:-1px;font-weight:700;color:#000}
+.tasks-body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:26px 24px 40px}
 .tasks-sheet:not(.open):not(.dragging) .tasks-body{visibility:hidden}
 .tasks-body .home-today{margin:0}
-@media(max-width:650px){.tasks-top,.tasks-body{padding-left:20px;padding-right:20px}.tasks-top h2{font-size:30px}}
+@media(max-width:650px){.tasks-top,.tasks-body{padding-left:20px;padding-right:20px}.tasks-top h2{font-size:30px}.tasks-sheet{height:70px}}
+/* Daily care report on Home (report.js): three tabs, a small black banner with the name, date and Print, then numbered sections,
+   two to a row (Notes and Still to do take the full row). One column on phones. */
+.report{margin:0 0 32px}
+.report-tabs{display:flex;justify-content:space-between;gap:12px;margin:0 0 20px;border-bottom:1px solid #eee}
+.report-tabs button{flex:1;font-size:14px;padding:12px 0;margin-bottom:-1px}
+.report-banner{display:flex;justify-content:space-between;align-items:center;gap:16px;background:#111;color:#fff;border-radius:18px 18px 0 0;padding:16px 22px}
+.report-banner span{display:flex;align-items:center;gap:10px;font-size:10px;letter-spacing:.22em;color:#bbb}
+.report-banner span::before{content:'';width:18px;height:2px;background:#fff}
+.report-banner h2{color:#fff;font-size:20px;margin:6px 0 2px;letter-spacing:-.4px}
+.report-banner p{margin:0;color:#aaa;font-size:12px}
+.report-banner button{flex:none;border:1px solid #555;border-radius:20px;background:none;color:#fff;font-size:12px;padding:7px 14px}
+.report-grid{display:grid;grid-template-columns:1fr 1fr;border:1px solid #e6e6e6;border-top:0;border-radius:0 0 18px 18px;overflow:hidden}
+.report-section{padding:16px 20px 18px;border-top:1px solid #eee}
+.report-section:not(.wide):nth-child(odd of :not(.wide)){border-right:1px solid #eee}
+.report-section.wide{grid-column:1/-1}
+.report-section h3{display:flex;align-items:center;gap:10px;margin:0 0 8px;font-size:14px;font-weight:700;letter-spacing:-.1px}
+.report-section h3 span{display:grid;place-items:center;width:24px;height:24px;border-radius:7px;background:#edeae5;font-size:10px;font-weight:600;color:#555;letter-spacing:0}
+.report-section p,.report-section li{margin:0;padding-left:34px;font-size:13px;color:#777;line-height:1.45}
+.report-section ul{list-style:none;margin:0;padding:0;display:grid;gap:5px}
+.report-section li{color:#111}
+.report-section li.report-note{padding-top:8px;padding-bottom:8px;border-bottom:1px solid #f2f2f2}.report-section li.report-note:last-child{border-bottom:0}
+.report-note small{display:block;font-size:12px;color:#777;margin-bottom:2px}
+.report-empty{text-align:center;padding:48px 20px;border:1px solid #e6e6e6;border-radius:18px}
+.report-empty svg{width:30px;height:30px;fill:none;stroke:#111;stroke-width:1.5;stroke-linejoin:round}
+.report-empty h2{font-size:18px;margin:10px 0 6px}
+.report-empty p{margin:0;color:#777;font-size:13px}
+.report-photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px}
+.report-photos figure{margin:0}
+.report-photos img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:16px;background:#edeae5;display:block}
+.report-photos figcaption{margin-top:8px;font-size:13px;color:#777}.report-photos figcaption strong{display:block;color:#111;font-size:14px}
+@media(max-width:650px){.report-grid{grid-template-columns:1fr}.report-section:not(.wide):nth-child(odd of :not(.wide)){border-right:0}.report-section{padding:14px 16px 16px}.report-banner{padding:14px 16px}.report-photos{grid-template-columns:1fr 1fr;gap:12px}}
+@media print{.global-header,.menu-open,.tasks-sheet,.report-tabs,#report-print,.profile-hero{display:none!important}#main{padding:0!important}.report-banner{-webkit-print-color-adjust:exact;print-color-adjust:exact}}

@@ -45,9 +45,8 @@ document.addEventListener('input',e=>{if(e.target.id==='take-note')takeDraft.not
 document.addEventListener('change',async e=>{if(e.target.id!=='take-photo')return;const files=[...e.target.files].slice(0,TAKE_PHOTOS-takeDraft.photos.length);
 try{for(const f of files)takeDraft.photos.push(await readPhoto(f));if(e.target.files.length>files.length)toast(`Up to ${TAKE_PHOTOS} photos.`)}catch(err){toast(err.message)}render()});
 
-/* Home: the profile picture with All medications under it (tabs, cards, When to call). The vital signs, the done count and
-   today's task cards sit in My Tasks, a sheet at the bottom of Home: drag its handle up to open it and down to make it small,
-   or tap the handle. */
+/* My Tasks: the vital signs, the done count and today's task cards sit in a sheet at the bottom of Home (report.js): drag its
+   handle up to open it and down to make it small, or tap the handle. */
 let tasksOpen=false;
 const TASKS_CHEVRON='<svg viewBox="0 0 44 12" aria-hidden="true"><path d="M3 9 22 3l19 6"/></svg>';
 const tasksSheet=inner=>`<section class="tasks-sheet${tasksOpen?' open':''}" id="tasks-sheet" aria-label="My Tasks"><div class="tasks-top" id="tasks-top"><button class="tasks-handle" id="tasks-handle" aria-expanded="${tasksOpen}" aria-controls="tasks-body" aria-label="${tasksOpen?'Make My Tasks smaller':'Open My Tasks'}">${TASKS_CHEVRON}</button><h2>My Tasks</h2></div><div class="tasks-body" id="tasks-body">${inner}</div></section>`;
@@ -67,8 +66,10 @@ document.addEventListener('pointerup',endTasksDrag);document.addEventListener('p
 /* Keyboard: Enter or Space on the handle. */
 document.addEventListener('click',e=>{if(e.detail===0&&e.target.closest('#tasks-handle'))setTasksOpen(!tasksOpen)});
 
+menuIcons.meds='<rect x="2.5" y="8.5" width="19" height="7" rx="3.5" transform="rotate(-45 12 12)"/><path d="m9.5 9.5 5 5"/>';
+
 const renderBeforeTake=render;
-render=function(){if(view==='take'&&!takeTask()||view==='purchases')view='overview';
+render=function(){if(view==='take'&&!takeTask())view='overview';
 if(view==='take'){ensureMenuChrome();if(typeof stopJourneyCamera==='function')stopJourneyCamera();document.body.classList.remove('flow-active');const fp=$('#flow-profile');if(fp)fp.hidden=true;$('#main').innerHTML=takePage();paintIcons()}else renderBeforeTake();
 document.querySelectorAll('.global-header [data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===(view==='take'?'overview':view)))};
 render();
