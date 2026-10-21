@@ -63,7 +63,7 @@ const form=vitalsOpen?`<form class="vitals-form" id="vitals-form">${VITALS.map((
 return `<div class="vitals">${tiles}</div>${form}`}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-vitals]');if(!b)return;vitalsOpen=!vitalsOpen;render();if(vitalsOpen){const f=$('#vital-bp');if(f)f.focus()}});
 document.addEventListener('submit',e=>{if(e.target.id!=='vitals-form')return;e.preventDefault();const d=new FormData(e.target),v={};for(const [k] of VITALS){const x=String(d.get(k)||'').trim().slice(0,9);if(x)v[k]=x}
-settings.vitals={...v,at:new Date().toISOString()};vitalsOpen=false;save();render();toast('Vital signs saved.')});
+settings.vitals={...v,at:new Date().toISOString()};settings.vitalsLog=[...(settings.vitalsLog||[]),settings.vitals].slice(-60);vitalsOpen=false;save();render();toast('Vital signs saved.')});
 
 /* Home: the profile picture on top, the vital signs, how many of today's tasks are done as a line, then the task cards. */
 function todayHTML(){const has=items.some(i=>(i.med||i.appt)&&i.status!=='received');if(!has)return `<section class="home-today">${vitalsHTML()}</section>`;const day=today(),tasks=homeTasks(day),done=tasks.filter(x=>x.state==='done').length,pct=tasks.length?Math.round(done/tasks.length*100):0;

@@ -1,21 +1,22 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const core=require('../core.js');
-/* The daily report's sections, built from home.js's todayTasks and report.js's reportSections. */
+/* The daily report: everything done on one day as time-stamped entries (report.js reportEntries). */
 function report(items){const h=fs.readFileSync('home.js','utf8'),r=fs.readFileSync('report.js','utf8');
 const src=h.slice(h.indexOf('const dayOf='),h.indexOf('/* The totals in the menu.'))+r.slice(r.indexOf('const reportTime='),r.indexOf('function reportHTML('));
 const ctx={items,C:core,today:()=>'2026-10-14',howText:()=>'',clockText:t=>({'08:00':'8:00 AM','14:00':'2:00 PM','18:00':'6:00 PM'})[t]||t,settings:{}};
-vm.runInNewContext(src.replace(/const (\w+)=/g,'var $1=')+';this.reportSections=reportSections;this.reportPhotos=reportPhotos;',ctx);return ctx}
-const meds=()=>[{id:'a',med:true,status:'deciding',name:'Lisinopril 10 mg',times:['08:00'],doses:[{at:'2026-10-14T08:05:00',day:'2026-10-14',slot:'08:00',kind:'taken',by:'Ana',note:'Took it with breakfast.',photos:['/api/files/x']},{at:'2026-10-13T08:05:00',day:'2026-10-13',slot:'08:00',kind:'taken'}],refill:{step:'call'},marks:[{day:'2026-10-13',key:'refill:call',kind:'done'}]},
-{id:'b',med:true,status:'deciding',name:'Metoprolol 25 mg',times:['08:00','18:00'],doses:[{at:'2026-10-14T08:10:00',day:'2026-10-14',slot:'08:00',kind:'skipped'}]},
-{id:'v',appt:true,status:'deciding',name:'Follow-up visit with Dr. Patel',date:'2026-10-14',time:'14:00'},
-{id:'e',med:true,status:'received',name:'Amoxicillin 500 mg',finishedAt:'2026-10-14T12:00:00',finishedBy:'Ana'}];
-const lines=s=>JSON.parse(JSON.stringify(s.map(x=>[x.title,x.lines])));
-test('today: the task notes first, then taken, skipped, still to do, vitals, refills, visits and finished',()=>{const r=report(meds()),s=r.reportSections(undefined,'2026-10-14',{bp:'120/76',at:'2026-10-14T09:00:00'},'2026-10-14');
-  const t=lines(s);assert.deepEqual(t.map(x=>x[0]),['Notes','Doses taken','Doses skipped','Still to do','Vital signs','Refills','Visits','Finished']);
-  assert.match(t[1][1][0],/^8:00 AM dose · Lisinopril 10 mg · taken .* · by Ana$/);assert.match(t[2][1][0],/Metoprolol 25 mg · skipped/);
-  assert.deepEqual(t[3][1],['2:00 PM · Follow-up visit with Dr. Patel','6:00 PM · Metoprolol 25 mg','Call the pharmacy to refill Lisinopril 10 mg']);
-  assert.match(t[4][1][0],/^BP 120\/76 · /);assert.deepEqual(t[5][1],[]);assert.deepEqual(t[6][1],['2:00 PM · Follow-up visit with Dr. Patel · coming up']);
-  assert.equal(t[0][1].length,1);assert.match(t[0][1][0].head,/^8:00 AM dose · Lisinopril 10 mg · taken .* · by Ana$/);assert.equal(t[0][1][0].text,'Took it with breakfast.');assert.deepEqual(t[7][1],['Amoxicillin 500 mg · by Ana'])});
-test('the previous day shows only that day, says Not marked, and leaves out today\'s vitals and refill step',()=>{const r=report(meds()),t=lines(r.reportSections(undefined,'2026-10-13',{bp:'120/76',at:'2026-10-14T09:00:00'},'2026-10-14'));
-  assert.deepEqual(t[0][1],[]);assert.equal(t[1][1].length,1);assert.equal(t[3][0],'Not marked');assert.deepEqual(t[3][1],['8:00 AM · Metoprolol 25 mg','6:00 PM · Metoprolol 25 mg']);assert.deepEqual(t[5][1],['Lisinopril 10 mg · called for a refill']);assert.deepEqual([t[4][1],t[6][1],t[7][1]].map(x=>x.length),[0,0,0])});
-test('Photos lists the day\'s proof photos with their medication',()=>{const p=report(meds()).reportPhotos(undefined,'2026-10-14');assert.deepEqual(JSON.parse(JSON.stringify(p)),[{src:'/api/files/x',name:'Lisinopril 10 mg',at:'2026-10-14T08:05:00'}])});
+vm.runInNewContext(src.replace(/const (\w+)=/g,'var $1=')+';this.reportEntries=reportEntries;this.reportPhotos=reportPhotos;',ctx);return ctx}
+const at=t=>new Date('2026-10-14T'+t).toISOString(),y=t=>new Date('2026-10-13T'+t).toISOString();
+const meds=()=>[{id:'a',med:true,status:'deciding',name:'Lisinopril 10 mg',dose:'1 tablet',times:['08:00'],pharmacy:{name:'CVS'},
+doses:[{at:at('08:05'),day:'2026-10-14',slot:'08:00',kind:'taken',by:'Ana',note:'Took it with breakfast.',photos:['/api/files/x','/api/files/y']},{at:y('08:05'),day:'2026-10-13',slot:'08:00',kind:'taken'}],
+log:[{at:at('10:30'),kind:'refill-called',by:'Ana'},{at:y('09:00'),kind:'refill-needed'}]},
+{id:'b',med:true,status:'deciding',name:'Metoprolol 25 mg',times:['08:00','18:00'],doses:[{at:at('08:10'),day:'2026-10-14',slot:'08:00',kind:'skipped',note:'Felt dizzy.'}]},
+{id:'v',appt:true,status:'received',name:'Follow-up visit with Dr. Patel',date:'2026-10-14',time:'14:00',place:'Heart Clinic'},
+{id:'e',med:true,status:'received',name:'Amoxicillin 500 mg',finishedAt:at('16:00'),finishedBy:'Ana'}];
+const plain=x=>JSON.parse(JSON.stringify(x));
+test('today: every thing done, in time order, each with a subhead, its time, the note from the task and the details',()=>{const e=plain(report(meds()).reportEntries(undefined,'2026-10-14',[{bp:'120/76',heart:'72',at:at('09:00')},{bp:'130/80',at:y('09:00')}]));
+  assert.deepEqual(e.map(x=>x.title),['Lisinopril 10 mg taken','Metoprolol 25 mg skipped','Vital signs recorded','Lisinopril 10 mg: called for a refill','Follow-up visit with Dr. Patel: went','Amoxicillin 500 mg finished']);
+  assert.deepEqual(e[0],{title:'Lisinopril 10 mg taken',at:at('08:05'),note:'Took it with breakfast.',details:['8:00 AM dose · 1 tablet','Marked by Ana','2 photos added']});
+  assert.equal(e[1].note,'Felt dizzy.');assert.deepEqual(e[2].details,['BP 120/76 · Heart 72']);assert.deepEqual(e[3].details,['CVS','Marked by Ana']);assert.deepEqual(e[4].details,['Heart Clinic'])});
+test('the previous day shows only what was done that day',()=>{const e=plain(report(meds()).reportEntries(undefined,'2026-10-13',[{bp:'130/80',at:y('09:00')}]));
+  assert.deepEqual(e.map(x=>x.title),['Lisinopril 10 mg taken','Vital signs recorded','Lisinopril 10 mg: needs a refill'])});
+test('Photos lists the day\'s proof photos with their medication',()=>{const p=plain(report(meds()).reportPhotos(undefined,'2026-10-14'));assert.equal(p.length,2);assert.deepEqual(p[0],{src:'/api/files/x',name:'Lisinopril 10 mg',at:at('08:05')})});
