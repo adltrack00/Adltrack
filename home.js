@@ -48,9 +48,25 @@ function todayThumb(x){if(x.item.appt)return apptPhoto(x.item);return x.slot||x.
 function todayRow(x){const line=[x.slot?x.item.dose:'',x.time?clockText(x.time):''].filter(Boolean).join(' · '),pill=x.state==='done'?'✓ Done':x.state==='skipped'?'Skipped':x.item.appt?'Open':'Start';
 return `<li class="today-row${x.state?' is-'+x.state:''}"><button class="today-card" data-today-start="${esc(x.item.id+'|'+x.key)}"><span class="today-thumb">${todayThumb(x)}</span><span class="today-what"><strong>${esc(x.title)}</strong>${line?`<small>${esc(line)}</small>`:''}</span><span class="today-pill${x.state?' is-marked':''}">${pill}</span></button></li>`}
 const homeTasks=(day=today())=>todayTasks(items,day).filter(x=>x.slot||x.key==='appt');
-function todayHTML(){if(!items.some(i=>(i.med||i.appt)&&i.status!=='received'))return '';const day=today(),tasks=homeTasks(day),done=tasks.filter(x=>x.state==='done').length,d=C.parseDate(day);
-const date=d.toLocaleDateString('en-US',{weekday:'long'})+' '+d.toLocaleDateString('en-US',{month:'long',day:'numeric'});
-return `<section class="home-today"><h2>Today, ${esc(date)} <span>· ${done} of ${tasks.length} done${tasks.some(x=>x.item.demo)?' · Examples':''}</span></h2>${tasks.length?`<ul class="today-list">${tasks.map(todayRow).join('')}</ul>`:'<p class="today-empty">Nothing due today.</p>'}</section>`}
+/* Vital signs on Home, in four colored tiles: blood pressure, heart rate, temperature and pain. Tapping one opens a small form
+   under them; the last reading is kept with the reminder settings, so it follows the account. */
+let vitalsOpen=false;
+const VITALS=[['bp','BP','vital-pink','<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z" fill="currentColor" stroke="none"/>','120/76',''],
+['heart','Heart','vital-orange','<path d="M3 12h4l2-5 4 10 2-5h6"/>','72',''],
+['temp','Temp','vital-blue','<path d="M10 4a2 2 0 0 1 4 0v10a4 4 0 1 1-4 0Z"/><path d="M12 9v7"/>','98.6','°'],
+['pain','Pain','vital-purple','<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="6"/><path d="M10 11h.01M14 11h.01M10 15.5c1.2-1 2.8-1 4 0"/>','0 to 10','/10']];
+function vitalsHTML(){const v=settings.vitals||{},at=v.at?new Date(v.at):null;
+const tiles=VITALS.map(([k,label,tone,path,,unit])=>`<button class="vital-tile ${tone}" data-vitals aria-label="${esc(label)}: ${v[k]?esc(v[k]+unit):'add'}"><span class="vital-icon"><svg viewBox="0 0 24 24" aria-hidden="true">${path}</svg></span><strong>${v[k]?esc(v[k]+unit):'—'}</strong><small>${esc(label)}</small></button>`).join('');
+const form=vitalsOpen?`<form class="vitals-form" id="vitals-form">${VITALS.map(([k,label,,,ph])=>`<label><span>${esc(label)}</span><input id="vital-${k}" name="${k}" value="${esc(v[k]||'')}" placeholder="${esc(ph)}" inputmode="${k==='bp'?'text':'decimal'}" maxlength="9" autocomplete="off"></label>`).join('')}<div class="vitals-actions"><button class="today-pill" id="vitals-save" type="submit">Save</button><button class="today-pill is-light" type="button" data-vitals>Cancel</button></div>${at?`<p class="today-empty">Last saved ${esc(at.toLocaleDateString('en-US',{month:'short',day:'numeric'}))} at ${esc(at.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}))}.</p>`:''}</form>`:'';
+return `<div class="vitals">${tiles}</div>${form}`}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-vitals]');if(!b)return;vitalsOpen=!vitalsOpen;render();if(vitalsOpen){const f=$('#vital-bp');if(f)f.focus()}});
+document.addEventListener('submit',e=>{if(e.target.id!=='vitals-form')return;e.preventDefault();const d=new FormData(e.target),v={};for(const [k] of VITALS){const x=String(d.get(k)||'').trim().slice(0,9);if(x)v[k]=x}
+settings.vitals={...v,at:new Date().toISOString()};vitalsOpen=false;save();render();toast('Vital signs saved.')});
+
+/* All medications on Home: the vital signs, today's progress as a bar, then today's task cards. */
+function todayHTML(){const has=items.some(i=>(i.med||i.appt)&&i.status!=='received');if(!has)return `<section class="home-today">${vitalsHTML()}</section>`;const day=today(),tasks=homeTasks(day),done=tasks.filter(x=>x.state==='done').length,d=C.parseDate(day);
+const date=d.toLocaleDateString('en-US',{weekday:'long'})+' '+d.toLocaleDateString('en-US',{month:'long',day:'numeric'}),pct=tasks.length?Math.round(done/tasks.length*100):0;
+return `<section class="home-today">${vitalsHTML()}<div class="today-progress"><h2>All medications <span>${done}/${tasks.length}</span></h2><div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${tasks.length}" aria-valuenow="${done}" aria-label="${done} of ${tasks.length} done today"><i style="width:${pct}%"></i></div><p>Today, ${esc(date)}${tasks.some(x=>x.item.demo)?' · Examples':''}</p></div>${tasks.length?`<ul class="today-list">${tasks.map(todayRow).join('')}</ul>`:'<p class="today-empty">Nothing due today.</p>'}</section>`}
 
 gallery=function(){const el=document.createElement('div');el.innerHTML=galleryBeforeHome();const hero=el.querySelector('.profile-hero');if(hero)hero.insertAdjacentHTML('afterend',todayHTML());el.querySelectorAll('.utility-links #import-purchases').forEach(n=>n.remove());return el.innerHTML};
 
