@@ -126,8 +126,9 @@
 .tasks-sheet:not(.open):not(.dragging) .tasks-body{visibility:hidden}
 .tasks-body .home-today{margin:0}
 @media(max-width:650px){.tasks-top,.tasks-body{padding-left:20px;padding-right:20px}.tasks-top h2{font-size:30px}.tasks-sheet{height:70px}}
-/* Daily care report on Home (report.js): three tabs, a small black banner with the name, date and Print, then numbered sections,
-   two to a row (Notes and Still to do take the full row). One column on phones. */
+/* Daily care report on Home (report.js): three tabs, a small black banner with the name, date and Print, then numbered entries,
+   two to a row (an entry with a note takes the full row). Each: number, subhead, time stamp on the right, the note, then details
+   in grey. One column on phones. */
 .report{margin:0 0 32px}
 .report-tabs{display:flex;justify-content:space-between;gap:12px;margin:0 0 20px;border-bottom:1px solid #eee}
 .report-tabs button{flex:1;font-size:14px;padding:12px 0;margin-bottom:-1px}
@@ -141,13 +142,13 @@
 .report-section{padding:16px 20px 18px;border-top:1px solid #eee}
 .report-section:not(.wide):nth-child(odd of :not(.wide)){border-right:1px solid #eee}
 .report-section.wide{grid-column:1/-1}
-.report-section h3{display:flex;align-items:center;gap:10px;margin:0 0 8px;font-size:14px;font-weight:700;letter-spacing:-.1px}
-.report-section h3 span{display:grid;place-items:center;width:24px;height:24px;border-radius:7px;background:#edeae5;font-size:10px;font-weight:600;color:#555;letter-spacing:0}
+.report-section h3{display:flex;align-items:baseline;gap:10px;margin:0 0 8px;font-size:14px;font-weight:700;letter-spacing:-.1px}
+.report-section h3 span{flex:none;align-self:center;display:grid;place-items:center;width:24px;height:24px;border-radius:7px;background:#edeae5;font-size:10px;font-weight:600;color:#555;letter-spacing:0}
 .report-section p,.report-section li{margin:0;padding-left:34px;font-size:13px;color:#777;line-height:1.45}
 .report-section ul{list-style:none;margin:0;padding:0;display:grid;gap:5px}
-.report-section li{color:#111}
-.report-section li.report-note{padding-top:8px;padding-bottom:8px;border-bottom:1px solid #f2f2f2}.report-section li.report-note:last-child{border-bottom:0}
-.report-note small{display:block;font-size:12px;color:#777;margin-bottom:2px}
+.report-section h3 time{margin-left:auto;font-size:12px;font-weight:400;color:#777;white-space:nowrap}
+.report-section p.report-note-text{color:#111;margin:0 0 6px}
+.report-section p.report-none{padding-left:0}
 .report-empty{text-align:center;padding:48px 20px;border:1px solid #e6e6e6;border-radius:18px}
 .report-empty svg{width:30px;height:30px;fill:none;stroke:#111;stroke-width:1.5;stroke-linejoin:round}
 .report-empty h2{font-size:18px;margin:10px 0 6px}
