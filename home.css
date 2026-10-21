@@ -126,3 +126,34 @@
 .tasks-sheet:not(.open):not(.dragging) .tasks-body{visibility:hidden}
 .tasks-body .home-today{margin:0}
 @media(max-width:650px){.tasks-top,.tasks-body{padding-left:20px;padding-right:20px}.tasks-top h2{font-size:30px}}
+/* Daily care report on Home (report.js): heading with Print, three tabs, a black banner with the name and date, then numbered
+   sections, two to a row (Still to do and Finished take the full row). One column on phones. */
+.report{margin:0 0 40px}
+.report-heading{display:flex;justify-content:space-between;align-items:flex-end;margin:10px 0 26px}
+.report-heading h1{margin:8px 0 0}
+.report-tabs{display:flex;justify-content:space-between;gap:12px;margin:0 0 26px;border-bottom:1px solid #eee}
+.report-tabs button{flex:1;font-size:14px;padding:12px 0;margin-bottom:-1px}
+.report-banner{background:#111;color:#fff;border-radius:24px 24px 0 0;padding:30px 32px 28px}
+.report-banner span{display:flex;align-items:center;gap:12px;font-size:11px;letter-spacing:.24em;color:#bbb}
+.report-banner span::before{content:'';width:28px;height:2px;background:#fff}
+.report-banner h2{color:#fff;font-size:30px;margin:12px 0 6px;letter-spacing:-.8px}
+.report-banner p{margin:0;color:#aaa;font-size:14px}
+.report-grid{display:grid;grid-template-columns:1fr 1fr;border:1px solid #e6e6e6;border-top:0;border-radius:0 0 24px 24px;overflow:hidden}
+.report-section{padding:24px 28px 26px;border-top:1px solid #eee}
+.report-section:not(.wide):nth-child(odd of :not(.wide)){border-right:1px solid #eee}
+.report-section.wide{grid-column:1/-1}
+.report-section h3{display:flex;align-items:center;gap:12px;margin:0 0 12px;font-size:16px;font-weight:700;letter-spacing:-.2px}
+.report-section h3 span{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:#edeae5;font-size:11px;font-weight:600;color:#555;letter-spacing:0}
+.report-section p,.report-section li{margin:0;padding-left:42px;font-size:14px;color:#777;line-height:1.5}
+.report-section ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.report-section li{color:#111}
+.report-empty{text-align:center;padding:60px 20px;border:1px solid #e6e6e6;border-radius:24px}
+.report-empty svg{width:34px;height:34px;fill:none;stroke:#111;stroke-width:1.5;stroke-linejoin:round}
+.report-empty h2{font-size:20px;margin:12px 0 8px}
+.report-empty p{margin:0;color:#777;font-size:14px}
+.report-photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px}
+.report-photos figure{margin:0}
+.report-photos img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:16px;background:#edeae5;display:block}
+.report-photos figcaption{margin-top:8px;font-size:13px;color:#777}.report-photos figcaption strong{display:block;color:#111;font-size:14px}
+@media(max-width:650px){.report-heading h1{font-size:40px}.report-grid{grid-template-columns:1fr}.report-section:not(.wide):nth-child(odd of :not(.wide)){border-right:0}.report-section{padding:20px 20px 22px}.report-banner{padding:24px 22px}.report-banner h2{font-size:26px}.report-photos{grid-template-columns:1fr 1fr;gap:12px}}
+@media print{.global-header,.menu-open,.tasks-sheet,.report-tabs,#report-print,.profile-hero{display:none!important}#main{padding:0!important}.report-banner{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
