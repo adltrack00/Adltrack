@@ -426,32 +426,34 @@ function createApp({ store, data, production = false, policies = null, classifie
     const user = await currentUser(req);
     if (!user) throw new HttpError(401, 'Please sign in.');
 
-    // Whose care plan this account works on: its own, or the care team's it joined. Every care plan route below uses it.
-    const access = await team.access(user), owner = access.ownerId;
+    // Whose care plan this account works on: its own, or one of the care teams it joined, the one the app asked for (X-Patient)
+    // when this person is on it. Every care plan route below uses it.
+    const wanted = typeof req.headers['x-patient'] === 'string' ? req.headers['x-patient'].toLowerCase() : null;
+    const access = await team.access(user, wanted), owner = access.ownerId;
     // What this person may change on it (server/permissions.js). Viewers change nothing.
     const may = createPermissions(access);
 
     if (route === '/api/me' && method === 'GET') {
       const full = await store.findUserByEmail(user.email);
-      return send(res, 200, { user: { ...publicUser(user), ...(full && full.passwordHash === NO_PASSWORD ? { passwordless: true } : {}) }, team: { role: access.role, perms: access.perms, owner: access.owner, ...(access.changedBy ? { changedBy: access.changedBy } : {}) }, space: spaceOf(owner) });
+      return send(res, 200, { user: { ...publicUser(user), ...(full && full.passwordHash === NO_PASSWORD ? { passwordless: true } : {}) }, team: { role: access.role, perms: access.perms, owner: access.owner, ...(access.changedBy ? { changedBy: access.changedBy } : {}), patient: owner, patients: await team.patients(access) }, space: spaceOf(owner) });
     }
 
     // Settings → People: the care team, adding people by email and phone with what each may do, and joining from an invite.
-    if (route === '/api/team' && method === 'GET') return send(res, 200, await team.view(user));
+    if (route === '/api/team' && method === 'GET') return send(res, 200, await team.view(user, wanted));
     if (route === '/api/team/members' && method === 'POST') {
       checkWrite(req);
       if (!linkLimit('invite:' + user.id)) throw new HttpError(429, 'You’ve sent a lot of invites. Try again in a few minutes.');
-      return send(res, 201, await team.add(user, await readBody(req, 5_000), baseUrl(req)));
+      return send(res, 201, await team.add(user, await readBody(req, 5_000), baseUrl(req), wanted));
     }
     const memberMatch = /^\/api\/team\/members\/([0-9a-f-]{36})(\/invite)?$/i.exec(route);
-    if (memberMatch && !memberMatch[2] && method === 'PUT') { checkWrite(req); return send(res, 200, await team.update(user, memberMatch[1].toLowerCase(), await readBody(req, 5_000))); }
-    if (memberMatch && !memberMatch[2] && method === 'DELETE') { checkWrite(req); return send(res, 200, await team.remove(user, memberMatch[1].toLowerCase())); }
+    if (memberMatch && !memberMatch[2] && method === 'PUT') { checkWrite(req); return send(res, 200, await team.update(user, memberMatch[1].toLowerCase(), await readBody(req, 5_000), wanted)); }
+    if (memberMatch && !memberMatch[2] && method === 'DELETE') { checkWrite(req); return send(res, 200, await team.remove(user, memberMatch[1].toLowerCase(), wanted)); }
     if (memberMatch && memberMatch[2] && method === 'POST') {
       checkWrite(req);
       if (!linkLimit('invite:' + user.id)) throw new HttpError(429, 'You’ve sent a lot of invites. Try again in a few minutes.');
-      return send(res, 200, await team.resend(user, memberMatch[1].toLowerCase(), baseUrl(req)));
+      return send(res, 200, await team.resend(user, memberMatch[1].toLowerCase(), baseUrl(req), wanted));
     }
-    if (route === '/api/team/leave' && method === 'POST') { checkWrite(req); return send(res, 200, await team.leave(user)); }
+    if (route === '/api/team/leave' && method === 'POST') { checkWrite(req); return send(res, 200, await team.leave(user, wanted)); }
     if (route === '/api/invite/accept' && method === 'POST') {
       checkWrite(req);
       if (!linkLimit('ip:' + clientIp(req))) throw new HttpError(429, 'Too many attempts. Try again in a few minutes.');
@@ -721,10 +723,12 @@ function createApp({ store, data, production = false, policies = null, classifie
       return send(res, 201, await data.saveProof(owner, body && body.data));
     }
 
-    // Owner-only file, such as an item photo. Anyone else gets the same 404 as a file that doesn't exist.
+    // A file of a care plan this person is on, such as an item photo (or another family's patient photo, for the picker).
+    // Anyone else gets the same 404 as a file that doesn't exist.
     const fileMatch = /^\/api\/files\/([0-9a-f-]{36})$/i.exec(route);
     if (fileMatch && method === 'GET') {
-      const file = await data.readFile(owner, fileMatch[1].toLowerCase());
+      let file = null;
+      for (const id of [owner, ...access.patients.filter(p => p !== owner)]) if ((file = await data.readFile(id, fileMatch[1].toLowerCase()))) break;
       if (!file) throw new HttpError(404, 'Not found.');
       res.writeHead(200, { 'Content-Type': file.contentType, 'Content-Length': file.body.length, 'Cache-Control': 'private, max-age=31536000, immutable', 'Content-Disposition': 'inline', 'Content-Security-Policy': FILE_CSP });
       return res.end(file.body);

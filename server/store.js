@@ -290,8 +290,7 @@ create table if not exists oauth_identities (
   primary key (provider, subject)
 );
 -- Care teams: the people who share one account's care plan (its items, settings and photos). owner_id is the account whose
--- plan it is; the owner has a row too once anyone is added. user_id is set when the person joins from their invite link,
--- and one account belongs to one care team at a time. Only a SHA-256 of each invite token is kept.
+-- plan it is; the owner has a row too once anyone is added. user_id is set when the person joins from their invite link. Only a SHA-256 of each invite token is kept.
 create table if not exists team_members (
   id uuid primary key,
   owner_id uuid not null references users(id) on delete cascade,
@@ -307,7 +306,10 @@ create table if not exists team_members (
   joined_at timestamptz,
   unique (owner_id, email)
 );
-create unique index if not exists team_members_user_idx on team_members(user_id) where user_id is not null;
+-- One account can be on several families' care teams (a caregiver who goes to different homes), once per team.
+drop index if exists team_members_user_idx;
+create unique index if not exists team_members_team_user_idx on team_members(owner_id, user_id) where user_id is not null;
+create index if not exists team_members_member_idx on team_members(user_id) where user_id is not null;
 create index if not exists team_members_owner_idx on team_members(owner_id);`;
 
 const PURCHASE_COLUMNS = 'id, store, channel, order_number as "orderNumber", purchased, delivered, source, retailer_id as "retailerId", receipt_file_id as "receiptFileId", receipt_pages as "receiptPages"';
@@ -627,7 +629,8 @@ function pgStore(connectionString) {
     },
     listMembers: ownerId => all(`select ${MEMBER_COLUMNS} from team_members where owner_id=$1 order by invited_at, name`, [ownerId]),
     getMember: (ownerId, id) => one(`select ${MEMBER_COLUMNS} from team_members where owner_id=$1 and id=$2`, [ownerId, id]),
-    membershipOf: userId => one(`select ${MEMBER_COLUMNS} from team_members where user_id=$1`, [userId]),
+    // The care teams an account is on: its own first (when it set one up), then in the order it joined them.
+    membershipsOf: userId => all(`select ${MEMBER_COLUMNS} from team_members where user_id=$1 order by (owner_id = user_id) desc, joined_at, id`, [userId]),
     async updateMember(ownerId, id, { name, phone, role, perms }) {
       return one(`update team_members set name=coalesce($3,name), phone=coalesce($4,phone), role=coalesce($5,role), perms=coalesce($6,perms) where owner_id=$1 and id=$2 returning ${MEMBER_COLUMNS}`,
         [ownerId, id, name ?? null, phone ?? null, role ?? null, perms ? JSON.stringify(perms) : null]);
@@ -1023,14 +1026,14 @@ function fileStore(file) {
     async addMember({ ownerId, userId = null, name, email, phone = '', role, perms = {}, inviteHash = null, invitedBy = null }) {
       await load();
       const members = Object.values(db.members);
-      if (members.some(m => m.ownerId === ownerId && m.email === email) || (userId && members.some(m => m.userId === userId))) throw Object.assign(new Error('exists'), { code: 'EXISTS' });
+      if (members.some(m => m.ownerId === ownerId && (m.email === email || (userId && m.userId === userId)))) throw Object.assign(new Error('exists'), { code: 'EXISTS' });
       const m = { id: crypto.randomUUID(), ownerId, userId, name, email, phone, role, perms, inviteHash, invitedBy, invitedAt: now(), joinedAt: userId ? now() : null };
       db.members[m.id] = m; await persist();
       return memberOut(m);
     },
     async listMembers(ownerId) { await load(); return Object.values(db.members).filter(m => m.ownerId === ownerId).sort((a, b) => a.invitedAt.localeCompare(b.invitedAt) || a.name.localeCompare(b.name)).map(memberOut); },
     async getMember(ownerId, id) { await load(); const m = db.members[id]; return m && m.ownerId === ownerId ? memberOut(m) : null; },
-    async membershipOf(userId) { await load(); return memberOut(Object.values(db.members).find(m => m.userId === userId)); },
+    async membershipsOf(userId) { await load(); return Object.values(db.members).filter(m => m.userId === userId).sort((a, b) => (b.ownerId === userId) - (a.ownerId === userId) || String(a.joinedAt).localeCompare(String(b.joinedAt)) || a.id.localeCompare(b.id)).map(memberOut); },
     async updateMember(ownerId, id, { name, phone, role, perms }) {
       await load();
       const m = db.members[id];
@@ -1052,7 +1055,7 @@ function fileStore(file) {
       await load();
       const m = db.members[id];
       if (!m || m.userId) return null;
-      if (Object.values(db.members).some(x => x.userId === userId)) throw Object.assign(new Error('exists'), { code: 'EXISTS' });
+      if (Object.values(db.members).some(x => x.userId === userId && x.ownerId === m.ownerId)) throw Object.assign(new Error('exists'), { code: 'EXISTS' });
       Object.assign(m, { userId, joinedAt: now(), inviteHash: null }); await persist();
       return memberOut(m);
     },

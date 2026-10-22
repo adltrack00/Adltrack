@@ -85,7 +85,9 @@ test('an admin adds a caregiver by email and phone, who joins and shares the sam
     assert.equal((await george('GET', '/api/data')).body.data.purchases[0].doses[0].by, 'Maria');
     assert.equal((await george('GET', '/api/data')).body.space, (await maria('GET', '/api/data')).body.space);
     const me = await maria('GET', '/api/me');
-    assert.deepEqual(me.body.team, { role: 'caregiver', perms: { tasks: true, addTasks: false, meds: true }, owner: false });
+    const { patient, patients, ...team } = me.body.team;
+    assert.deepEqual(team, { role: 'caregiver', perms: { tasks: true, addTasks: false, meds: true }, owner: false });
+    assert.deepEqual(patients.map(p => p.id), [patient]);
 
     // The link works once.
     assert.equal((await app.client()('POST', '/api/invite/info', { token: t })).status, 400);
@@ -131,7 +133,7 @@ test('admins change what a person may do, resend invites and remove people, but 
   } finally { await app.close(); }
 });
 
-test('someone on one care team can’t join another until they leave', async () => {
+test('someone on one care team can join another family’s too, and leaves one without the other', async () => {
   const app = await boot();
   try {
     const a = await app.signUp('Ann', 'ann@example.com'), b = await app.signUp('Bo', 'bo@example.com');
@@ -139,9 +141,10 @@ test('someone on one care team can’t join another until they leave', async () 
     const inviteB = await b('POST', '/api/team/members', { name: 'Cy', email: 'cy@example.com', role: 'viewer' });
     const cy = await app.signUp('Cy', 'cy@example.com');
     assert.equal((await cy('POST', '/api/invite/accept', { token: app.token(inviteA.body.invite.link) })).status, 200);
-    assert.equal((await cy('POST', '/api/invite/accept', { token: app.token(inviteB.body.invite.link) })).status, 409);
-    assert.equal((await cy('POST', '/api/team/leave', {})).status, 200);
     assert.equal((await cy('POST', '/api/invite/accept', { token: app.token(inviteB.body.invite.link) })).status, 200);
+    assert.equal((await cy('GET', '/api/me')).body.team.patients.length, 2);
+    assert.equal((await cy('POST', '/api/team/leave', {})).status, 200);
+    assert.equal((await cy('GET', '/api/me')).body.team.patients.length, 1);
     // The owner can't leave their own team.
     assert.equal((await a('POST', '/api/team/leave', {})).status, 400);
   } finally { await app.close(); }

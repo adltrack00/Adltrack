@@ -1,7 +1,9 @@
 /* Care teams: an admin adds family and paid caregivers by email and phone, and chooses what each person may do. Everyone
    who joins shares the owner's care plan: the same medications, daily care report, photos, refills and visits.
    Roles: admin (adds people, changes the plan), caregiver (has My Tasks) and viewer (follows along). Admins tick the extra
-   permissions per person: My Tasks for an admin, and adding tasks or scanning and changing medications for a caregiver. */
+   permissions per person: My Tasks for an admin, and adding tasks or scanning and changing medications for a caregiver.
+   One account can be on several families' care teams: a caregiver who goes to different homes is signed up by each family's
+   admin, with that family's own role and ticks, and switches between them. Each team is one patient's care plan. */
 const crypto = require('node:crypto');
 const { normPhone } = require('./sms');
 
@@ -23,15 +25,18 @@ function permsFor(role, p = {}) {
 }
 
 function createTeam({ store, email = null, sms = null }) {
-  /* Whose care plan this account works on, and what it may do there. Someone on no team works on their own plan. */
-  async function access(user) {
-    const m = await store.membershipOf(user.id);
-    if (!m) return { ownerId: user.id, memberId: null, role: 'admin', perms: ALL, owner: true };
+  /* Whose care plan this account works on, and what it may do there. Someone on no team works on their own plan. Someone on
+     several teams works on the one the app asked for (wanted, the plan's owner id), or their first; patients lists them all. */
+  async function access(user, wanted = null) {
+    const list = await store.membershipsOf(user.id);
+    const m = list.find(x => x.ownerId === wanted) || list[0];
+    const patients = list.length ? list.map(x => x.ownerId) : [user.id];
+    if (!m) return { ownerId: user.id, memberId: null, role: 'admin', perms: ALL, owner: true, patients };
     // changedBy: the admin who last changed this person's access, for the note their app shows.
-    return { ownerId: m.ownerId, memberId: m.id, role: m.role, perms: permsFor(m.role, m.perms), owner: m.ownerId === user.id, ...(m.perms?.changedBy ? { changedBy: m.perms.changedBy } : {}) };
+    return { ownerId: m.ownerId, memberId: m.id, role: m.role, perms: permsFor(m.role, m.perms), owner: m.ownerId === user.id, ...(m.perms?.changedBy ? { changedBy: m.perms.changedBy } : {}), patients };
   }
-  async function requireAdmin(user) {
-    const a = await access(user);
+  async function requireAdmin(user, wanted) {
+    const a = await access(user, wanted);
     if (a.role !== 'admin') throw new TeamError(403, 'Only an admin can change who’s on the care team.');
     return a;
   }
@@ -43,9 +48,22 @@ function createTeam({ store, email = null, sms = null }) {
     ...(admin ? { email: m.email, phone: m.phone, invitedAt: m.invitedAt } : {})
   });
 
+  /* Each care plan this person is on, as the picker and the switch on Home show it: the patient's name and photo from the
+     plan's profile, and the family that signed them up. */
+  async function patients(a) {
+    const list = [];
+    for (const id of a.patients) {
+      const profile = (await store.getRawData(id))?.payload?.profile || {}, owner = await store.findUserById(id);
+      const photo = typeof profile.photo === 'string' && /^(data:image\/jpeg;base64,[a-z0-9+/=]+|\/api\/files\/[0-9a-f-]{36})$/i.test(profile.photo) ? profile.photo : '';
+      const name = typeof profile.name === 'string' && profile.name.trim() && profile.name.toLowerCase() !== 'you' ? profile.name.trim().slice(0, 40) : owner?.name || '';
+      list.push({ id, name, photo, by: owner?.name || '' });
+    }
+    return list;
+  }
+
   /* The care team as this account sees it. Phone numbers and emails are shown to admins only. */
-  async function view(user) {
-    const a = await access(user);
+  async function view(user, wanted = null) {
+    const a = await access(user, wanted);
     let members = await store.listMembers(a.ownerId);
     if (!members.length) {
       const owner = await store.findUserById(a.ownerId);
@@ -57,7 +75,7 @@ function createTeam({ store, email = null, sms = null }) {
 
   /* The owner gets their own row when the first person is added, so they show on the list and can tick My Tasks. */
   async function ensureOwner(ownerId) {
-    if (await store.membershipOf(ownerId)) return;
+    if ((await store.membershipsOf(ownerId)).some(m => m.ownerId === ownerId)) return;
     const owner = await store.findUserById(ownerId);
     try { await store.addMember({ ownerId, userId: ownerId, name: owner.name, email: owner.email, role: 'admin', perms: ALL }); }
     catch (err) { if (err.code !== 'EXISTS') throw err; }
@@ -102,8 +120,8 @@ function createTeam({ store, email = null, sms = null }) {
   }
   const newToken = () => { const token = crypto.randomBytes(32).toString('base64url'); return { token, hash: sha256(token) }; };
 
-  async function add(user, body, base) {
-    const a = await requireAdmin(user);
+  async function add(user, body, base, wanted = null) {
+    const a = await requireAdmin(user, wanted);
     const fields = clean(body || {});
     const address = normEmail(body.email);
     if (!validEmail(address)) throw new TeamError(400, 'Enter a valid email address.');
@@ -115,8 +133,8 @@ function createTeam({ store, email = null, sms = null }) {
     return { member: out(member, user.id, true), invite: await deliver(member, token, user.id, base) };
   }
 
-  async function update(user, id, body) {
-    const a = await requireAdmin(user);
+  async function update(user, id, body, wanted = null) {
+    const a = await requireAdmin(user, wanted);
     const member = await store.getMember(a.ownerId, id);
     if (!member) throw new TeamError(404, 'That person isn’t on the care team.');
     const fields = clean({ role: member.role, ...body }, { partial: true });
@@ -126,8 +144,8 @@ function createTeam({ store, email = null, sms = null }) {
     return { member: out(await store.updateMember(a.ownerId, id, fields), user.id, true) };
   }
 
-  async function remove(user, id) {
-    const a = await requireAdmin(user);
+  async function remove(user, id, wanted = null) {
+    const a = await requireAdmin(user, wanted);
     const member = await store.getMember(a.ownerId, id);
     if (!member) throw new TeamError(404, 'That person isn’t on the care team.');
     if (member.userId === a.ownerId) throw new TeamError(400, 'The person who set up this care team can’t be removed.');
@@ -135,16 +153,16 @@ function createTeam({ store, email = null, sms = null }) {
     return { ok: true };
   }
 
-  async function resend(user, id, base) {
-    const a = await requireAdmin(user);
+  async function resend(user, id, base, wanted = null) {
+    const a = await requireAdmin(user, wanted);
     const { token, hash } = newToken();
     const member = await store.setMemberInvite(a.ownerId, id, hash);
     if (!member) throw new TeamError(404, 'That person has already joined.');
     return { invite: await deliver(member, token, user.id, base) };
   }
 
-  async function leave(user) {
-    const m = await store.membershipOf(user.id);
+  async function leave(user, wanted = null) {
+    const list = await store.membershipsOf(user.id), m = list.find(x => x.ownerId === wanted) || list[0];
     if (!m) throw new TeamError(400, 'You aren’t on anyone else’s care team.');
     if (m.ownerId === user.id) throw new TeamError(400, 'You set up this care team, so you can’t leave it.');
     await store.deleteMember(m.ownerId, m.id);
@@ -164,17 +182,16 @@ function createTeam({ store, email = null, sms = null }) {
   }
   async function accept(user, token) {
     const m = await findInvite(token);
-    const current = await store.membershipOf(user.id);
-    if (current && current.ownerId !== m.ownerId) throw new TeamError(409, 'You’re already on another care team. Leave it in Settings → People first.');
     if (m.ownerId === user.id) throw new TeamError(400, 'This is your own care team.');
-    if (!current) {
+    // Already on this family's team (another invite to the same person): nothing to join.
+    if (!(await store.membershipsOf(user.id)).some(x => x.ownerId === m.ownerId)) {
       try { await store.joinMember(m.id, user.id); }
-      catch (err) { if (err.code === 'EXISTS') throw new TeamError(409, 'You’re already on another care team. Leave it in Settings → People first.'); throw err; }
+      catch (err) { if (err.code !== 'EXISTS') throw err; }
     }
-    return view(user);
+    return { ...(await view(user, m.ownerId)), patient: m.ownerId };
   }
 
-  return { access, view, add, update, remove, resend, leave, inviteInfo, accept };
+  return { access, patients, view, add, update, remove, resend, leave, inviteInfo, accept };
 }
 
 module.exports = { createTeam, permsFor, TeamError, ROLES };

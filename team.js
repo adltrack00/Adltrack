@@ -37,5 +37,6 @@ document.addEventListener('submit',async e=>{const f=e.target;
   try{if(f.id==='person-add-form'){const r=await Account.api('POST','/api/team/members',{name:f.elements.name.value,email:f.elements.email.value,phone:f.elements.phone.value,role:f.elements.role.value,perms:permsOf(f)});invite={name:r.member.name,role:r.member.role,invite:r.invite};loadTeam();render();window.scrollTo(0,0)}
     else{await Account.api('PUT',`/api/team/members/${personId}`,{role:f.elements.role.value,perms:permsOf(f)});toast('Saved.');go('people')}}
   catch(err){btn.disabled=false;toast(err.message)}});
-/* Back from an invite link after signing in or creating an account: join, then this browser loads the care team's plan. */
-(()=>{let t='';try{t=localStorage.getItem('adltrack-invite')||''}catch{}if(!t||!Account.user())return;try{localStorage.removeItem('adltrack-invite')}catch{}Account.api('POST','/api/invite/accept',{token:t}).then(()=>location.reload(),err=>toast(err.message))})();
+/* Back from an invite link after signing in or creating an account: join, then this browser shows that family's plan (a
+   caregiver already on other families switches back to them from Home). */
+(()=>{let t='';try{t=localStorage.getItem('adltrack-invite')||''}catch{}if(!t||!Account.user())return;try{localStorage.removeItem('adltrack-invite')}catch{}Account.api('POST','/api/invite/accept',{token:t}).then(r=>{if(r.patient)Account.pick(r.patient);location.reload()},err=>toast(err.message))})();

@@ -56,7 +56,8 @@ test('a family viewer sees everything but can change nothing, even by calling th
     // Sees the same plan.
     assert.equal((await ann('GET', '/api/items')).body.items[0].name, 'Lisinopril 10 mg');
     assert.equal((await ann('GET', '/api/data')).body.data.profile.name, 'Dad');
-    assert.deepEqual((await ann('GET', '/api/me')).body.team, { role: 'viewer', perms: { tasks: false, addTasks: false, meds: false }, owner: false });
+    const { patient, patients, ...team } = (await ann('GET', '/api/me')).body.team;
+    assert.deepEqual(team, { role: 'viewer', perms: { tasks: false, addTasks: false, meds: false }, owner: false });
 
     const refused = [
       ['PUT', '/api/items/med-1', { ...MED, doses: [dose()] }],
@@ -157,7 +158,8 @@ test('the medications tick lets a caregiver change medications, and an admin wit
     await george('PUT', `/api/team/members/${members.find(m => m.name === 'Lee').id}`, { role: 'admin', perms: { tasks: true } });
     assert.equal((await lee('PUT', '/api/items/med-1', { ...(await app.med()), doses: [] })).status, 200);
     // Their app learns who changed it, for the note it shows.
-    assert.deepEqual((await lee('GET', '/api/me')).body.team, { role: 'admin', perms: { tasks: true, addTasks: true, meds: true }, owner: false, changedBy: 'George' });
+    const { patient: _p, patients: _ps, ...leeTeam } = (await lee('GET', '/api/me')).body.team;
+    assert.deepEqual(leeTeam, { role: 'admin', perms: { tasks: true, addTasks: true, meds: true }, owner: false, changedBy: 'George' });
   } finally { await app.close(); }
 });
 
