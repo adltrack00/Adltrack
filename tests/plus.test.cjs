@@ -37,12 +37,12 @@ test('a repeating task: every day, chosen days or every week, until its last day
   assert.equal(c.repeatText(task({ repeat: 'days', days: [3, 1], until: '2027-10-14' })), 'Mon, Wed at 3:00 PM until Oct 14, 2027');
 });
 
-test('a task is done with Done or Skip on its day only, and the report shows it with who added it', () => {
+test('a task is done with Done or Skip on its day only, and the report shows it with its note', () => {
   const t = task({ marks: [{ day: '2026-10-19', key: 'task', kind: 'done', at: at('2026-10-19', '15:10'), by: 'Maria', note: 'Healing well.', photos: ['/api/files/k'] }] });
   const c = app([t]);
   assert.equal(c.todayTasks(undefined, '2026-10-19')[0].state, 'done');
-  assert.deepEqual(plain(c.reportEntries(undefined, '2026-10-14', [])), [{ title: 'New task: Change the dressing', at: at('2026-10-14', '09:30'), note: 'Left knee', details: ['Monday, Oct 19 at 3:00 PM', 'Added by George'], name: 'Change the dressing', photos: [] }]);
-  assert.deepEqual(plain(c.reportEntries(undefined, '2026-10-19', [])), [{ title: 'Change the dressing (3pm task)', at: at('2026-10-19', '15:10'), note: 'Healing well.', details: ['Added by George'], name: 'Change the dressing', photos: ['/api/files/k'] }]);
+  assert.deepEqual(plain(c.reportEntries(undefined, '2026-10-14', [])), [{ title: 'New task: Change the dressing', at: at('2026-10-14', '09:30'), note: 'Left knee', details: ['Monday, Oct 19 at 3:00 PM'], name: 'Change the dressing', photos: [] }]);
+  assert.deepEqual(plain(c.reportEntries(undefined, '2026-10-19', [])), [{ title: 'Change the dressing (3pm task)', at: at('2026-10-19', '15:10'), note: 'Healing well.', details: [], name: 'Change the dressing', photos: ['/api/files/k'] }]);
 });
 
 test('an incident shows in the report at the time it happened, numbered in time order with the rest', () => {
@@ -50,7 +50,7 @@ test('an incident shows in the report at the time it happened, numbered in time 
   const c = app([{ ...med, doses: [{ at: at('2026-10-14', '08:05'), day: '2026-10-14', slot: '08:00', kind: 'taken' }] }, fall]);
   const e = plain(c.reportEntries(undefined, '2026-10-14', []));
   assert.deepEqual(e.map(x => x.title), ['Lisinopril 10 mg (8am dose)', 'Incident: Fall']);
-  assert.deepEqual(e[1], { title: 'Incident: Fall', at: fall.at, note: 'Slipped in the bathroom, no injury.', details: ['Witnesses: Ann, Bob', 'Told: Dr. Patel, Ann', 'Reported by Maria'], name: 'Incident: Fall', photos: ['/api/files/p'] });
+  assert.deepEqual(e[1], { title: 'Incident: Fall', at: fall.at, note: 'Slipped in the bathroom, no injury.', details: ['Witnesses: Ann, Bob', 'Told: Dr. Patel, Ann'], name: 'Incident: Fall', photos: ['/api/files/p'] });
   // In My Tasks at the time it happened, crossed off as done.
   assert.deepEqual(plain(c.todayTasks(undefined, '2026-10-14').map(x => [x.time, x.title, x.key, x.state])), [['08:00', 'Lisinopril 10 mg', 'dose:08:00', 'done'], ['11:20', 'Incident: Fall', 'incident', 'done'], ['18:00', 'Lisinopril 10 mg', 'dose:18:00', '']]);
   assert.equal(c.todayTasks(undefined, '2026-10-15').length, 2, 'only on its day');
