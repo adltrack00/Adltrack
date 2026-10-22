@@ -433,7 +433,7 @@ function createApp({ store, data, production = false, policies = null, classifie
 
     if (route === '/api/me' && method === 'GET') {
       const full = await store.findUserByEmail(user.email);
-      return send(res, 200, { user: { ...publicUser(user), ...(full && full.passwordHash === NO_PASSWORD ? { passwordless: true } : {}) }, team: { role: access.role, perms: access.perms, owner: access.owner }, space: spaceOf(owner) });
+      return send(res, 200, { user: { ...publicUser(user), ...(full && full.passwordHash === NO_PASSWORD ? { passwordless: true } : {}) }, team: { role: access.role, perms: access.perms, owner: access.owner, ...(access.changedBy ? { changedBy: access.changedBy } : {}) }, space: spaceOf(owner) });
     }
 
     // Settings → People: the care team, adding people by email and phone with what each may do, and joining from an invite.

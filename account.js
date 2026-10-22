@@ -212,10 +212,14 @@ const Account = (() => {
      removed from one: the app loads that plan instead. */
   async function refreshTeam() {
     try {
-      const r = await api('GET', '/api/me'), before = JSON.stringify(user()?.team || null);
+      const r = await api('GET', '/api/me'), was = user()?.team || null, before = JSON.stringify(was);
       remember(r.user, r.team);
       if (r.space && get(SPACE_KEY) && r.space !== get(SPACE_KEY)) return checkApp();
-      if (JSON.stringify(r.team || null) !== before && typeof render === 'function') render();
+      if (JSON.stringify(r.team || null) === before) return;
+      if (typeof render === 'function') render();
+      // "George changed your access to Caregiver."
+      const t = r.team, names = { admin: 'Admin', caregiver: 'Caregiver', viewer: 'Family viewer' };
+      if (was && t && t.changedBy && typeof toast === 'function' && (was.role !== t.role || JSON.stringify(was.perms) !== JSON.stringify(t.perms))) toast(`${t.changedBy} changed your access to ${names[t.role]}.`);
     } catch (err) { if (err.status === 401) expired(); }
   }
 

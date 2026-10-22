@@ -156,6 +156,8 @@ test('the medications tick lets a caregiver change medications, and an admin wit
     // Once ticked, Lee does the tasks too.
     await george('PUT', `/api/team/members/${members.find(m => m.name === 'Lee').id}`, { role: 'admin', perms: { tasks: true } });
     assert.equal((await lee('PUT', '/api/items/med-1', { ...(await app.med()), doses: [] })).status, 200);
+    // Their app learns who changed it, for the note it shows.
+    assert.deepEqual((await lee('GET', '/api/me')).body.team, { role: 'admin', perms: { tasks: true, addTasks: true, meds: true }, owner: false, changedBy: 'George' });
   } finally { await app.close(); }
 });
 

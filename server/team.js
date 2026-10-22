@@ -27,7 +27,8 @@ function createTeam({ store, email = null, sms = null }) {
   async function access(user) {
     const m = await store.membershipOf(user.id);
     if (!m) return { ownerId: user.id, memberId: null, role: 'admin', perms: ALL, owner: true };
-    return { ownerId: m.ownerId, memberId: m.id, role: m.role, perms: permsFor(m.role, m.perms), owner: m.ownerId === user.id };
+    // changedBy: the admin who last changed this person's access, for the note their app shows.
+    return { ownerId: m.ownerId, memberId: m.id, role: m.role, perms: permsFor(m.role, m.perms), owner: m.ownerId === user.id, ...(m.perms?.changedBy ? { changedBy: m.perms.changedBy } : {}) };
   }
   async function requireAdmin(user) {
     const a = await access(user);
@@ -119,6 +120,7 @@ function createTeam({ store, email = null, sms = null }) {
     const member = await store.getMember(a.ownerId, id);
     if (!member) throw new TeamError(404, 'That person isn’t on the care team.');
     const fields = clean({ role: member.role, ...body }, { partial: true });
+    if (fields.perms) fields.perms.changedBy = user.name;
     // The account the plan belongs to always stays an admin.
     if (member.userId === a.ownerId && fields.role && fields.role !== 'admin') throw new TeamError(400, 'The person who set up this care team stays an admin.');
     return { member: out(await store.updateMember(a.ownerId, id, fields), user.id, true) };
