@@ -1,6 +1,6 @@
 # Adltrack: the care team plan
 
-**One patient (or a small care home), one care team. An admin adds family and paid caregivers. The people given My Tasks do the care, everyone else follows along, and nobody misses anything. Total transparency.**
+**One patient, one family's care team. The family's admin adds family and paid caregivers, and a caregiver who goes to different homes can be on several families' teams. The people given My Tasks do the care, everyone else follows along, and nobody misses anything. Total transparency.**
 
 This plan comes after [adltrack-plan.md](adltrack-plan.md) (Scan → Confirm → Take → Refill, sections 1–18). It replaces that plan's section 18, Family sharing. Decided with George on 2026-10-22.
 
@@ -8,7 +8,7 @@ This plan comes after [adltrack-plan.md](adltrack-plan.md) (Scan → Confirm →
 
 ## How to use this plan
 
-There are **10 steps**. Run each one in its own session, one PR each, so it can be checked and corrected on its own. To run one, start a session and say:
+There are **11 steps**. Run each one in its own session, one PR each, so it can be checked and corrected on its own. To run one, start a session and say:
 
 > Read `docs/care-team-plan.md`. Do **step N** only. Follow "Rules for every step". Stop when its "Done when" list is true, run `npm test`, and show me screenshots on desktop and phone.
 
@@ -84,36 +84,38 @@ Admins can change anyone's role at any time (Settings → People → tap their n
 ## 4. Family viewer dashboard
 
 **Status:** To do.
-**Needs:** step 2 (step 3 if the home has several patients).
-**Build:** Home for viewers: the same daily care report (Previous day, Today, Photos) in the same place, without the My Tasks sheet. In its place, a short "Today so far" line: doses given of doses due, tasks done, incidents, with the last update time. All menu pages stay, read only.
-**Done when:** a viewer's Home shows the report, photos and "Today so far", with no task buttons anywhere.
+**Needs:** steps 2 and 3.
+**Build:** Home for viewers: the same daily care report (Previous day, Today, Photos) in the same place, without the My Tasks sheet. In its place, a short "Today so far" line: doses given of doses due, tasks done, incidents, with the last update time. All menu pages stay, read only. A viewer signed up by more than one family (a grandchild following two grandparents, say) keeps step 3's picker and the switch under the photo, and each family's Home shows only that family's patient.
+**Done when:** a viewer's Home shows the report, photos and "Today so far", with no task buttons anywhere; a viewer on two families switches between them and each shows its own "Today so far".
 
 ---
 
 ## 5. The + button: new tasks and incidents
 
 **Status:** To do.
-**Needs:** step 2.
+**Needs:** steps 2 and 3.
 **Build:**
+- Everything here belongs to the family on screen: a caregiver on several families adds a task or reports an incident for the patient they're looking at, and it shows only in that family's My Tasks and report.
 - A round + at the far left of the "My Tasks" title line, like Instagram's, only for people allowed to add tasks or report incidents.
 - **New task:** what to do, an optional note and photo, the date and exact time, once or repeating (daily, chosen days, weekly), from today up to one year ahead. It shows in My Tasks at its time and is done with the existing Done or Skip buttons, with notes and photos as now.
 - **Report an incident:** what happened (fall, refused medication, injury, behaviour, other), when, a note, photos, and who was told. Call 911 sits on the form.
 - Both show in the daily care report, numbered and time-stamped, with who added them.
-**Done when:** an admin schedules a task for next Monday at 3:00 PM and it appears in the caregiver's My Tasks then; an incident shows in the report straight away.
+**Done when:** an admin schedules a task for next Monday at 3:00 PM and it appears in the caregiver's My Tasks then; an incident shows in the report straight away; a caregiver on two families sees each family's tasks only under that family.
 
 ---
 
 ## 6. Live updates and alerts for everyone
 
 **Status:** To do.
-**Needs:** steps 2 and 5.
+**Needs:** steps 2, 3 and 5.
 **Build:**
+- Reminders and alerts are sent per family, to everyone on that family's team. Today reminders are sent per account (`server/reminders.js`), so this step makes them loop over every family a person is on: a caregiver on three families gets each family's reminders, and every notification names the patient ("Rose · Lisinopril 10 mg"). Tapping it opens that family's Home.
 - Changes show on other phones within a few seconds without reloading, and two people marking at once never undo each other's marks.
 - Push reminders and alerts go to every person on the team, by role: dose and task reminders to people with My Tasks; incidents straight away, missed doses and the end-of-day report to everyone.
 - **Missed dose:** not marked 60 minutes after its time → remind the caregivers again, then alert everyone.
 - **End-of-day report:** at a set time, a summary of the day with a link to the report.
 - Each person picks quiet hours and which alerts they get on Reminders, except incidents, which always arrive.
-**Done when:** a caregiver marks a dose and a viewer's open app shows it within 5 seconds; an incident reaches every device; an unmarked dose alerts everyone after an hour.
+**Done when:** a caregiver marks a dose and a viewer's open app shows it within 5 seconds; an incident reaches every device; an unmarked dose alerts everyone after an hour; a caregiver on two families gets both families' reminders, each naming its patient and opening that family.
 
 ---
 
@@ -121,8 +123,8 @@ Admins can change anyone's role at any time (Settings → People → tap their n
 
 **Status:** To do. Pricing to decide with George.
 **Needs:** step 3.
-**Build:** plans for families and for care homes (for example per patient per month), a free trial, payment by card (Stripe), and the admin's plan and receipts in Settings. Text invites and text alerts count towards the plan.
-**Done when:** an admin starts a trial, pays by card and sees the plan in Settings; when a plan lapses the team can still see everything but can't add people.
+**Build:** a plan per family, paid by that family's admin (for example per month), a free trial, payment by card (Stripe), and the admin's plan and receipts in Settings. Caregivers and viewers never pay: a caregiver on several families is covered by each family's plan. Text invites and text alerts count towards the plan of the family that sends them. Agency plans come with step 11.
+**Done when:** an admin starts a trial, pays by card and sees the plan in Settings; when a plan lapses that family's team can still see everything but can't add people, and the caregiver's other families aren't affected.
 
 ---
 
@@ -144,7 +146,7 @@ Admins can change anyone's role at any time (Settings → People → tap their n
 - A health check that alerts if reminders stop sending.
 - Security: strong passwords, sign out after inactivity on shared phones, a sign-in history in Security and privacy.
 - Privacy and terms written for health information, and consent when joining a team. Delete account removes the papers and photos.
-- **HIPAA readiness for care homes and agencies:** a Business Associate Agreement with each agency, and providers that sign one with us (hosting, database, file storage, the AI reader, email and texts). Families using it for their own relative don't need this. Have a lawyer review before selling to agencies.
+- **HIPAA readiness for agencies (step 11):** a Business Associate Agreement with each agency, and providers that sign one with us (hosting, database, file storage, the AI reader, email and texts). Families using it for their own relative don't need this. Have a lawyer review before selling to agencies.
 **Done when:** the live site runs on paid plans with backups, reminders keep arriving overnight, and the privacy page and terms are approved.
 
 ---
@@ -155,3 +157,12 @@ Admins can change anyone's role at any time (Settings → People → tap their n
 **Needs:** step 9.
 **Build:** iPhone and Android apps from the same code (Capacitor), with native notifications and the camera, published to the App Store and Google Play.
 **Done when:** the app installs from both stores, signs in, and gets a dose reminder with the app closed.
+
+---
+
+## 11. Agency dashboard
+
+**Status:** To do. Details to decide with George.
+**Needs:** steps 3 and 7.
+**Build:** for a home care agency or small care home: one agency admin runs many patients. The agency adds its patients (name and photo), signs up its caregivers once and chooses which patients each one visits, and invites each patient's family as viewers of that patient only. The agency admin's dashboard lists every patient with today's progress. Caregivers use the same picker and switch from step 3, alongside any families who signed them up themselves. An agency plan in Subscriptions (per patient per month). A first version of adding patients under one admin was built and then set aside in step 3 (commit `257ccc8`), and can be reused.
+**Done when:** an agency with 3 patients assigns a caregiver to two of them, the caregiver switches between them, each family sees only their own relative, and the agency admin sees all three on one page.

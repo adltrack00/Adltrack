@@ -4,7 +4,7 @@ Track purchases, return deadlines and refunds. Scan a receipt, tap what you're r
 
 Adltrack is becoming a post-discharge medication app built on this same design: scan the discharge papers, confirm each medication with a photo, and get reminders for doses and refills. The plan is in [docs/adltrack-plan.md](docs/adltrack-plan.md). Step 1 renamed the app and its menu. Step 2 made the scan read discharge papers: `server/discharge.js` sends the pages to Claude and `POST /api/discharge/read` returns one card per medication, with its instructions word for word, the doctor who prescribed it, the pharmacy, follow-up appointments and warning signs. Medications the papers say to stop are left out and named. Nothing the papers don't say is added. The cards after Scan still look like Returnly's until the next steps.
 
-**Care teams (next):** an admin adds family and paid caregivers, the people given My Tasks do the care and everyone else follows along. The 10 steps are in [docs/care-team-plan.md](docs/care-team-plan.md). Run one step per session by saying: *Read `docs/care-team-plan.md`. Do step N only. Follow "Rules for every step". Stop when its "Done when" list is true, run `npm test`, and show me screenshots on desktop and phone.*
+**Care teams (next):** an admin adds family and paid caregivers, the people given My Tasks do the care and everyone else follows along. The 11 steps are in [docs/care-team-plan.md](docs/care-team-plan.md). Run one step per session by saying: *Read `docs/care-team-plan.md`. Do step N only. Follow "Rules for every step". Stop when its "Done when" list is true, run `npm test`, and show me screenshots on desktop and phone.*
 
 ## Run locally
 
