@@ -192,3 +192,16 @@ body.not-home #main>.page-heading{margin-top:0}
 /* My Tasks: a finished task keeps its name as written, dark, with a line through it. The daily report has no lines, so it
    reads cleanly. */
 .tasks-sheet .home-today .today-row.is-done .today-what strong{color:#000;font-weight:500;text-decoration:line-through;text-decoration-thickness:1.5px}
+/* The + at the far left of the My Tasks title line (plus.js): the Take card's round +. Its forms use the Take card's grey
+   blocks, with white fields like its note. */
+.tasks-title{display:flex;align-items:center;gap:14px;margin:6px 0 0}
+.tasks-top .tasks-title h2{margin:0}
+.tasks-plus{border:0;padding:0;cursor:pointer}
+.plus-form input:not([type=radio]):not([type=checkbox]){width:100%;min-width:0;border:0;border-radius:14px;background:#fff;padding:12px;font:inherit;font-size:15px;color:#111}
+.plus-when{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.plus-choice label,.plus-days label{display:flex;align-items:center;gap:12px;font-size:15px;color:#111;padding:7px 0;cursor:pointer}
+.plus-choice input,.plus-days input{width:18px;height:18px;margin:0;flex:none;accent-color:#111}
+.plus-days{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:6px;padding-top:8px;border-top:1px solid #e6e6e6}
+.plus-until{display:flex;align-items:center;gap:12px;margin-top:10px;font-size:15px;color:#111}.plus-until span{flex:none}
+.plus-911 p+p{margin-top:4px}.plus-911 .flow-text-link{font-weight:600}
+.plus-form .plus-save{width:100%;margin-top:10px}

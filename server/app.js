@@ -715,11 +715,12 @@ function createApp({ store, data, production = false, policies = null, classifie
       return send(res, 200, { updatedAt: await data.putData(owner, payload) });
     }
 
-    // A photo of a dose being taken: POST it as a data URL, kept with the dose by its file URL.
+    // A photo of a dose being taken: POST it as a data URL, kept with the dose by its file URL. A photo for a new task or an
+    // incident (from the + on My Tasks) says so in `for`, and needs what adding one needs.
     if (route === '/api/files/proof' && method === 'POST') {
       checkWrite(req);
-      may.need('tasks');
       const body = await readBody(req, 14 * 1024 * 1024);
+      may.need(body && body.for === 'task' ? 'addTasks' : body && body.for === 'incident' ? 'care' : 'tasks');
       return send(res, 201, await data.saveProof(owner, body && body.data));
     }
 
@@ -742,8 +743,10 @@ function createApp({ store, data, production = false, policies = null, classifie
     }
     if (route === '/api/items' && method === 'POST') {
       checkWrite(req);
-      may.need('meds');
-      return send(res, 201, await data.saveItem(owner, await readBody(req, 12 * 1024 * 1024), { mustBeNew: true }));
+      // A new medication or visit needs the medications tick; a task or an incident from the + needs what adding one needs.
+      const body = await readBody(req, 12 * 1024 * 1024);
+      may.item(null, body && typeof body === 'object' && !Array.isArray(body) ? body : {});
+      return send(res, 201, await data.saveItem(owner, body, { mustBeNew: true }));
     }
     // The QR code or return label for one item: PUT a photo, screenshot or PDF as a data URL; DELETE removes it.
     const labelMatch = /^\/api\/items\/([^/]+)\/label$/.exec(route);
