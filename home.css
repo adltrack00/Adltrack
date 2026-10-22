@@ -146,6 +146,7 @@
 .report-section h3 span{flex:none;align-self:center;display:grid;place-items:center;width:24px;height:24px;border-radius:7px;background:#edeae5;font-size:10px;font-weight:600;color:#555;letter-spacing:0}
 .report-section p,.report-section li{margin:0;padding-left:34px;font-size:13px;color:#777;line-height:1.45}
 .report-section ul{list-style:none;margin:0;padding:0;display:grid;gap:5px}
+.report-section h3 s{text-decoration-thickness:1.5px}
 .report-section h3 time{margin-left:auto;font-size:12px;font-weight:400;color:#777;white-space:nowrap}
 .report-section p.report-note-text{color:#111;margin:0 0 6px}
 .report-section p.report-none{padding-left:0}
