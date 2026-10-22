@@ -192,9 +192,9 @@ body.not-home #main>.page-heading{margin-top:0}
 /* My Tasks: a finished task keeps its name as written, dark, with a line through it. The daily report has no lines, so it
    reads cleanly. */
 .tasks-sheet .home-today .today-row.is-done .today-what strong{color:#000;font-weight:500;text-decoration:line-through;text-decoration-thickness:1.5px}
-/* The + at the far left of the My Tasks title line (plus.js): the Take card's round +. Its forms use the Take card's grey
+/* The + at the top right of My Tasks, across from its title (plus.js): the Take card's round +. Its forms use the Take card's grey
    blocks, with white fields like its note. */
-.tasks-title{display:flex;align-items:center;gap:14px;margin:6px 0 0}
+.tasks-title{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:6px 0 0}
 .tasks-top .tasks-title h2{margin:0}
 .tasks-plus{border:0;padding:0;cursor:pointer}
 .plus-form input:not([type=radio]):not([type=checkbox]){width:100%;min-width:0;border:0;border-radius:14px;background:#fff;padding:12px;font:inherit;font-size:15px;color:#111}
@@ -205,3 +205,6 @@ body.not-home #main>.page-heading{margin-top:0}
 .plus-until{display:flex;align-items:center;gap:12px;margin-top:10px;font-size:15px;color:#111}.plus-until span{flex:none}
 .plus-911 p+p{margin-top:4px}.plus-911 .flow-text-link{font-weight:600}
 .plus-form .plus-save{width:100%;margin-top:10px}
+.plus-witness{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;padding-right:34px}
+.plus-witness .take-shot-x{top:50%;right:0;transform:translateY(-50%);background:#1c1c1c}
+@media(max-width:650px){.plus-witness{grid-template-columns:1fr}}

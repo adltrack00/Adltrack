@@ -96,9 +96,9 @@ Admins can change anyone's role at any time (Settings → People → tap their n
 **Needs:** steps 2 and 3.
 **Build:**
 - Everything here belongs to the family on screen: a caregiver on several families adds a task or reports an incident for the patient they're looking at, and it shows only in that family's My Tasks and report.
-- A round + at the far left of the "My Tasks" title line, like Instagram's, only for people allowed to add tasks or report incidents.
+- A round + at the top right of My Tasks, with the "My Tasks" title staying top left, only for people allowed to add tasks or report incidents (moved from the far left at George's request on 2026-10-22).
 - **New task:** what to do, an optional note and photo, the date and exact time, once or repeating (daily, chosen days, weekly), from today up to one year ahead. It shows in My Tasks at its time and is done with the existing Done or Skip buttons, with notes and photos as now.
-- **Report an incident:** what happened (fall, refused medication, injury, behaviour, other), when, a note, photos, and who was told. Call 911 sits on the form.
+- **Report an incident:** what happened (fall, refused medication, injury, behaviour, other), when, a note, photos, witnesses (each a name and an optional phone, added with a +), and who was told. Call 911 sits on the form.
 - Both show in the daily care report, numbered and time-stamped, with who added them.
 **Done when:** an admin schedules a task for next Monday at 3:00 PM and it appears in the caregiver's My Tasks then; an incident shows in the report straight away; a caregiver on two families sees each family's tasks only under that family.
 

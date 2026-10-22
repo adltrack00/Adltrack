@@ -10,7 +10,7 @@ function app(items, day = '2026-10-14') {
   const h = fs.readFileSync('home.js', 'utf8'), r = fs.readFileSync('report.js', 'utf8'), p = fs.readFileSync('plus.js', 'utf8');
   const src = h.slice(h.indexOf('const hmNow='), h.indexOf('function helpNote(')) + r.slice(r.indexOf('const reportTime='), r.indexOf('function reportHTML(')) + p.slice(p.indexOf('const PLUS_PHOTOS='), p.indexOf('/* The + itself'));
   const ctx = { items, C: core, today: () => day, howText: () => '', slotName: () => '', settings: {}, clockText: t => { const [hh, m] = t.split(':').map(Number); return `${hh % 12 || 12}:${String(m).padStart(2, '0')} ${hh < 12 ? 'AM' : 'PM'}`; } };
-  vm.runInNewContext(src.replace(/const (\w+)=/g, 'var $1=') + ';this.todayTasks=todayTasks;this.reportEntries=reportEntries;this.taskOn=taskOn;this.repeatText=repeatText;', ctx);
+  vm.runInNewContext(src.replace(/const (\w+)=/g, 'var $1=') + ';this.todayTasks=todayTasks;this.reportEntries=reportEntries;this.taskOn=taskOn;this.reportPhotos=reportPhotos;this.repeatText=repeatText;', ctx);
   return ctx;
 }
 const plain = x => JSON.parse(JSON.stringify(x));
@@ -46,12 +46,16 @@ test('a task is done with Done or Skip on its day only, and the report shows it 
 });
 
 test('an incident shows in the report at the time it happened, numbered in time order with the rest', () => {
-  const fall = { id: 'i1', incident: true, kind: 'fall', name: 'Fall', at: at('2026-10-14', '11:20'), note: 'Slipped in the bathroom, no injury.', told: 'Dr. Patel, Ann', photos: ['/api/files/p'], by: 'Maria', addedAt: at('2026-10-14', '11:40') };
+  const fall = { id: 'i1', incident: true, kind: 'fall', name: 'Fall', at: at('2026-10-14', '11:20'), note: 'Slipped in the bathroom, no injury.', witnesses: [{ name: 'Ann', phone: '(555) 123-4567' }, { name: 'Bob' }], told: 'Dr. Patel, Ann', photos: ['/api/files/p'], by: 'Maria', addedAt: at('2026-10-14', '11:40') };
   const c = app([{ ...med, doses: [{ at: at('2026-10-14', '08:05'), day: '2026-10-14', slot: '08:00', kind: 'taken' }] }, fall]);
   const e = plain(c.reportEntries(undefined, '2026-10-14', []));
   assert.deepEqual(e.map(x => x.title), ['Lisinopril 10 mg (8am dose)', 'Incident: Fall']);
-  assert.deepEqual(e[1], { title: 'Incident: Fall', at: fall.at, note: 'Slipped in the bathroom, no injury.', details: ['Told: Dr. Patel, Ann', 'Reported by Maria'], name: 'Incident: Fall', photos: ['/api/files/p'] });
-  assert.equal(c.todayTasks(undefined, '2026-10-14').length, 2, 'an incident is not a task');
+  assert.deepEqual(e[1], { title: 'Incident: Fall', at: fall.at, note: 'Slipped in the bathroom, no injury.', details: ['Witnesses: Ann (555) 123-4567, Bob', 'Told: Dr. Patel, Ann', 'Reported by Maria'], name: 'Incident: Fall', photos: ['/api/files/p'] });
+  // In My Tasks at the time it happened, crossed off as done.
+  assert.deepEqual(plain(c.todayTasks(undefined, '2026-10-14').map(x => [x.time, x.title, x.key, x.state])), [['08:00', 'Lisinopril 10 mg', 'dose:08:00', 'done'], ['11:20', 'Incident: Fall', 'incident', 'done'], ['18:00', 'Lisinopril 10 mg', 'dose:18:00', '']]);
+  assert.equal(c.todayTasks(undefined, '2026-10-15').length, 2, 'only on its day');
+  // Its photos are a post in Photos.
+  assert.deepEqual(plain(c.reportPhotos(undefined, '2026-10-14')), [{ n: 2, name: 'Incident: Fall', note: 'Slipped in the bathroom, no injury.', photos: ['/api/files/p'] }]);
 });
 
 /* On the server: who may add tasks and report incidents, for the family on screen. */

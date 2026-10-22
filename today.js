@@ -54,7 +54,7 @@ try{for(const f of files)takeDraft.photos.push(await readPhoto(f));if(e.target.f
    handle up to open it and down to make it small, or tap the handle. */
 let tasksOpen=false;
 const TASKS_CHEVRON='<svg viewBox="0 0 44 12" aria-hidden="true"><path d="M3 9 22 3l19 6"/></svg>';
-const tasksSheet=inner=>`<section class="tasks-sheet${tasksOpen?' open':''}" id="tasks-sheet" aria-label="My Tasks"><div class="tasks-top" id="tasks-top"><button class="tasks-handle" id="tasks-handle" aria-expanded="${tasksOpen}" aria-controls="tasks-body" aria-label="${tasksOpen?'Make My Tasks smaller':'Open My Tasks'}">${TASKS_CHEVRON}</button><div class="tasks-title">${typeof plusButton==='function'?plusButton():''}<h2>My Tasks</h2></div></div><div class="tasks-body" id="tasks-body">${inner}</div></section>`;
+const tasksSheet=inner=>`<section class="tasks-sheet${tasksOpen?' open':''}" id="tasks-sheet" aria-label="My Tasks"><div class="tasks-top" id="tasks-top"><button class="tasks-handle" id="tasks-handle" aria-expanded="${tasksOpen}" aria-controls="tasks-body" aria-label="${tasksOpen?'Make My Tasks smaller':'Open My Tasks'}">${TASKS_CHEVRON}</button><div class="tasks-title"><h2>My Tasks</h2>${typeof plusButton==='function'?plusButton():''}</div></div><div class="tasks-body" id="tasks-body">${inner}</div></section>`;
 const galleryBeforeTake=gallery;
 gallery=function(){if(view!=='overview')return galleryBeforeTake();const el=document.createElement('div');el.innerHTML=galleryBeforeTake();
 const tasks=el.querySelector(':scope>.home-today');if(tasks)tasks.remove();
