@@ -136,7 +136,7 @@ function receiptDraft(receipt, policy) {
 }
 
 function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, discharge = null, labels = null, places = null, review = null, push = null, reminders = null, email = null, supportEmail = '', inbox = null, oauth = null, publicUrl = '', inboundSecret = '', sms = null, team = null }) {
-  team = team || createTeam({ store, email, sms });
+  team = team || createTeam({ store, data, email, sms });
   const authLimit = limiter(20, 15 * 60 * 1000);
   // Each classification is an AI call, so it's limited per account.
   const classifyLimit = limiter(300, 60 * 60 * 1000);
@@ -190,10 +190,10 @@ function createApp({ store, data, production = false, policies = null, classifie
     send(res, status, { user: publicUser(user), ...extra }, { 'Set-Cookie': cookie(req, token, SESSION_DAYS * 86400) });
   }
 
-  /* The care plan an account works on (its own, or the care team's it joined), with a short id of it so the app notices
-     when that changes and swaps its copy. */
+  /* The care plan an account works on (its own, or a patient's on the care team it joined), with a short id of it so the app
+     notices when that changes and swaps its copy. */
   const spaceOf = ownerId => sha256('space:' + ownerId).slice(0, 16);
-  async function spaceData(user) { const { ownerId } = await team.access(user); return { data: await data.getData(ownerId), space: spaceOf(ownerId) }; }
+  async function spaceData(user) { const { patientId } = await team.access(user); return { data: await data.getData(patientId), space: spaceOf(patientId) }; }
 
   const publicUser = user => ({ email: user.email, name: user.name, ...(review && review.isAdmin(user) ? { admin: true } : {}) });
   // Accounts made with "Continue with Google / Apple" have no password.
@@ -426,18 +426,20 @@ function createApp({ store, data, production = false, policies = null, classifie
     const user = await currentUser(req);
     if (!user) throw new HttpError(401, 'Please sign in.');
 
-    // Whose care plan this account works on: its own, or the care team's it joined. Every care plan route below uses it.
-    const access = await team.access(user), owner = access.ownerId;
+    // Whose care plan this account works on: its own, or the care team's it joined, and on it the patient the app asked for
+    // (X-Patient) when this person is on them. Every care plan route below reads and changes that patient's data.
+    const wanted = typeof req.headers['x-patient'] === 'string' ? req.headers['x-patient'].toLowerCase() : null;
+    const access = await team.access(user, wanted), owner = access.patientId;
     // What this person may change on it (server/permissions.js). Viewers change nothing.
     const may = createPermissions(access);
 
     if (route === '/api/me' && method === 'GET') {
       const full = await store.findUserByEmail(user.email);
-      return send(res, 200, { user: { ...publicUser(user), ...(full && full.passwordHash === NO_PASSWORD ? { passwordless: true } : {}) }, team: { role: access.role, perms: access.perms, owner: access.owner }, space: spaceOf(owner) });
+      return send(res, 200, { user: { ...publicUser(user), ...(full && full.passwordHash === NO_PASSWORD ? { passwordless: true } : {}) }, team: { role: access.role, perms: access.perms, owner: access.owner, patient: owner, patients: await team.patients(access) }, space: spaceOf(owner) });
     }
 
     // Settings → People: the care team, adding people by email and phone with what each may do, and joining from an invite.
-    if (route === '/api/team' && method === 'GET') return send(res, 200, await team.view(user));
+    if (route === '/api/team' && method === 'GET') return send(res, 200, await team.view(user, wanted));
     if (route === '/api/team/members' && method === 'POST') {
       checkWrite(req);
       if (!linkLimit('invite:' + user.id)) throw new HttpError(429, 'You’ve sent a lot of invites. Try again in a few minutes.');
@@ -457,6 +459,13 @@ function createApp({ store, data, production = false, policies = null, classifie
       if (!linkLimit('ip:' + clientIp(req))) throw new HttpError(429, 'Too many attempts. Try again in a few minutes.');
       return send(res, 200, await team.accept(user, (await readBody(req, 2_000)).token));
     }
+    // Settings → People → Patients: a home's patients, each with their own medications, report and photos. Admins only.
+    if (route === '/api/patients' && method === 'POST') { checkWrite(req); return send(res, 201, await team.addPatient(user, await readBody(req, 3_000_000))); }
+    const patientMatch = /^\/api\/patients\/([0-9a-f-]{36})$/i.exec(route);
+    if (patientMatch && method === 'PUT') { checkWrite(req); return send(res, 200, await team.updatePatient(user, patientMatch[1].toLowerCase(), await readBody(req, 3_000_000))); }
+    if (patientMatch && method === 'DELETE') { checkWrite(req); return send(res, 200, await team.removePatient(user, patientMatch[1].toLowerCase())); }
+    // Someone on a care team but on none of its patients sees nothing until an admin chooses who they care for.
+    if (!owner) throw new HttpError(403, 'Ask an admin to choose who you care for.');
 
     // Purchases from email: the forwarding address, connected inboxes and the orders found that haven't been opened yet.
     if (route.startsWith('/api/inbox')) {
@@ -721,10 +730,12 @@ function createApp({ store, data, production = false, policies = null, classifie
       return send(res, 201, await data.saveProof(owner, body && body.data));
     }
 
-    // Owner-only file, such as an item photo. Anyone else gets the same 404 as a file that doesn't exist.
+    // A file of a patient this person is on, such as an item photo (or another patient's photo, for the picker). Anyone else
+    // gets the same 404 as a file that doesn't exist.
     const fileMatch = /^\/api\/files\/([0-9a-f-]{36})$/i.exec(route);
     if (fileMatch && method === 'GET') {
-      const file = await data.readFile(owner, fileMatch[1].toLowerCase());
+      let file = null;
+      for (const id of [owner, ...access.patients.filter(p => p !== owner)]) if ((file = await data.readFile(id, fileMatch[1].toLowerCase()))) break;
       if (!file) throw new HttpError(404, 'Not found.');
       res.writeHead(200, { 'Content-Type': file.contentType, 'Content-Length': file.body.length, 'Cache-Control': 'private, max-age=31536000, immutable', 'Content-Disposition': 'inline', 'Content-Security-Policy': FILE_CSP });
       return res.end(file.body);
@@ -790,6 +801,8 @@ function createApp({ store, data, production = false, policies = null, classifie
       else if (!full || !(await verifyPassword(String(body.password || ''), full.passwordHash))) throw new HttpError(401, 'That password isn’t right.');
       // Connected inboxes are revoked with the provider before anything is deleted.
       if (inbox) await inbox.forget(user.id);
+      // The care team's other patients go with the account that set it up.
+      if (access.owner) await team.forget(user.id);
       await data.deleteAccount(user.id);
       return send(res, 200, { ok: true }, { 'Set-Cookie': cookie(req, '', 0) });
     }

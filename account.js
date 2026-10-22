@@ -6,11 +6,23 @@ const Account = (() => {
   const ITEMS_KEY = 'returnly-synced-items', SETTINGS_KEY = 'returnly-synced-settings';
   // Which care plan this browser's copy belongs to (the account's own, or the care team's it joined).
   const SPACE_KEY = 'adltrack-space';
+  // The patient this browser picked, in a home with several: sent with every request, which then reads and changes their data.
+  const PATIENT_KEY = 'adltrack-patient';
   const DATA_KEYS = { purchases: 'back-purchases-v1', settings: 'back-reminders-v1', profile: 'returnly-profile-v1' };
   const get = k => { try { return localStorage.getItem(k); } catch { return null; } };
   const set = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
   const del = k => { try { localStorage.removeItem(k); } catch {} };
   const parse = (k, fallback) => { try { const s = get(k); return s ? JSON.parse(s) : fallback; } catch { return fallback; } };
+
+  /* Every call to this app's API from the page (scans, photos and saves alike) says which patient it's for. */
+  const pageFetch = window.fetch.bind(window);
+  window.fetch = (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input && input.url || '';
+    if (!get(PATIENT_KEY) || !/^(\/|https?:\/\/[^/]*\/)api\//.test(url) || (/^https?:/.test(url) && !url.startsWith(location.origin + '/'))) return pageFetch(input, init);
+    const headers = new Headers(init.headers || (typeof input === 'object' && input.headers) || {});
+    headers.set('X-Patient', get(PATIENT_KEY));
+    return pageFetch(input, { ...init, headers });
+  };
 
   async function api(method, url, body) {
     const res = await fetch(url, { method, credentials: 'same-origin', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
@@ -28,6 +40,30 @@ const Account = (() => {
     if (what === 'viewer') return t.role === 'viewer';
     if (t.role === 'viewer') return false;
     return what === 'care' ? !!(t.perms.tasks || t.perms.meds) : !!t.perms[what];
+  }
+  /* The patients this person is on (name and photo) and the one this browser shows. */
+  const patients = () => user()?.team?.patients || [];
+  const picked = () => patients().some(p => p.id === get(PATIENT_KEY));
+  const patient = () => { const list = patients(); return list.find(p => p.id === get(PATIENT_KEY)) || list.find(p => p.id === user()?.team?.patient) || list[0] || null; };
+  /* Shows another patient: what's waiting goes up to the one on screen first, then this browser's copy is swapped for theirs. */
+  async function switchPatient(id) {
+    if (get(DIRTY_KEY)) await flush();
+    set(PATIENT_KEY, id);
+    const r = await api('GET', '/api/data');
+    if (r.space) set(SPACE_KEY, r.space);
+    writeLocal(r.data || { purchases: [], settings: {}, profile: {} });
+    location.reload();
+  }
+  // The patient already on screen, kept as this browser's pick without reloading.
+  const pick = id => set(PATIENT_KEY, id);
+  /* Who's signed in, their role and patients, fresh from the account. */
+  async function refresh() {
+    const r = await api('GET', '/api/me');
+    remember(r.user, r.team);
+    // A patient this person is no longer on isn't asked for again.
+    if (get(PATIENT_KEY) && !picked()) del(PATIENT_KEY);
+    document.dispatchEvent(new Event('adltrack:me'));
+    return r;
   }
   const snapshot = () => ({ purchases: parse(DATA_KEYS.purchases, []) || [], settings: parse(DATA_KEYS.settings, {}), profile: parse(DATA_KEYS.profile, {}) });
   const hasRealPurchases = () => (parse(DATA_KEYS.purchases, []) || []).some(i => !i.demo);
@@ -48,7 +84,7 @@ const Account = (() => {
     markSynced(data);
     del(DIRTY_KEY);
   }
-  function clearLocal() { [...Object.values(DATA_KEYS), 'back-last-nudge', 'returnly-push-endpoint', ACCOUNT_KEY, SYNCED_KEY, DIRTY_KEY, ITEMS_KEY, SETTINGS_KEY, SPACE_KEY].forEach(del); }
+  function clearLocal() { [...Object.values(DATA_KEYS), 'back-last-nudge', 'returnly-push-endpoint', ACCOUNT_KEY, SYNCED_KEY, DIRTY_KEY, ITEMS_KEY, SETTINGS_KEY, SPACE_KEY, PATIENT_KEY].forEach(del); }
   function remember(u, team = user()?.team) { set(ACCOUNT_KEY, JSON.stringify({ email: u.email, name: u.name, ...(u.admin ? { admin: true } : {}), ...(u.passwordless ? { passwordless: true } : {}), ...(team ? { team } : {}) })); }
 
   /* The account stores photos as files and sends back their private URLs; swap them into this browser's copy
@@ -209,7 +245,7 @@ const Account = (() => {
   /* On the app: require an account, then pull changes made on other devices. */
   async function checkApp() {
     // Keeps the stored account up to date, for example when it's made an admin.
-    api('GET', '/api/me').then(r => remember(r.user, r.team)).catch(() => {});
+    refresh().catch(() => {});
     try {
       const { data, space } = await api('GET', '/api/data');
       // Joined a care team, or left one: this browser's copy belongs to the other plan, so it's replaced, never uploaded.
@@ -241,5 +277,5 @@ const Account = (() => {
     }
   }
 
-  return { api, user, can, queue, flush, signUp, signIn, adopt, adoptSession, signOut, deleteAccount, clearLocal };
+  return { api, user, can, patients, patient, picked, pick, switchPatient, refresh, queue, flush, signUp, signIn, adopt, adoptSession, signOut, deleteAccount, clearLocal };
 })();

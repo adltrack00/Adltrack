@@ -85,7 +85,9 @@ test('an admin adds a caregiver by email and phone, who joins and shares the sam
     assert.equal((await george('GET', '/api/data')).body.data.purchases[0].doses[0].by, 'Maria');
     assert.equal((await george('GET', '/api/data')).body.space, (await maria('GET', '/api/data')).body.space);
     const me = await maria('GET', '/api/me');
-    assert.deepEqual(me.body.team, { role: 'caregiver', perms: { tasks: true, addTasks: false, meds: true }, owner: false });
+    const { patient, patients, ...team } = me.body.team;
+    assert.deepEqual(team, { role: 'caregiver', perms: { tasks: true, addTasks: false, meds: true }, owner: false });
+    assert.deepEqual(patients.map(p => p.id), [patient]);
 
     // The link works once.
     assert.equal((await app.client()('POST', '/api/invite/info', { token: t })).status, 400);

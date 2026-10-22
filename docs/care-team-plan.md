@@ -68,7 +68,7 @@ When a step is merged, update its **Status** here in the same PR.
 
 ## 3. Several patients per home
 
-**Status:** To do.
+**Status:** In review. Code: the `patients` table and `team_members.patients` (`server/store.js`), patients and who's on them in `server/team.js` (`access` picks the patient from the app's `X-Patient` header), `patients.js` (the picker, the switch on Home, Settings → People → Patients). Each patient's data is kept under its own id like an account's: the owner's for the first patient, and an account nobody can sign in to for each one added after.
 **Needs:** step 2.
 **Build:**
 - A care team holds 1 to 10 patients. Each patient has their own medications, tasks, report, photos, papers, doctors and pharmacy.

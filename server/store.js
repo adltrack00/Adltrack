@@ -308,14 +308,27 @@ create table if not exists team_members (
   unique (owner_id, email)
 );
 create unique index if not exists team_members_user_idx on team_members(user_id) where user_id is not null;
-create index if not exists team_members_owner_idx on team_members(owner_id);`;
+create index if not exists team_members_owner_idx on team_members(owner_id);
+-- Which patients a caregiver or family viewer is on (patient ids). Null for people added before a home had several patients:
+-- they're on the first patient. Admins are on every patient.
+alter table team_members add column if not exists patients jsonb;
+-- Patients of a care team (a home has 1 to 10). Each patient's medications, report, photos and settings are kept under its own
+-- id like an account's, so id is a users row: the owner's own for the first patient, and a row nobody can sign in to for each
+-- patient added after it. Their name and photo are the profile in that data.
+create table if not exists patients (
+  id uuid primary key references users(id) on delete cascade,
+  owner_id uuid not null references users(id) on delete cascade,
+  position integer not null default 0,
+  created_at timestamptz not null default now()
+);
+create index if not exists patients_owner_idx on patients(owner_id);`;
 
 const PURCHASE_COLUMNS = 'id, store, channel, order_number as "orderNumber", purchased, delivered, source, retailer_id as "retailerId", receipt_file_id as "receiptFileId", receipt_pages as "receiptPages"';
 const JOB_COLUMNS = 'id, name, payload, unique_key as "uniqueKey", status, run_at as "runAt", attempts, max_attempts as "maxAttempts", last_error as "lastError"';
 const FILE_COLUMNS = 'id, user_id as "userId", kind, storage_key as "storageKey", content_type as "contentType", size, sha256';
 const CONNECTION_COLUMNS = 'id, user_id as "userId", provider, email, tokens, status, synced_at as "syncedAt", subscription_id as "subscriptionId", subscription_secret as "subscriptionSecret", subscription_expires as "subscriptionExpires", created_at as "createdAt"';
 const ORDER_COLUMNS = 'id, connection_id as "connectionId", order_key as "orderKey", retailer_id as "retailerId", store, order_number as "orderNumber", purchased, delivered, products, created_at as "createdAt", updated_at as "updatedAt"';
-const MEMBER_COLUMNS = 'id, owner_id as "ownerId", user_id as "userId", name, email, phone, role, perms, invited_at as "invitedAt", joined_at as "joinedAt"';
+const MEMBER_COLUMNS = 'id, owner_id as "ownerId", user_id as "userId", name, email, phone, role, perms, patients, invited_at as "invitedAt", joined_at as "joinedAt"';
 const iso = d => new Date(d).toISOString();
 const dateOrNull = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
 const cleanPurchase = p => ({ id: p.id, store: p.store ?? null, channel: p.channel ?? null, orderNumber: p.orderNumber ?? null, purchased: dateOrNull(p.purchased), delivered: dateOrNull(p.delivered), source: p.source || 'manual', retailerId: p.retailerId ?? null, receiptFileId: p.receiptFileId ?? null, receiptPages: Array.isArray(p.receiptPages) ? p.receiptPages : [] });
@@ -616,10 +629,10 @@ function pgStore(connectionString) {
     async saveOAuthIdentity({ provider, subject, userId, email = null }) { await pool.query('insert into oauth_identities (provider, subject, user_id, email) values ($1,$2,$3,$4) on conflict (provider, subject) do nothing', [provider, subject, userId, email]); },
 
     /* Care teams. */
-    async addMember({ ownerId, userId = null, name, email, phone = '', role, perms = {}, inviteHash = null, invitedBy = null }) {
+    async addMember({ ownerId, userId = null, name, email, phone = '', role, perms = {}, patients = null, inviteHash = null, invitedBy = null }) {
       try {
-        return await one(`insert into team_members (id, owner_id, user_id, name, email, phone, role, perms, invite_hash, invited_by, joined_at) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) returning ${MEMBER_COLUMNS}`,
-          [crypto.randomUUID(), ownerId, userId, name, email, phone, role, JSON.stringify(perms), inviteHash, invitedBy, userId ? new Date() : null]);
+        return await one(`insert into team_members (id, owner_id, user_id, name, email, phone, role, perms, patients, invite_hash, invited_by, joined_at) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) returning ${MEMBER_COLUMNS}`,
+          [crypto.randomUUID(), ownerId, userId, name, email, phone, role, JSON.stringify(perms), patients && JSON.stringify(patients), inviteHash, invitedBy, userId ? new Date() : null]);
       } catch (err) {
         if (err.code === '23505') throw Object.assign(new Error('exists'), { code: 'EXISTS' });
         throw err;
@@ -628,9 +641,9 @@ function pgStore(connectionString) {
     listMembers: ownerId => all(`select ${MEMBER_COLUMNS} from team_members where owner_id=$1 order by invited_at, name`, [ownerId]),
     getMember: (ownerId, id) => one(`select ${MEMBER_COLUMNS} from team_members where owner_id=$1 and id=$2`, [ownerId, id]),
     membershipOf: userId => one(`select ${MEMBER_COLUMNS} from team_members where user_id=$1`, [userId]),
-    async updateMember(ownerId, id, { name, phone, role, perms }) {
-      return one(`update team_members set name=coalesce($3,name), phone=coalesce($4,phone), role=coalesce($5,role), perms=coalesce($6,perms) where owner_id=$1 and id=$2 returning ${MEMBER_COLUMNS}`,
-        [ownerId, id, name ?? null, phone ?? null, role ?? null, perms ? JSON.stringify(perms) : null]);
+    async updateMember(ownerId, id, { name, phone, role, perms, patients }) {
+      return one(`update team_members set name=coalesce($3,name), phone=coalesce($4,phone), role=coalesce($5,role), perms=coalesce($6,perms), patients=coalesce($7,patients) where owner_id=$1 and id=$2 returning ${MEMBER_COLUMNS}`,
+        [ownerId, id, name ?? null, phone ?? null, role ?? null, perms ? JSON.stringify(perms) : null, patients ? JSON.stringify(patients) : null]);
     },
     async setMemberInvite(ownerId, id, inviteHash) { return one(`update team_members set invite_hash=$3, invited_at=now() where owner_id=$1 and id=$2 and user_id is null returning ${MEMBER_COLUMNS}`, [ownerId, id, inviteHash]); },
     deleteMember: (ownerId, id) => one(`delete from team_members where owner_id=$1 and id=$2 returning ${MEMBER_COLUMNS}`, [ownerId, id]),
@@ -639,6 +652,8 @@ function pgStore(connectionString) {
       try { return await one(`update team_members set user_id=$2, joined_at=now(), invite_hash=null where id=$1 and user_id is null returning ${MEMBER_COLUMNS}`, [id, userId]); }
       catch (err) { if (err.code === '23505') throw Object.assign(new Error('exists'), { code: 'EXISTS' }); throw err; }
     },
+    listPatients: ownerId => all('select id, position from patients where owner_id=$1 order by position, created_at', [ownerId]),
+    async addPatient(ownerId, id, position) { await pool.query('insert into patients (id, owner_id, position) values ($1,$2,$3) on conflict (id) do nothing', [id, ownerId, position]); },
     async close() { await pool.end(); }
   };
 }
@@ -649,7 +664,7 @@ function fileStore(file) {
     if (db) return db;
     try { db = JSON.parse(await fs.readFile(file, 'utf8')); } catch { db = {}; }
     // Files written before the data foundation only have users, sessions and data.
-    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, places: {}, lookups: {}, reports: {}, approved: [], snapshots: {}, flags: {}, notices: {}, push: {}, reminderDays: {}, doseReminders: {}, optouts: {}, resets: {}, inboxAddresses: {}, inboxConnections: {}, inboxMessages: {}, emailOrders: {}, oauthStates: {}, identities: {}, members: {}, ...db };
+    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, places: {}, lookups: {}, reports: {}, approved: [], snapshots: {}, flags: {}, notices: {}, push: {}, reminderDays: {}, doseReminders: {}, optouts: {}, resets: {}, inboxAddresses: {}, inboxConnections: {}, inboxMessages: {}, emailOrders: {}, oauthStates: {}, identities: {}, members: {}, patients: {}, ...db };
     return db;
   };
   // Serialise writes so concurrent requests can't interleave partial files.
@@ -666,7 +681,7 @@ function fileStore(file) {
   const later = (a, b) => (a > b ? a : new Date(Date.parse(b) + 1).toISOString());
   const copy = v => v === null || v === undefined ? v : JSON.parse(JSON.stringify(v));
   const connOut = c => c ? copy(c) : null;
-  const memberOut = m => m ? { id: m.id, ownerId: m.ownerId, userId: m.userId || null, name: m.name, email: m.email, phone: m.phone || '', role: m.role, perms: copy(m.perms || {}), invitedAt: new Date(m.invitedAt), joinedAt: m.joinedAt ? new Date(m.joinedAt) : null } : null;
+  const memberOut = m => m ? { id: m.id, ownerId: m.ownerId, userId: m.userId || null, name: m.name, email: m.email, phone: m.phone || '', role: m.role, perms: copy(m.perms || {}), patients: copy(m.patients || null), invitedAt: new Date(m.invitedAt), joinedAt: m.joinedAt ? new Date(m.joinedAt) : null } : null;
   return {
     async init() { await load(); },
     async createUser({ email, name, passwordHash }) {
@@ -703,6 +718,7 @@ function fileStore(file) {
       for (const [k, st] of Object.entries(db.oauthStates)) if (st.userId === userId) delete db.oauthStates[k];
       for (const [k, i] of Object.entries(db.identities)) if (i.userId === userId) delete db.identities[k];
       for (const [k, m] of Object.entries(db.members)) if (m.userId === userId || m.ownerId === userId) delete db.members[k];
+      for (const [k, p] of Object.entries(db.patients)) if (k === userId || p.ownerId === userId) delete db.patients[k];
       await persist();
     },
     async syncPolicies(versions) {
@@ -1020,22 +1036,22 @@ function fileStore(file) {
     async saveOAuthIdentity({ provider, subject, userId, email = null }) { await load(); db.identities[`${provider}:${subject}`] ||= { userId, email, createdAt: now() }; await persist(); },
 
     /* Care teams. */
-    async addMember({ ownerId, userId = null, name, email, phone = '', role, perms = {}, inviteHash = null, invitedBy = null }) {
+    async addMember({ ownerId, userId = null, name, email, phone = '', role, perms = {}, patients = null, inviteHash = null, invitedBy = null }) {
       await load();
       const members = Object.values(db.members);
       if (members.some(m => m.ownerId === ownerId && m.email === email) || (userId && members.some(m => m.userId === userId))) throw Object.assign(new Error('exists'), { code: 'EXISTS' });
-      const m = { id: crypto.randomUUID(), ownerId, userId, name, email, phone, role, perms, inviteHash, invitedBy, invitedAt: now(), joinedAt: userId ? now() : null };
+      const m = { id: crypto.randomUUID(), ownerId, userId, name, email, phone, role, perms, patients, inviteHash, invitedBy, invitedAt: now(), joinedAt: userId ? now() : null };
       db.members[m.id] = m; await persist();
       return memberOut(m);
     },
     async listMembers(ownerId) { await load(); return Object.values(db.members).filter(m => m.ownerId === ownerId).sort((a, b) => a.invitedAt.localeCompare(b.invitedAt) || a.name.localeCompare(b.name)).map(memberOut); },
     async getMember(ownerId, id) { await load(); const m = db.members[id]; return m && m.ownerId === ownerId ? memberOut(m) : null; },
     async membershipOf(userId) { await load(); return memberOut(Object.values(db.members).find(m => m.userId === userId)); },
-    async updateMember(ownerId, id, { name, phone, role, perms }) {
+    async updateMember(ownerId, id, { name, phone, role, perms, patients }) {
       await load();
       const m = db.members[id];
       if (!m || m.ownerId !== ownerId) return null;
-      Object.assign(m, name != null ? { name } : {}, phone != null ? { phone } : {}, role != null ? { role } : {}, perms ? { perms } : {});
+      Object.assign(m, name != null ? { name } : {}, phone != null ? { phone } : {}, role != null ? { role } : {}, perms ? { perms } : {}, patients ? { patients } : {});
       await persist();
       return memberOut(m);
     },
@@ -1056,6 +1072,8 @@ function fileStore(file) {
       Object.assign(m, { userId, joinedAt: now(), inviteHash: null }); await persist();
       return memberOut(m);
     },
+    async listPatients(ownerId) { await load(); return Object.entries(db.patients).filter(([, p]) => p.ownerId === ownerId).sort(([, a], [, b]) => a.position - b.position || a.createdAt.localeCompare(b.createdAt)).map(([id, p]) => ({ id, position: p.position })); },
+    async addPatient(ownerId, id, position) { await load(); db.patients[id] ||= { ownerId, position, createdAt: now() }; await persist(); },
     async close() { await queue; }
   };
 }

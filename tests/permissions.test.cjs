@@ -56,7 +56,8 @@ test('a family viewer sees everything but can change nothing, even by calling th
     // Sees the same plan.
     assert.equal((await ann('GET', '/api/items')).body.items[0].name, 'Lisinopril 10 mg');
     assert.equal((await ann('GET', '/api/data')).body.data.profile.name, 'Dad');
-    assert.deepEqual((await ann('GET', '/api/me')).body.team, { role: 'viewer', perms: { tasks: false, addTasks: false, meds: false }, owner: false });
+    const { patient, patients, ...team } = (await ann('GET', '/api/me')).body.team;
+    assert.deepEqual(team, { role: 'viewer', perms: { tasks: false, addTasks: false, meds: false }, owner: false });
 
     const refused = [
       ['PUT', '/api/items/med-1', { ...MED, doses: [dose()] }],
