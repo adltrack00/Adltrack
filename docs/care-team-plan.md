@@ -70,7 +70,7 @@ Admins can change anyone's role at any time (Settings → People → tap their n
 
 ## 3. A caregiver on several families
 
-**Status:** In review. Decided with George on 2026-10-22: a caregiver goes to different homes and is signed up by each family's own admin, not one admin with several patients (that's the agency dashboard, a later step). Code: one account on many care teams (`membershipsOf` in `server/store.js`), `access` in `server/team.js` picks the family from the app's `X-Patient` header, and `patients.js` (the picker and the switch on Home).
+**Status:** Done (PR #29). Decided with George on 2026-10-22: a caregiver goes to different homes and is signed up by each family's own admin, not one admin with several patients (that's the agency dashboard, a later step). Code: one account on many care teams (`membershipsOf` in `server/store.js`), `access` in `server/team.js` picks the family from the app's `X-Patient` header, and `patients.js` (the picker and the switch on Home).
 **Needs:** step 2.
 **Build:**
 - Each family's admin adds the caregiver in their own Settings → People, with that family's own role and ticks. One account can be on any number of families' care teams.
