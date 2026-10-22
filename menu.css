@@ -62,3 +62,14 @@ dialog.menu-drawer{width:min(72vw,280px)}
 /* Support: rows stacked under "How Adltrack works" share one divider, as in the Settings list. */
 .prose .settings-row+.settings-row{border-top:0}
 .prose .call-links .flow-text-link{color:#111;text-decoration:underline;text-underline-offset:3px;margin-right:12px}
+/* Settings → People: one row per person, a role pick with a line on each role, and the extra permissions. */
+.person-row span{text-align:left}.person-row small{display:block;font-size:13px;color:#888;margin-top:5px;line-height:1.4}
+div.person-row{cursor:default}div.person-row:hover{background:none}
+.people-add{margin-top:28px;width:100%}
+.role-pick,.role-perms{border:0;padding:0;margin:26px 0 0}.role-pick legend,.role-perms legend{font-size:12px;padding:0;margin-bottom:4px}
+.guided-form .role-pick label,.guided-form .role-perms label{display:flex;gap:12px;align-items:flex-start;font-size:15px;color:#111;margin:16px 0;cursor:pointer}.guided-form .role-pick input,.guided-form .role-perms input{width:18px;height:18px;margin:2px 0 0;padding:0;flex:none;accent-color:#111}.guided-form .role-perms input:disabled+span{color:#888}
+.role-pick small{display:block;font-size:13px;color:#777;margin-top:4px;line-height:1.45;font-weight:400}
+.role-perms[hidden]{display:none}
+.people-done{width:100%;margin-top:12px}
+#invite-link-form .people-add{margin-top:6px}
+#person-add-form .primary,#person-edit-form .primary{width:100%;margin-top:26px}

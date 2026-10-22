@@ -21,6 +21,7 @@ const { createEmailReader } = require('./server/mail');
 const { createInbox } = require('./server/inbox');
 const { oauthConfig, createOAuth, tokenKey } = require('./server/oauth');
 const { createEmail, emailConfig } = require('./server/email');
+const { createSms, smsConfig } = require('./server/sms');
 
 const production = process.env.NODE_ENV === 'production';
 const databaseUrl = process.env.DATABASE_URL || '';
@@ -51,6 +52,8 @@ const push = createPush({ vapid: vapidConfig(process.env) });
 // Reminder emails and password reset links need Resend (RESEND_API_KEY, EMAIL_FROM, APP_URL).
 const email = createEmail({ config: emailConfig(process.env), secret: process.env.EMAIL_TOKEN_SECRET || '' });
 if (email.available() && !process.env.EMAIL_TOKEN_SECRET) console.warn('EMAIL_TOKEN_SECRET isn’t set: links in emails stop working when the server restarts.');
+// Care team invites by text need Twilio (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM); without it they go by email.
+const sms = createSms({ config: smsConfig(process.env) });
 const reminders = createReminders({ store, push, email, data });
 // The every-minute reminder dispatch only runs when push or email is set up.
 defineJobs(jobs, { store, storage, data, reminders: push.available() || email.available() ? reminders : null });
@@ -74,7 +77,7 @@ store.init().then(async () => {
   const migrated = await data.migrateAll();
   if (migrated) console.log(`Moved ${migrated} account${migrated === 1 ? '' : 's'} to the items tables.`);
   await jobs.start();
-  const server = http.createServer(createApp({ store, data, production, policies, classifier: createClassifier(), receipts: createReceiptReader(), discharge: createDischargeReader(), labels: createLabelReader(), places: createPlaces({ store }), review, push, reminders, email, supportEmail: process.env.SUPPORT_EMAIL || '', inbox, oauth, publicUrl: oauthSettings.publicUrl, inboundSecret: process.env.RESEND_WEBHOOK_SECRET || '' })).listen(port, host, () =>
+  const server = http.createServer(createApp({ store, data, production, policies, classifier: createClassifier(), receipts: createReceiptReader(), discharge: createDischargeReader(), labels: createLabelReader(), places: createPlaces({ store }), review, push, reminders, email, supportEmail: process.env.SUPPORT_EMAIL || '', inbox, oauth, publicUrl: oauthSettings.publicUrl, inboundSecret: process.env.RESEND_WEBHOOK_SECRET || '', sms })).listen(port, host, () =>
     console.log(`Adltrack running on http://${host === '0.0.0.0' ? 'localhost' : host}:${port} (${databaseUrl ? 'Postgres' : 'local file store'}, ${storage.kind === 's3' ? 'S3 file storage' : 'local file storage'})`));
   const shutdown = () => { server.close(); jobs.stop().finally(() => store.close().finally(() => process.exit(0))); };
   process.on('SIGTERM', shutdown);

@@ -64,6 +64,13 @@ function resetEmail(link) {
   return { subject: 'Reset your Adltrack password', html, text: `Reset your Adltrack password\n\nChoose a new password (the link works once, for one hour):\n${link}\n\nIf you didn't ask for this, ignore this email. Your password stays the same.\n` };
 }
 
+function inviteEmail({ inviter, name, role, link }) {
+  const html = page(`<p style="font-size:22px;line-height:1.3;margin:0 0 12px">${esc(inviter)} added you to their care team.</p>
+<p style="font-size:14px;line-height:1.6;margin:0 0 22px">Hi ${esc(name)}, you’re on Adltrack as ${esc(role)}. Adltrack keeps the family and caregivers on the same page: the medications, the daily care report and photos, refills and visits. Create your account or sign in to join. The link works for 14 days.</p>${button(link, 'Join the care team', true)}`,
+    'If you weren’t expecting this, ignore this email. Nothing happens unless you join.');
+  return { subject: `${inviter} added you to their care team on Adltrack`, html, text: `${inviter} added you to their care team on Adltrack\n\nHi ${name}, you're on Adltrack as ${role}. Join the care team (the link works for 14 days):\n${link}\n\nIf you weren't expecting this, ignore this email.\n` };
+}
+
 /* Sends email. `send(message)` is the Resend call (tests pass a fake). */
 function createEmail({ config = null, secret = '', send = null, fetch: fetchImpl = globalThis.fetch } = {}) {
   const tokens = createTokens(secret);
@@ -101,8 +108,11 @@ function createEmail({ config = null, secret = '', send = null, fetch: fetchImpl
     },
     async sendReset(to, token) {
       await sender(message(to, resetEmail(`${appUrl}/reset.html#token=${token}`), 'password-reset'));
+    },
+    async sendInvite(to, invite) {
+      await sender(message(to, inviteEmail(invite), 'team-invite'));
     }
   };
 }
 
-module.exports = { createEmail, emailConfig, createTokens, reminderEmail, resetEmail, KINDS, ACTIONS };
+module.exports = { createEmail, emailConfig, createTokens, reminderEmail, resetEmail, inviteEmail, KINDS, ACTIONS };

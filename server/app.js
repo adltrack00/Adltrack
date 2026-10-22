@@ -8,6 +8,7 @@ const { MAX_PAGES } = require('./receipts');
 const { buildGuide, placeQueries } = require('./guide');
 const { cleanSubscription, validTimeZone, quiet, notification } = require('./reminders');
 const { ACTIONS, KINDS } = require('./email');
+const { createTeam } = require('./team');
 const { printedWindow } = require('./receipts');
 const { dischargeDraft, MAX_PAGES: MAX_DISCHARGE_PAGES } = require('./discharge');
 const { compare: compareLabel, MAX_PHOTOS: MAX_LABEL_PHOTOS } = require('./label');
@@ -133,7 +134,8 @@ function receiptDraft(receipt, policy) {
   };
 }
 
-function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, discharge = null, labels = null, places = null, review = null, push = null, reminders = null, email = null, supportEmail = '', inbox = null, oauth = null, publicUrl = '', inboundSecret = '' }) {
+function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, discharge = null, labels = null, places = null, review = null, push = null, reminders = null, email = null, supportEmail = '', inbox = null, oauth = null, publicUrl = '', inboundSecret = '', sms = null, team = null }) {
+  team = team || createTeam({ store, email, sms });
   const authLimit = limiter(20, 15 * 60 * 1000);
   // Each classification is an AI call, so it's limited per account.
   const classifyLimit = limiter(300, 60 * 60 * 1000);
@@ -186,6 +188,11 @@ function createApp({ store, data, production = false, policies = null, classifie
     await store.createSession(user.id, sha256(token), new Date(Date.now() + SESSION_DAYS * 864e5));
     send(res, status, { user: publicUser(user), ...extra }, { 'Set-Cookie': cookie(req, token, SESSION_DAYS * 86400) });
   }
+
+  /* The care plan an account works on (its own, or the care team's it joined), with a short id of it so the app notices
+     when that changes and swaps its copy. */
+  const spaceOf = ownerId => sha256('space:' + ownerId).slice(0, 16);
+  async function spaceData(user) { const { ownerId } = await team.access(user); return { data: await data.getData(ownerId), space: spaceOf(ownerId) }; }
 
   const publicUser = user => ({ email: user.email, name: user.name, ...(review && review.isAdmin(user) ? { admin: true } : {}) });
   // Accounts made with "Continue with Google / Apple" have no password.
@@ -282,7 +289,7 @@ function createApp({ store, data, production = false, policies = null, classifie
       let user;
       try { user = await store.createUser({ email, name, passwordHash: await hashPassword(body.password) }); }
       catch (err) { if (err.code === 'EXISTS') throw new HttpError(409, 'An account with this email already exists. Sign in instead.'); throw err; }
-      return startSession(req, res, user, 201, { data: null });
+      return startSession(req, res, user, 201, { data: null, space: spaceOf(user.id) });
     }
 
     if (route === '/api/login' && method === 'POST') {
@@ -295,7 +302,7 @@ function createApp({ store, data, production = false, policies = null, classifie
       const ok = await verifyPassword(String(body.password || ''), user ? user.passwordHash : await DUMMY_HASH);
       if (!user || !ok) { loginFailures.fail(email); throw new HttpError(401, 'Email or password is incorrect.'); }
       loginFailures.clear(email);
-      return startSession(req, res, user, 200, { data: await data.getData(user.id) });
+      return startSession(req, res, user, 200, await spaceData(user));
     }
 
     // The support address shown on Support (SUPPORT_EMAIL), or null when it isn't set.
@@ -331,7 +338,7 @@ function createApp({ store, data, production = false, policies = null, classifie
       await store.deleteUserSessions(userId);
       const user = await store.findUserById(userId);
       loginFailures.clear(user.email);
-      return startSession(req, res, user, 200, { data: await data.getData(user.id) });
+      return startSession(req, res, user, 200, await spaceData(user));
     }
 
     // Links in reminder emails, which work without signing in: signed for one account, item and action.
@@ -356,6 +363,13 @@ function createApp({ store, data, production = false, policies = null, classifie
       if (!t || t.t !== 'unsub' || !KINDS.includes(t.k)) throw new HttpError(400, 'This link isn’t valid. Turn emails off in Reminders instead.');
       if (await store.findUserById(t.u)) await store.setEmailOptout(t.u, t.k, true);
       return send(res, 200, { ok: true, kind: t.k });
+    }
+
+    // The invite link from a care team, before signing in: who added this person and as what.
+    if (route === '/api/invite/info' && method === 'POST') {
+      checkWrite(req);
+      if (!linkLimit('ip:' + clientIp(req))) throw new HttpError(429, 'Too many attempts. Try again in a few minutes.');
+      return send(res, 200, await team.inviteInfo((await readBody(req, 2_000)).token));
     }
 
     if (route === '/api/logout' && method === 'POST') {
@@ -411,9 +425,34 @@ function createApp({ store, data, production = false, policies = null, classifie
     const user = await currentUser(req);
     if (!user) throw new HttpError(401, 'Please sign in.');
 
+    // Whose care plan this account works on: its own, or the care team's it joined. Every care plan route below uses it.
+    const access = await team.access(user), owner = access.ownerId;
+
     if (route === '/api/me' && method === 'GET') {
       const full = await store.findUserByEmail(user.email);
-      return send(res, 200, { user: { ...publicUser(user), ...(full && full.passwordHash === NO_PASSWORD ? { passwordless: true } : {}) } });
+      return send(res, 200, { user: { ...publicUser(user), ...(full && full.passwordHash === NO_PASSWORD ? { passwordless: true } : {}) }, team: { role: access.role, perms: access.perms, owner: access.owner }, space: spaceOf(owner) });
+    }
+
+    // Settings → People: the care team, adding people by email and phone with what each may do, and joining from an invite.
+    if (route === '/api/team' && method === 'GET') return send(res, 200, await team.view(user));
+    if (route === '/api/team/members' && method === 'POST') {
+      checkWrite(req);
+      if (!linkLimit('invite:' + user.id)) throw new HttpError(429, 'You’ve sent a lot of invites. Try again in a few minutes.');
+      return send(res, 201, await team.add(user, await readBody(req, 5_000), baseUrl(req)));
+    }
+    const memberMatch = /^\/api\/team\/members\/([0-9a-f-]{36})(\/invite)?$/i.exec(route);
+    if (memberMatch && !memberMatch[2] && method === 'PUT') { checkWrite(req); return send(res, 200, await team.update(user, memberMatch[1].toLowerCase(), await readBody(req, 5_000))); }
+    if (memberMatch && !memberMatch[2] && method === 'DELETE') { checkWrite(req); return send(res, 200, await team.remove(user, memberMatch[1].toLowerCase())); }
+    if (memberMatch && memberMatch[2] && method === 'POST') {
+      checkWrite(req);
+      if (!linkLimit('invite:' + user.id)) throw new HttpError(429, 'You’ve sent a lot of invites. Try again in a few minutes.');
+      return send(res, 200, await team.resend(user, memberMatch[1].toLowerCase(), baseUrl(req)));
+    }
+    if (route === '/api/team/leave' && method === 'POST') { checkWrite(req); return send(res, 200, await team.leave(user)); }
+    if (route === '/api/invite/accept' && method === 'POST') {
+      checkWrite(req);
+      if (!linkLimit('ip:' + clientIp(req))) throw new HttpError(429, 'Too many attempts. Try again in a few minutes.');
+      return send(res, 200, await team.accept(user, (await readBody(req, 2_000)).token));
     }
 
     // Purchases from email: the forwarding address, connected inboxes and the orders found that haven't been opened yet.
@@ -535,14 +574,14 @@ function createApp({ store, data, production = false, policies = null, classifie
       const body = await readBody(req, 30 * 1024 * 1024);
       const purchaseId = typeof body.purchaseId === 'string' ? body.purchaseId : '';
       const pages = data.receiptPages(body.pages, MAX_PAGES);
-      const files = await data.saveReceipt(user.id, purchaseId, pages);
+      const files = await data.saveReceipt(owner, purchaseId, pages);
       if (!receipts || !receipts.available()) return send(res, 200, { purchaseId, files, receipt: null, reason: 'unavailable' });
       if (!receiptLimit('user:' + user.id)) return send(res, 200, { purchaseId, files, receipt: null, reason: 'limit' });
       const receipt = await receipts.read(pages, { today: typeof body.today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.today) ? body.today : undefined });
       if (!receipt) return send(res, 200, { purchaseId, files, receipt: null, reason: 'failed' });
       const match = receipt.store && policies ? policies.match(receipt.store) : null;
       const policy = match && policies.get(match.id);
-      await data.describeReceiptPurchase(user.id, purchaseId, { store: policy ? policy.name : receipt.store, channel: receipt.channel, orderNumber: receipt.orderNumber, purchased: receipt.purchased, retailerId: policy ? policy.id : null });
+      await data.describeReceiptPurchase(owner, purchaseId, { store: policy ? policy.name : receipt.store, channel: receipt.channel, orderNumber: receipt.orderNumber, purchased: receipt.purchased, retailerId: policy ? policy.id : null });
       return send(res, 200, { purchaseId, files, receipt, retailer: policy ? { id: policy.id, name: policy.name } : null, draft: receiptDraft(receipt, policy) });
     }
     // Discharge papers: saved privately like a receipt's pages, read by the AI model, and returned as the draft the Confirm
@@ -552,7 +591,7 @@ function createApp({ store, data, production = false, policies = null, classifie
       const body = await readBody(req, 60 * 1024 * 1024);
       const purchaseId = typeof body.purchaseId === 'string' ? body.purchaseId : '';
       const pages = data.receiptPages(body.pages, MAX_DISCHARGE_PAGES, 'discharge');
-      const files = await data.saveReceipt(user.id, purchaseId, pages);
+      const files = await data.saveReceipt(owner, purchaseId, pages);
       if (!discharge || !discharge.available()) return send(res, 200, { purchaseId, files, papers: null, reason: 'unavailable' });
       if (!receiptLimit('user:' + user.id)) return send(res, 200, { purchaseId, files, papers: null, reason: 'limit' });
       const papers = await discharge.read(pages);
@@ -656,39 +695,39 @@ function createApp({ store, data, production = false, policies = null, classifie
       const off = await store.emailOptouts(user.id);
       return send(res, 200, { available: !!(email && email.available()), ...Object.fromEntries(KINDS.map(k => [k, !off.includes(k)])) });
     }
-    if (route === '/api/data' && method === 'GET') return send(res, 200, { data: await data.getData(user.id) });
+    if (route === '/api/data' && method === 'GET') return send(res, 200, { data: await data.getData(owner), space: spaceOf(owner) });
     // The whole account in one document, kept for older versions of the app.
     if (route === '/api/data' && method === 'PUT') {
       checkWrite(req);
       const payload = cleanPayload(await readBody(req, 12 * 1024 * 1024));
-      return send(res, 200, { updatedAt: await data.putData(user.id, payload) });
+      return send(res, 200, { updatedAt: await data.putData(owner, payload) });
     }
 
     // A photo of a dose being taken: POST it as a data URL, kept with the dose by its file URL.
     if (route === '/api/files/proof' && method === 'POST') {
       checkWrite(req);
       const body = await readBody(req, 14 * 1024 * 1024);
-      return send(res, 201, await data.saveProof(user.id, body && body.data));
+      return send(res, 201, await data.saveProof(owner, body && body.data));
     }
 
     // Owner-only file, such as an item photo. Anyone else gets the same 404 as a file that doesn't exist.
     const fileMatch = /^\/api\/files\/([0-9a-f-]{36})$/i.exec(route);
     if (fileMatch && method === 'GET') {
-      const file = await data.readFile(user.id, fileMatch[1].toLowerCase());
+      const file = await data.readFile(owner, fileMatch[1].toLowerCase());
       if (!file) throw new HttpError(404, 'Not found.');
       res.writeHead(200, { 'Content-Type': file.contentType, 'Content-Length': file.body.length, 'Cache-Control': 'private, max-age=31536000, immutable', 'Content-Disposition': 'inline', 'Content-Security-Policy': FILE_CSP });
       return res.end(file.body);
     }
 
     // Per-item sync: the app creates, updates and deletes one item at a time.
-    await data.migrate(user.id);
+    await data.migrate(owner);
     if (route === '/api/items' && method === 'GET') {
-      const raw = await data.getData(user.id);
+      const raw = await data.getData(owner);
       return send(res, 200, { items: raw ? raw.purchases : [], updatedAt: raw ? raw.updatedAt : null });
     }
     if (route === '/api/items' && method === 'POST') {
       checkWrite(req);
-      return send(res, 201, await data.saveItem(user.id, await readBody(req, 12 * 1024 * 1024), { mustBeNew: true }));
+      return send(res, 201, await data.saveItem(owner, await readBody(req, 12 * 1024 * 1024), { mustBeNew: true }));
     }
     // The QR code or return label for one item: PUT a photo, screenshot or PDF as a data URL; DELETE removes it.
     const labelMatch = /^\/api\/items\/([^/]+)\/label$/.exec(route);
@@ -696,33 +735,33 @@ function createApp({ store, data, production = false, policies = null, classifie
       checkWrite(req);
       let id; try { id = decodeURIComponent(labelMatch[1]); } catch { throw new HttpError(400, 'Invalid item.'); }
       const body = method === 'PUT' ? await readBody(req, 14 * 1024 * 1024) : null;
-      return send(res, 200, await data.setLabel(user.id, id, method === 'PUT' ? body && body.data : null));
+      return send(res, 200, await data.setLabel(owner, id, method === 'PUT' ? body && body.data : null));
     }
     const itemMatch = /^\/api\/items\/([^/]+)$/.exec(route);
     if (itemMatch && (method === 'PUT' || method === 'DELETE')) {
       checkWrite(req);
       let id; try { id = decodeURIComponent(itemMatch[1]); } catch { throw new HttpError(400, 'Invalid item.'); }
       if (method === 'DELETE') {
-        const r = await data.deleteItem(user.id, id);
+        const r = await data.deleteItem(owner, id);
         if (!r.deleted) throw new HttpError(404, 'Not found.');
         return send(res, 200, { ok: true, updatedAt: r.updatedAt });
       }
       const body = await readBody(req, 12 * 1024 * 1024);
       if (!body || typeof body !== 'object' || Array.isArray(body)) throw new HttpError(400, 'Invalid item.');
-      return send(res, 200, await data.saveItem(user.id, { ...body, id }));
+      return send(res, 200, await data.saveItem(owner, { ...body, id }));
     }
     if (route === '/api/settings' && method === 'PUT') {
       checkWrite(req);
       const { settings, profile } = cleanPayload({ purchases: [], ...(await readBody(req, 12 * 1024 * 1024)) });
-      return send(res, 200, await data.putSettings(user.id, { settings, profile }));
+      return send(res, 200, await data.putSettings(owner, { settings, profile }));
     }
-    if (route === '/api/purchases' && method === 'GET') return send(res, 200, { purchases: await data.listPurchases(user.id) });
+    if (route === '/api/purchases' && method === 'GET') return send(res, 200, { purchases: await data.listPurchases(owner) });
     const receiptMatch = /^\/api\/purchases\/([^/]+)\/receipt$/.exec(route);
     if (receiptMatch && method === 'PUT') {
       checkWrite(req);
       let id; try { id = decodeURIComponent(receiptMatch[1]); } catch { throw new HttpError(400, 'Invalid request.'); }
       const body = await readBody(req, 14 * 1024 * 1024);
-      return send(res, 200, await data.attachReceipt(user.id, id, body && body.data));
+      return send(res, 200, await data.attachReceipt(owner, id, body && body.data));
     }
     if (route === '/api/account' && method === 'DELETE') {
       checkWrite(req);

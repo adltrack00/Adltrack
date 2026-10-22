@@ -4,6 +4,8 @@ const Account = (() => {
   const ACCOUNT_KEY = 'returnly-account-v1', SYNCED_KEY = 'returnly-synced-at', DIRTY_KEY = 'returnly-unsynced';
   // What the account last confirmed: a fingerprint of each item by id, and of settings plus profile.
   const ITEMS_KEY = 'returnly-synced-items', SETTINGS_KEY = 'returnly-synced-settings';
+  // Which care plan this browser's copy belongs to (the account's own, or the care team's it joined).
+  const SPACE_KEY = 'adltrack-space';
   const DATA_KEYS = { purchases: 'back-purchases-v1', settings: 'back-reminders-v1', profile: 'returnly-profile-v1' };
   const get = k => { try { return localStorage.getItem(k); } catch { return null; } };
   const set = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
@@ -37,8 +39,8 @@ const Account = (() => {
     markSynced(data);
     del(DIRTY_KEY);
   }
-  function clearLocal() { [...Object.values(DATA_KEYS), 'back-last-nudge', 'returnly-push-endpoint', ACCOUNT_KEY, SYNCED_KEY, DIRTY_KEY, ITEMS_KEY, SETTINGS_KEY].forEach(del); }
-  function remember(u) { set(ACCOUNT_KEY, JSON.stringify({ email: u.email, name: u.name, ...(u.admin ? { admin: true } : {}), ...(u.passwordless ? { passwordless: true } : {}) })); }
+  function clearLocal() { [...Object.values(DATA_KEYS), 'back-last-nudge', 'returnly-push-endpoint', ACCOUNT_KEY, SYNCED_KEY, DIRTY_KEY, ITEMS_KEY, SETTINGS_KEY, SPACE_KEY].forEach(del); }
+  function remember(u, team = user()?.team) { set(ACCOUNT_KEY, JSON.stringify({ email: u.email, name: u.name, ...(u.admin ? { admin: true } : {}), ...(u.passwordless ? { passwordless: true } : {}), ...(team ? { team } : {}) })); }
 
   /* The account stores photos as files and sends back their private URLs; swap them into this browser's copy
      (in memory too, so the next save doesn't upload the photo again). */
@@ -121,12 +123,14 @@ const Account = (() => {
     if (!keep) [DATA_KEYS.purchases, DATA_KEYS.profile].forEach(del);
     set(DATA_KEYS.profile, JSON.stringify({ ...(keep ? parse(DATA_KEYS.profile, {}) : {}), name: r.user.name }));
     set(ITEMS_KEY, '{}'); del(SETTINGS_KEY);
+    if (r.space) set(SPACE_KEY, r.space);
     remember(r.user);
     return r.user;
   }
   async function signIn({ email, password }) { return adopt(await api('POST', '/api/login', { email, password })); }
   /* Takes in a signed-in answer (sign in, or a new password from a reset link): the account's copy and who's signed in. */
   function adopt(r) {
+    if (r.space) set(SPACE_KEY, r.space);
     if (r.data) writeLocal(r.data); else { if (!hasRealPurchases()) [DATA_KEYS.purchases, DATA_KEYS.profile].forEach(del); set(ITEMS_KEY, '{}'); del(SETTINGS_KEY); }
     remember(r.user);
     if (!r.data) { const p = parse(DATA_KEYS.profile, {}); if (!p.name) set(DATA_KEYS.profile, JSON.stringify({ ...p, name: r.user.name })); }
@@ -135,7 +139,8 @@ const Account = (() => {
   /* After "Continue with Google / Apple": the server has set the session cookie; load the account like signIn does. */
   async function adoptSession() {
     const me = await api('GET', '/api/me');
-    return adopt({ user: me.user, data: (await api('GET', '/api/data')).data });
+    remember(me.user, me.team);
+    return adopt({ user: me.user, ...(await api('GET', '/api/data')) });
   }
   // A slow or sleeping server must never leave the user stuck signed in.
   const within = (promise, ms) => Promise.race([promise.catch(() => {}), new Promise(r => setTimeout(r, ms))]);
@@ -156,9 +161,12 @@ const Account = (() => {
   /* On the app: require an account, then pull changes made on other devices. */
   async function checkApp() {
     // Keeps the stored account up to date, for example when it's made an admin.
-    api('GET', '/api/me').then(r => remember(r.user)).catch(() => {});
+    api('GET', '/api/me').then(r => remember(r.user, r.team)).catch(() => {});
     try {
-      const { data } = await api('GET', '/api/data');
+      const { data, space } = await api('GET', '/api/data');
+      // Joined a care team, or left one: this browser's copy belongs to the other plan, so it's replaced, never uploaded.
+      if (space && get(SPACE_KEY) && space !== get(SPACE_KEY)) { set(SPACE_KEY, space); writeLocal(data || { purchases: [], settings: {}, profile: {} }); location.reload(); return; }
+      if (space) set(SPACE_KEY, space);
       if (get(DIRTY_KEY)) return flush();
       if (data && !get(ITEMS_KEY) && data.updatedAt === get(SYNCED_KEY)) {
         // First visit since sync went per item: nothing changed elsewhere, so only reload if photos moved to files.
