@@ -51,6 +51,7 @@ When a step is merged, update its **Status** here in the same PR.
 
 **Status:** Done (PR #26).
 **Build:** Settings → People. Admins add a person by name, email and mobile number as Family viewer, Caregiver or Admin, and tick what they can also do. The invite goes by email (Resend) and text (Twilio, `TWILIO_*`), with a link to copy. `join.html` shows who added you, then create an account or sign in and join. Everyone on a team shares the owner's care plan. Entries carry the signed-in person's own name. Code: `server/team.js`, `server/sms.js`, `team.js`, the `team_members` table.
+Admins can change anyone's role at any time (Settings → People → tap their name), for example moving a family viewer up to Caregiver or Admin, or back down. Only admins can do this, and the server uses the new role straight away.
 **Done when:** an admin adds a caregiver, the caregiver joins from the link, and a dose the caregiver marks shows on the admin's phone with the caregiver's name.
 
 ---
@@ -63,7 +64,8 @@ When a step is merged, update its **Status** here in the same PR.
 - The server refuses changes a person isn't allowed: viewers can't change items, settings or photos; marking doses and tasks needs My Tasks; adding or changing medications and scanning papers needs that tick.
 - The app hides what a person can't do: no My Tasks sheet for viewers; no Add discharge papers +, Confirm or Edit for people without the medications tick.
 - A short line on each page a viewer opens: "You're following along. Ask an admin to change this."
-**Done when:** a viewer can see everything but change nothing, even by calling the API directly, and a caregiver without the medications tick can do tasks but can't edit a medication.
+- **Role changes switch over by themselves.** When an admin moves someone up (Family viewer → Caregiver or Admin) or down, that person's app changes to match without signing out: the next time it opens, and within a minute while it's open. For example, My Tasks appears for a viewer who becomes a caregiver. A short note tells them: "George changed your access to Caregiver."
+**Done when:** a viewer can see everything but change nothing, even by calling the API directly; a caregiver without the medications tick can do tasks but can't edit a medication; and when an admin moves a viewer up to Caregiver, My Tasks appears on that person's open app within a minute.
 
 ---
 
