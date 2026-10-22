@@ -41,7 +41,7 @@ When a step is merged, update its **Status** here in the same PR.
 | Alerts: incidents, missed doses, end-of-day report | Yes | Yes | Yes |
 
 4. **Total transparency:** every entry shows who did it and when. Incidents alert everyone straight away.
-5. **Care homes:** a home or small agency with 2 to 10 patients uses the same app and the same steps. A caregiver picks a patient first, then sees that patient's own Home and My Tasks. A family viewer only ever sees their own relative.
+5. **Caregivers on several families:** a caregiver who goes to different homes is signed up by each family's admin and picks a patient first, then sees that patient's own Home and My Tasks. A family viewer only ever sees their own relative. An agency dashboard (one admin, many patients) comes in a later step.
 6. Permissions are checked on the server, never only by hiding buttons.
 7. Every step ends with `npm test` passing and before/after screenshots in `docs/screenshots/<step>/`.
 
@@ -51,31 +51,33 @@ When a step is merged, update its **Status** here in the same PR.
 
 **Status:** Done (PR #26).
 **Build:** Settings → People. Admins add a person by name, email and mobile number as Family viewer, Caregiver or Admin, and tick what they can also do. The invite goes by email (Resend) and text (Twilio, `TWILIO_*`), with a link to copy. `join.html` shows who added you, then create an account or sign in and join. Everyone on a team shares the owner's care plan. Entries carry the signed-in person's own name. Code: `server/team.js`, `server/sms.js`, `team.js`, the `team_members` table.
+Admins can change anyone's role at any time (Settings → People → tap their name), for example moving a family viewer up to Caregiver or Admin, or back down. Only admins can do this, and the server uses the new role straight away.
 **Done when:** an admin adds a caregiver, the caregiver joins from the link, and a dose the caregiver marks shows on the admin's phone with the caregiver's name.
 
 ---
 
 ## 2. Permissions enforced
 
-**Status:** In review. Code: `server/permissions.js` (checked on every write in `server/app.js`), `can.js` (hides what a person can't do), `Account.can` in `account.js`.
+**Status:** Done (PR #27). Code: `server/permissions.js` (checked on every write in `server/app.js`), `can.js` (hides what a person can't do), `Account.can` in `account.js`.
 **Needs:** step 1.
 **Build:**
 - The server refuses changes a person isn't allowed: viewers can't change items, settings or photos; marking doses and tasks needs My Tasks; adding or changing medications and scanning papers needs that tick.
 - The app hides what a person can't do: no My Tasks sheet for viewers; no Add discharge papers +, Confirm or Edit for people without the medications tick.
-**Done when:** a viewer can see everything but change nothing, even by calling the API directly, and a caregiver without the medications tick can do tasks but can't edit a medication.
+- **Role changes switch over by themselves.** When an admin moves someone up (Family viewer → Caregiver or Admin) or down, that person's app changes to match without signing out: the next time it opens, and within a minute while it's open. For example, My Tasks appears for a viewer who becomes a caregiver. A short note tells them: "George changed your access to Caregiver."
+**Done when:** a viewer can see everything but change nothing, even by calling the API directly; a caregiver without the medications tick can do tasks but can't edit a medication; and when an admin moves a viewer up to Caregiver, My Tasks appears on that person's open app within a minute.
 
 ---
 
-## 3. Several patients per home
+## 3. A caregiver on several families
 
-**Status:** In review. Code: the `patients` table and `team_members.patients` (`server/store.js`), patients and who's on them in `server/team.js` (`access` picks the patient from the app's `X-Patient` header), `patients.js` (the picker, the switch on Home, Settings → People → Patients). Each patient's data is kept under its own id like an account's: the owner's for the first patient, and an account nobody can sign in to for each one added after.
+**Status:** In review. Decided with George on 2026-10-22: a caregiver goes to different homes and is signed up by each family's own admin, not one admin with several patients (that's the agency dashboard, a later step). Code: one account on many care teams (`membershipsOf` in `server/store.js`), `access` in `server/team.js` picks the family from the app's `X-Patient` header, and `patients.js` (the picker and the switch on Home).
 **Needs:** step 2.
 **Build:**
-- A care team holds 1 to 10 patients. Each patient has their own medications, tasks, report, photos, papers, doctors and pharmacy.
-- Admins add a patient (name and photo) in Settings → People → Patients, and choose which patients each caregiver and viewer is on.
-- A caregiver on more than one patient picks one first ("Who are you caring for?", patient photos and names), then sees that patient's own Home and My Tasks. A switch at the top of Home changes patient.
+- Each family's admin adds the caregiver in their own Settings → People, with that family's own role and ticks. One account can be on any number of families' care teams.
+- A caregiver on more than one family picks who they're caring for first ("Who are you caring for?", the patients' photos and names), then sees that patient's own Home and My Tasks. A switch under the photo on Home changes patient.
+- They only ever see the families that signed them up, and each family's People shows only that family's team.
 - The Home profile shows the patient, not the signed-in person.
-**Done when:** a home with 3 patients shows each one's own report and tasks, a caregiver switches between two of them, and a family viewer only sees their own relative.
+**Done when:** a caregiver signed up by 3 families sees each one's own report and tasks, switches between them without signing out, can't reach a family that didn't sign them up, and a family viewer only sees their own relative.
 
 ---
 

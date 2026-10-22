@@ -133,7 +133,7 @@ test('admins change what a person may do, resend invites and remove people, but 
   } finally { await app.close(); }
 });
 
-test('someone on one care team can’t join another until they leave', async () => {
+test('someone on one care team can join another family’s too, and leaves one without the other', async () => {
   const app = await boot();
   try {
     const a = await app.signUp('Ann', 'ann@example.com'), b = await app.signUp('Bo', 'bo@example.com');
@@ -141,9 +141,10 @@ test('someone on one care team can’t join another until they leave', async () 
     const inviteB = await b('POST', '/api/team/members', { name: 'Cy', email: 'cy@example.com', role: 'viewer' });
     const cy = await app.signUp('Cy', 'cy@example.com');
     assert.equal((await cy('POST', '/api/invite/accept', { token: app.token(inviteA.body.invite.link) })).status, 200);
-    assert.equal((await cy('POST', '/api/invite/accept', { token: app.token(inviteB.body.invite.link) })).status, 409);
-    assert.equal((await cy('POST', '/api/team/leave', {})).status, 200);
     assert.equal((await cy('POST', '/api/invite/accept', { token: app.token(inviteB.body.invite.link) })).status, 200);
+    assert.equal((await cy('GET', '/api/me')).body.team.patients.length, 2);
+    assert.equal((await cy('POST', '/api/team/leave', {})).status, 200);
+    assert.equal((await cy('GET', '/api/me')).body.team.patients.length, 1);
     // The owner can't leave their own team.
     assert.equal((await a('POST', '/api/team/leave', {})).status, 400);
   } finally { await app.close(); }

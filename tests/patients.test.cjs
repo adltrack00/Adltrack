@@ -4,17 +4,17 @@ const { createApp } = require('../server/app');
 const { createStorage } = require('../server/storage');
 const { createData } = require('../server/data');
 
-const PHOTO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+const PHOTO = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==';
 
 async function boot() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'adltrack-patients-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'adltrack-families-'));
   const store = createStore({ file: path.join(dir, 'store.json') });
   await store.init();
   const data = createData({ store, storage: createStorage({ dir: path.join(dir, 'files') }) });
   const server = http.createServer(createApp({ store, data }));
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
-  // Each client is one browser: its cookie, and the patient it picked (sent as X-Patient, as the app does).
+  // Each client is one browser: its cookie, and the family it picked (sent as X-Patient, as the app does).
   const client = () => {
     let cookie = '';
     const call = async (method, url, body) => {
@@ -22,165 +22,101 @@ async function boot() {
       const res = await fetch(base + url, { method, headers, body: body ? JSON.stringify(body) : undefined });
       const set = res.headers.get('set-cookie');
       if (set) cookie = set.split(';')[0].endsWith('=') ? '' : set.split(';')[0];
-      return { status: res.status, body: await res.json().catch(() => null), res };
+      return { status: res.status, body: await res.json().catch(() => null) };
     };
     return call;
   };
   const signUp = async (name, address) => { const c = client(); assert.equal((await c('POST', '/api/signup', { name, email: address, password: 'password123' })).status, 201); return c; };
-  const join = async (admin, name, address, role, patients) => {
-    const add = await admin('POST', '/api/team/members', { name, email: address, role, patients });
-    assert.equal(add.status, 201, JSON.stringify(add.body));
-    const c = await signUp(name, address);
-    assert.equal((await c('POST', '/api/invite/accept', { token: add.body.invite.link.split('#t=')[1] })).status, 200);
+  /* A family: its admin, the patient's name (and photo) on the plan's profile, and one medication. */
+  const family = async (admin, address, patient, med, photo) => {
+    const c = await signUp(admin, address);
+    await c('PUT', '/api/settings', { settings: {}, profile: { name: patient, ...(photo ? { photo } : {}) } });
+    await c('POST', '/api/items', { id: 'med-' + patient.toLowerCase(), name: med, med: true });
+    c.id = (await c('GET', '/api/me')).body.team.patient;
     return c;
   };
-  return { client, signUp, join, store, close: () => new Promise(r => server.close(r)) };
+  const invite = async (admin, name, address, role, perms = {}) => (await admin('POST', '/api/team/members', { name, email: address, role, perms })).body.invite.link.split('#t=')[1];
+  return { client, signUp, family, invite, close: () => new Promise(r => server.close(r)) };
 }
 
-/* A home with three patients, each with their own medication and dose. */
-async function home(app) {
-  const admin = await app.signUp('Grace', 'grace@example.com');
-  // The plan the home already had is the first patient.
-  await admin('PUT', '/api/settings', { settings: {}, profile: { name: 'Rose' } });
-  await admin('POST', '/api/items', { id: 'med-rose', name: 'Lisinopril', med: true });
-  const ids = [(await admin('GET', '/api/me')).body.team.patient];
-  for (const [name, med] of [['Walter', 'Metformin'], ['June', 'Warfarin']]) {
-    const r = await admin('POST', '/api/patients', { name, photo: PHOTO });
-    assert.equal(r.status, 201, JSON.stringify(r.body));
-    ids.push(r.body.patient.id);
-    admin.patient = r.body.patient.id;
-    assert.equal((await admin('POST', '/api/items', { id: 'med-' + name.toLowerCase(), name: med, med: true })).status, 201);
-    admin.patient = null;
-  }
-  return { admin, ids };
-}
-
-test('a home with 3 patients shows each one their own medications, report and profile', async () => {
+test('a caregiver signed up by three families switches between them and sees only those families', async () => {
   const app = await boot();
   try {
-    const { admin, ids } = await home(app);
-    const me = await admin('GET', '/api/me');
-    assert.deepEqual(me.body.team.patients.map(p => p.name), ['Rose', 'Walter', 'June']);
-    assert.equal(me.body.team.patients[0].first, true);
-    assert.match(me.body.team.patients[1].photo, /^\/api\/files\//);
-
-    const names = [];
-    for (const id of ids) {
-      admin.patient = id;
-      const d = (await admin('GET', '/api/data')).body;
-      names.push([d.data.profile.name, d.data.purchases.map(i => i.name).join()]);
-      // The photo of every patient opens, from any patient, for the picker.
-      admin.patient = ids[0];
-      if (id !== ids[0]) assert.equal((await admin('GET', me.body.team.patients[ids.indexOf(id)].photo)).status, 200);
+    const rose = await app.family('Grace', 'grace@example.com', 'Rose', 'Lisinopril', PHOTO);
+    const walter = await app.family('Hank', 'hank@example.com', 'Walter', 'Metformin');
+    const june = await app.family('Ivy', 'ivy@example.com', 'June', 'Warfarin');
+    const other = await app.family('Kim', 'kim@example.com', 'Al', 'Aspirin');
+    const maria = await app.signUp('Maria', 'maria@example.com');
+    // Each family's admin signs her up, with their own ticks: only June's family lets her change medications.
+    for (const [fam, perms] of [[rose, {}], [walter, {}], [june, { meds: true }]]) {
+      const r = await maria('POST', '/api/invite/accept', { token: await app.invite(fam, 'Maria', 'maria@example.com', 'caregiver', perms) });
+      assert.equal(r.status, 200);
+      assert.equal(r.body.patient, fam.id);
     }
-    assert.deepEqual(names, [['Rose', 'Lisinopril'], ['Walter', 'Metformin'], ['June', 'Warfarin']]);
-    // Each patient is its own space, so the app swaps its copy when the patient changes.
-    admin.patient = ids[1];
-    const s1 = (await admin('GET', '/api/data')).body.space;
-    admin.patient = ids[2];
-    assert.notEqual((await admin('GET', '/api/data')).body.space, s1);
-
-    // A dose marked for June stays June's.
-    await admin('PUT', '/api/items/med-june', { name: 'Warfarin', med: true, doses: [{ kind: 'taken', by: 'Grace' }] });
-    admin.patient = ids[1];
-    assert.equal((await admin('GET', '/api/items')).body.items[0].doses, undefined);
-  } finally { await app.close(); }
-});
-
-test('a caregiver on two patients switches between them and can’t reach the third', async () => {
-  const app = await boot();
-  try {
-    const { admin, ids } = await home(app);
-    const maria = await app.join(admin, 'Maria', 'maria@example.com', 'caregiver', [ids[1], ids[2]]);
     const me = (await maria('GET', '/api/me')).body.team;
-    assert.deepEqual(me.patients.map(p => p.name), ['Walter', 'June']);
-    // Nothing chosen yet: the first of hers.
-    assert.equal(me.patient, ids[1]);
+    assert.deepEqual(me.patients.map(p => [p.name, p.by]), [['Rose', 'Grace'], ['Walter', 'Hank'], ['June', 'Ivy']]);
+    assert.match(me.patients[0].photo, /^\/api\/files\//);
 
-    maria.patient = ids[2];
-    assert.deepEqual((await maria('GET', '/api/items')).body.items.map(i => i.name), ['Warfarin']);
-    assert.equal((await maria('PUT', '/api/items/med-june', { name: 'Warfarin', med: true, doses: [{ kind: 'taken', by: 'Maria' }] })).status, 200);
-    maria.patient = ids[1];
-    assert.deepEqual((await maria('GET', '/api/items')).body.items.map(i => i.name), ['Metformin']);
+    // Each pick shows that family's own medications, report and settings, with that family's permissions.
+    const seen = [];
+    for (const fam of [rose, walter, june]) {
+      maria.patient = fam.id;
+      const d = (await maria('GET', '/api/data')).body;
+      seen.push([d.data.profile.name, d.data.purchases.map(i => i.name).join(), (await maria('GET', '/api/me')).body.team.perms.meds]);
+    }
+    assert.deepEqual(seen, [['Rose', 'Lisinopril', false], ['Walter', 'Metformin', false], ['June', 'Warfarin', true]]);
+    // A dose she marks for Walter reaches Walter's family, and nobody else's.
+    maria.patient = walter.id;
+    assert.equal((await maria('PUT', '/api/items/med-walter', { name: 'Metformin', med: true, doses: [{ kind: 'taken', by: 'Maria' }] })).status, 200);
+    assert.equal((await walter('GET', '/api/items')).body.items[0].doses[0].by, 'Maria');
+    assert.equal((await rose('GET', '/api/items')).body.items[0].doses, undefined);
+    // Medications: Walter's family didn't allow it, June's did.
+    assert.equal((await maria('PUT', '/api/items/med-walter', { name: 'Metformin 1000 mg', med: true })).status, 403);
+    maria.patient = june.id;
+    assert.equal((await maria('PUT', '/api/items/med-june', { name: 'Warfarin 3 mg', med: true })).status, 200);
+    // The patient photo of every family she's on opens, for the picker.
+    assert.equal((await maria('GET', me.patients[0].photo)).status, 200);
 
-    // Asking for Rose, who she isn't on, gets her own first patient instead, never Rose's data.
-    maria.patient = ids[0];
-    assert.deepEqual((await maria('GET', '/api/items')).body.items.map(i => i.name), ['Metformin']);
-    assert.equal((await maria('PUT', '/api/items/med-rose', { name: 'Lisinopril', med: true, doses: [{ kind: 'taken' }] })).status, 403);
-    admin.patient = ids[0];
-    assert.equal((await admin('GET', '/api/items')).body.items[0].doses, undefined);
-    // Nor Rose's photos.
-    await admin('PUT', '/api/settings', { settings: {}, profile: { name: 'Rose', photo: PHOTO } });
-    const rosePhoto = (await admin('GET', '/api/data')).body.data.profile.photo;
-    assert.equal((await maria('GET', rosePhoto)).status, 404);
-    // Caregivers don't manage patients.
-    assert.equal((await maria('POST', '/api/patients', { name: 'Al' })).status, 403);
+    // A family that didn't sign her up is out of reach: asking for it gets her first family instead.
+    maria.patient = other.id;
+    assert.deepEqual((await maria('GET', '/api/items')).body.items.map(i => i.name), ['Lisinopril']);
+    // A write lands on her first family, where she can't add a medication, never on Al's.
+    assert.equal((await maria('PUT', '/api/items/med-al', { name: 'Aspirin', med: true, doses: [{ kind: 'taken' }] })).status, 403);
+    assert.equal((await other('GET', '/api/items')).body.items[0].doses, undefined);
+    await other('PUT', '/api/settings', { settings: {}, profile: { name: 'Al', photo: PHOTO } });
+    assert.equal((await maria('GET', (await other('GET', '/api/data')).body.data.profile.photo)).status, 404);
+
+    // Each family's People shows only that family's team.
+    maria.patient = rose.id;
+    assert.deepEqual((await maria('GET', '/api/team')).body.members.map(m => m.name).sort(), ['Grace', 'Maria']);
+    maria.patient = walter.id;
+    assert.deepEqual((await maria('GET', '/api/team')).body.members.map(m => m.name).sort(), ['Hank', 'Maria']);
   } finally { await app.close(); }
 });
 
-test('a family viewer only ever sees their own relative', async () => {
+test('a family viewer only ever sees their own relative, and a family that removes the caregiver drops off her list', async () => {
   const app = await boot();
   try {
-    const { admin, ids } = await home(app);
-    await app.join(admin, 'Maria', 'maria@example.com', 'caregiver', [ids[1], ids[2]]);
-    const ann = await app.join(admin, 'Ann', 'ann@example.com', 'viewer', [ids[2]]);
-    const me = (await ann('GET', '/api/me')).body.team;
-    assert.deepEqual(me.patients.map(p => p.name), ['June']);
-    for (const id of [null, ...ids]) {
+    const rose = await app.family('Grace', 'grace@example.com', 'Rose', 'Lisinopril');
+    const june = await app.family('Ivy', 'ivy@example.com', 'June', 'Warfarin');
+    const ann = await app.signUp('Ann', 'ann@example.com');
+    await ann('POST', '/api/invite/accept', { token: await app.invite(june, 'Ann', 'ann@example.com', 'viewer') });
+    for (const id of [null, rose.id, june.id]) {
       ann.patient = id;
       assert.deepEqual((await ann('GET', '/api/data')).body.data.purchases.map(i => i.name), ['Warfarin']);
     }
-    // The team list shows the admins and the people on June, not other families.
-    const bob = await app.join(admin, 'Bob', 'bob@example.com', 'viewer', [ids[1]]);
-    const seen = (await ann('GET', '/api/team')).body;
-    assert.deepEqual(seen.members.map(m => m.name).sort(), ['Ann', 'Grace', 'Maria']);
-    assert.deepEqual(seen.patients.map(p => p.name), ['June']);
-    assert.deepEqual((await bob('GET', '/api/team')).body.members.map(m => m.name).sort(), ['Bob', 'Grace', 'Maria']);
-  } finally { await app.close(); }
-});
+    assert.deepEqual((await ann('GET', '/api/me')).body.team.patients.map(p => p.name), ['June']);
 
-test('admins choose who each person is on, rename and remove patients, and the first patient stays', async () => {
-  const app = await boot();
-  try {
-    const { admin, ids } = await home(app);
-    // With several patients, a caregiver or viewer must be on at least one.
-    assert.equal((await admin('POST', '/api/team/members', { name: 'Lee', email: 'lee@example.com', role: 'viewer' })).status, 400);
-    assert.equal((await admin('POST', '/api/team/members', { name: 'Lee', email: 'lee@example.com', role: 'viewer', patients: ['00000000-0000-4000-8000-000000000000'] })).status, 400);
-    const lee = await app.join(admin, 'Lee', 'lee@example.com', 'viewer', [ids[1]]);
-    const member = (await admin('GET', '/api/team')).body.members.find(m => m.name === 'Lee');
-    assert.deepEqual(member.patients, [ids[1]]);
-    assert.equal((await admin('PUT', `/api/team/members/${member.id}`, { patients: [ids[1], ids[2]] })).status, 200);
-    assert.deepEqual((await lee('GET', '/api/me')).body.team.patients.map(p => p.name), ['Walter', 'June']);
-
-    // Renamed: the new name is the patient's profile, so Home shows it.
-    assert.equal((await admin('PUT', `/api/patients/${ids[1]}`, { name: 'Walt', photo: null })).status, 200);
-    lee.patient = ids[1];
-    assert.equal((await lee('GET', '/api/data')).body.data.profile.name, 'Walt');
-    assert.equal((await lee('GET', '/api/data')).body.data.profile.photo, undefined);
-
-    // Removing June takes her off Lee's list; removing Walt too would leave Lee on nobody, so it's refused.
-    assert.equal((await admin('DELETE', `/api/patients/${ids[2]}`, {})).status, 200);
-    assert.deepEqual((await lee('GET', '/api/me')).body.team.patients.map(p => p.name), ['Walt']);
-    const refused = await admin('DELETE', `/api/patients/${ids[1]}`, {});
-    assert.equal(refused.status, 409);
-    assert.match(refused.body.error, /Lee is only on Walt/);
-    assert.equal((await admin('DELETE', `/api/patients/${ids[0]}`, {})).status, 400);
-    assert.equal(await app.store.findUserById(ids[2]), null);
-
-    // Up to 10 patients.
-    for (let n = 2; n < 10; n++) assert.equal((await admin('POST', '/api/patients', { name: 'P' + n })).status, 201);
-    assert.equal((await admin('POST', '/api/patients', { name: 'Eleven' })).status, 400);
-    // Nobody can sign in as a patient.
-    const holder = await app.store.findUserById(ids[1]);
-    assert.equal((await app.client()('POST', '/api/login', { email: holder.email, password: 'patient' })).status, 401);
-  } finally { await app.close(); }
-});
-
-test('deleting the account that set up the home deletes its patients too', async () => {
-  const app = await boot();
-  try {
-    const { admin, ids } = await home(app);
-    assert.equal((await admin('DELETE', '/api/account', { password: 'password123' })).status, 200);
-    for (const id of ids) assert.equal(await app.store.findUserById(id), null);
+    const maria = await app.signUp('Maria', 'maria@example.com');
+    for (const fam of [rose, june]) await maria('POST', '/api/invite/accept', { token: await app.invite(fam, 'Maria', 'maria@example.com', 'caregiver') });
+    const id = (await rose('GET', '/api/team')).body.members.find(m => m.name === 'Maria').id;
+    assert.equal((await rose('DELETE', `/api/team/members/${id}`, {})).status, 200);
+    assert.deepEqual((await maria('GET', '/api/me')).body.team.patients.map(p => p.name), ['June']);
+    maria.patient = rose.id;
+    assert.deepEqual((await maria('GET', '/api/items')).body.items.map(i => i.name), ['Warfarin']);
+    // Leaving a family takes her off that one only.
+    maria.patient = june.id;
+    assert.equal((await maria('POST', '/api/team/leave', {})).status, 200);
+    assert.equal((await maria('GET', '/api/data')).body.data, null);
   } finally { await app.close(); }
 });

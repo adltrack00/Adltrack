@@ -73,7 +73,7 @@ div.person-row{cursor:default}div.person-row:hover{background:none}
 .people-done{width:100%;margin-top:12px}
 #invite-link-form .people-add{margin-top:6px}
 #person-add-form .primary,#person-edit-form .primary{width:100%;margin-top:26px}
-/* Several patients: the picker, the switch under the photo on Home, and Settings → People → Patients. */
+/* A caregiver on several families: the picker and the switch under the photo on Home. */
 .patient-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:26px 12px;margin-top:30px}
 .patient-pick{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:12px;padding:8px 4px;cursor:pointer;font-family:inherit;font-size:16px;color:#111;border-radius:16px}
 .patient-pick .profile-circle{width:96px;height:96px;font-size:31px;margin:0;overflow:hidden;padding:0}
@@ -82,7 +82,5 @@ div.person-row{cursor:default}div.person-row:hover{background:none}
 .patient-pick:focus-visible{outline:2px solid #111;outline-offset:2px}
 .patient-switch{pointer-events:auto;display:flex;align-items:center;gap:2px;width:fit-content;margin:12px auto 0;border:1px solid #e5e5e5;border-radius:999px;background:#fff;padding:7px 10px 7px 16px;font-family:inherit;font-size:15px;color:#111;cursor:pointer}
 .patient-switch .menu-icon{width:18px;height:18px}
-.patients-link{margin-bottom:26px}.patients-link small{display:block;font-size:13px;color:#888;margin-top:5px;line-height:1.4}
-.patient-line{display:flex;align-items:center;gap:14px}
-.patient-row .profile-circle{width:48px;height:48px;font-size:18px;margin:0;overflow:hidden;padding:0;flex:none}
+.patient-pick small{display:block;font-size:13px;color:#888;margin-top:-6px;text-align:center}
 body.picking #menu-open{visibility:hidden}

@@ -136,7 +136,7 @@ function receiptDraft(receipt, policy) {
 }
 
 function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, discharge = null, labels = null, places = null, review = null, push = null, reminders = null, email = null, supportEmail = '', inbox = null, oauth = null, publicUrl = '', inboundSecret = '', sms = null, team = null }) {
-  team = team || createTeam({ store, data, email, sms });
+  team = team || createTeam({ store, email, sms });
   const authLimit = limiter(20, 15 * 60 * 1000);
   // Each classification is an AI call, so it's limited per account.
   const classifyLimit = limiter(300, 60 * 60 * 1000);
@@ -190,10 +190,10 @@ function createApp({ store, data, production = false, policies = null, classifie
     send(res, status, { user: publicUser(user), ...extra }, { 'Set-Cookie': cookie(req, token, SESSION_DAYS * 86400) });
   }
 
-  /* The care plan an account works on (its own, or a patient's on the care team it joined), with a short id of it so the app
-     notices when that changes and swaps its copy. */
+  /* The care plan an account works on (its own, or the care team's it joined), with a short id of it so the app notices
+     when that changes and swaps its copy. */
   const spaceOf = ownerId => sha256('space:' + ownerId).slice(0, 16);
-  async function spaceData(user) { const { patientId } = await team.access(user); return { data: await data.getData(patientId), space: spaceOf(patientId) }; }
+  async function spaceData(user) { const { ownerId } = await team.access(user); return { data: await data.getData(ownerId), space: spaceOf(ownerId) }; }
 
   const publicUser = user => ({ email: user.email, name: user.name, ...(review && review.isAdmin(user) ? { admin: true } : {}) });
   // Accounts made with "Continue with Google / Apple" have no password.
@@ -426,16 +426,16 @@ function createApp({ store, data, production = false, policies = null, classifie
     const user = await currentUser(req);
     if (!user) throw new HttpError(401, 'Please sign in.');
 
-    // Whose care plan this account works on: its own, or the care team's it joined, and on it the patient the app asked for
-    // (X-Patient) when this person is on them. Every care plan route below reads and changes that patient's data.
+    // Whose care plan this account works on: its own, or one of the care teams it joined, the one the app asked for (X-Patient)
+    // when this person is on it. Every care plan route below uses it.
     const wanted = typeof req.headers['x-patient'] === 'string' ? req.headers['x-patient'].toLowerCase() : null;
-    const access = await team.access(user, wanted), owner = access.patientId;
+    const access = await team.access(user, wanted), owner = access.ownerId;
     // What this person may change on it (server/permissions.js). Viewers change nothing.
     const may = createPermissions(access);
 
     if (route === '/api/me' && method === 'GET') {
       const full = await store.findUserByEmail(user.email);
-      return send(res, 200, { user: { ...publicUser(user), ...(full && full.passwordHash === NO_PASSWORD ? { passwordless: true } : {}) }, team: { role: access.role, perms: access.perms, owner: access.owner, patient: owner, patients: await team.patients(access) }, space: spaceOf(owner) });
+      return send(res, 200, { user: { ...publicUser(user), ...(full && full.passwordHash === NO_PASSWORD ? { passwordless: true } : {}) }, team: { role: access.role, perms: access.perms, owner: access.owner, ...(access.changedBy ? { changedBy: access.changedBy } : {}), patient: owner, patients: await team.patients(access) }, space: spaceOf(owner) });
     }
 
     // Settings → People: the care team, adding people by email and phone with what each may do, and joining from an invite.
@@ -443,29 +443,22 @@ function createApp({ store, data, production = false, policies = null, classifie
     if (route === '/api/team/members' && method === 'POST') {
       checkWrite(req);
       if (!linkLimit('invite:' + user.id)) throw new HttpError(429, 'You’ve sent a lot of invites. Try again in a few minutes.');
-      return send(res, 201, await team.add(user, await readBody(req, 5_000), baseUrl(req)));
+      return send(res, 201, await team.add(user, await readBody(req, 5_000), baseUrl(req), wanted));
     }
     const memberMatch = /^\/api\/team\/members\/([0-9a-f-]{36})(\/invite)?$/i.exec(route);
-    if (memberMatch && !memberMatch[2] && method === 'PUT') { checkWrite(req); return send(res, 200, await team.update(user, memberMatch[1].toLowerCase(), await readBody(req, 5_000))); }
-    if (memberMatch && !memberMatch[2] && method === 'DELETE') { checkWrite(req); return send(res, 200, await team.remove(user, memberMatch[1].toLowerCase())); }
+    if (memberMatch && !memberMatch[2] && method === 'PUT') { checkWrite(req); return send(res, 200, await team.update(user, memberMatch[1].toLowerCase(), await readBody(req, 5_000), wanted)); }
+    if (memberMatch && !memberMatch[2] && method === 'DELETE') { checkWrite(req); return send(res, 200, await team.remove(user, memberMatch[1].toLowerCase(), wanted)); }
     if (memberMatch && memberMatch[2] && method === 'POST') {
       checkWrite(req);
       if (!linkLimit('invite:' + user.id)) throw new HttpError(429, 'You’ve sent a lot of invites. Try again in a few minutes.');
-      return send(res, 200, await team.resend(user, memberMatch[1].toLowerCase(), baseUrl(req)));
+      return send(res, 200, await team.resend(user, memberMatch[1].toLowerCase(), baseUrl(req), wanted));
     }
-    if (route === '/api/team/leave' && method === 'POST') { checkWrite(req); return send(res, 200, await team.leave(user)); }
+    if (route === '/api/team/leave' && method === 'POST') { checkWrite(req); return send(res, 200, await team.leave(user, wanted)); }
     if (route === '/api/invite/accept' && method === 'POST') {
       checkWrite(req);
       if (!linkLimit('ip:' + clientIp(req))) throw new HttpError(429, 'Too many attempts. Try again in a few minutes.');
       return send(res, 200, await team.accept(user, (await readBody(req, 2_000)).token));
     }
-    // Settings → People → Patients: a home's patients, each with their own medications, report and photos. Admins only.
-    if (route === '/api/patients' && method === 'POST') { checkWrite(req); return send(res, 201, await team.addPatient(user, await readBody(req, 3_000_000))); }
-    const patientMatch = /^\/api\/patients\/([0-9a-f-]{36})$/i.exec(route);
-    if (patientMatch && method === 'PUT') { checkWrite(req); return send(res, 200, await team.updatePatient(user, patientMatch[1].toLowerCase(), await readBody(req, 3_000_000))); }
-    if (patientMatch && method === 'DELETE') { checkWrite(req); return send(res, 200, await team.removePatient(user, patientMatch[1].toLowerCase())); }
-    // Someone on a care team but on none of its patients sees nothing until an admin chooses who they care for.
-    if (!owner) throw new HttpError(403, 'Ask an admin to choose who you care for.');
 
     // Purchases from email: the forwarding address, connected inboxes and the orders found that haven't been opened yet.
     if (route.startsWith('/api/inbox')) {
@@ -730,8 +723,8 @@ function createApp({ store, data, production = false, policies = null, classifie
       return send(res, 201, await data.saveProof(owner, body && body.data));
     }
 
-    // A file of a patient this person is on, such as an item photo (or another patient's photo, for the picker). Anyone else
-    // gets the same 404 as a file that doesn't exist.
+    // A file of a care plan this person is on, such as an item photo (or another family's patient photo, for the picker).
+    // Anyone else gets the same 404 as a file that doesn't exist.
     const fileMatch = /^\/api\/files\/([0-9a-f-]{36})$/i.exec(route);
     if (fileMatch && method === 'GET') {
       let file = null;
@@ -801,8 +794,6 @@ function createApp({ store, data, production = false, policies = null, classifie
       else if (!full || !(await verifyPassword(String(body.password || ''), full.passwordHash))) throw new HttpError(401, 'That password isn’t right.');
       // Connected inboxes are revoked with the provider before anything is deleted.
       if (inbox) await inbox.forget(user.id);
-      // The care team's other patients go with the account that set it up.
-      if (access.owner) await team.forget(user.id);
       await data.deleteAccount(user.id);
       return send(res, 200, { ok: true }, { 'Set-Cookie': cookie(req, '', 0) });
     }

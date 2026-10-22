@@ -6,7 +6,8 @@ const Account = (() => {
   const ITEMS_KEY = 'returnly-synced-items', SETTINGS_KEY = 'returnly-synced-settings';
   // Which care plan this browser's copy belongs to (the account's own, or the care team's it joined).
   const SPACE_KEY = 'adltrack-space';
-  // The patient this browser picked, in a home with several: sent with every request, which then reads and changes their data.
+  // The care plan this browser picked, for a caregiver on several families: sent with every request, which then reads and
+  // changes that family's plan.
   const PATIENT_KEY = 'adltrack-patient';
   const DATA_KEYS = { purchases: 'back-purchases-v1', settings: 'back-reminders-v1', profile: 'returnly-profile-v1' };
   const get = k => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -14,7 +15,7 @@ const Account = (() => {
   const del = k => { try { localStorage.removeItem(k); } catch {} };
   const parse = (k, fallback) => { try { const s = get(k); return s ? JSON.parse(s) : fallback; } catch { return fallback; } };
 
-  /* Every call to this app's API from the page (scans, photos and saves alike) says which patient it's for. */
+  /* Every call to this app's API from the page (scans, photos and saves alike) says which family's plan it's for. */
   const pageFetch = window.fetch.bind(window);
   window.fetch = (input, init = {}) => {
     const url = typeof input === 'string' ? input : input && input.url || '';
@@ -41,10 +42,12 @@ const Account = (() => {
     if (t.role === 'viewer') return false;
     return what === 'care' ? !!(t.perms.tasks || t.perms.meds) : !!t.perms[what];
   }
-  /* The patients this person is on (name and photo) and the one this browser shows. */
+  /* The patients this person cares for, one per family that signed them up (name and photo), and the one this browser shows. */
   const patients = () => user()?.team?.patients || [];
   const picked = () => patients().some(p => p.id === get(PATIENT_KEY));
   const patient = () => { const list = patients(); return list.find(p => p.id === get(PATIENT_KEY)) || list.find(p => p.id === user()?.team?.patient) || list[0] || null; };
+  // The patient already on screen, kept as this browser's pick without reloading.
+  const pick = id => set(PATIENT_KEY, id);
   /* Shows another patient: what's waiting goes up to the one on screen first, then this browser's copy is swapped for theirs. */
   async function switchPatient(id) {
     if (get(DIRTY_KEY)) await flush();
@@ -53,17 +56,6 @@ const Account = (() => {
     if (r.space) set(SPACE_KEY, r.space);
     writeLocal(r.data || { purchases: [], settings: {}, profile: {} });
     location.reload();
-  }
-  // The patient already on screen, kept as this browser's pick without reloading.
-  const pick = id => set(PATIENT_KEY, id);
-  /* Who's signed in, their role and patients, fresh from the account. */
-  async function refresh() {
-    const r = await api('GET', '/api/me');
-    remember(r.user, r.team);
-    // A patient this person is no longer on isn't asked for again.
-    if (get(PATIENT_KEY) && !picked()) del(PATIENT_KEY);
-    document.dispatchEvent(new Event('adltrack:me'));
-    return r;
   }
   const snapshot = () => ({ purchases: parse(DATA_KEYS.purchases, []) || [], settings: parse(DATA_KEYS.settings, {}), profile: parse(DATA_KEYS.profile, {}) });
   const hasRealPurchases = () => (parse(DATA_KEYS.purchases, []) || []).some(i => !i.demo);
@@ -112,6 +104,7 @@ const Account = (() => {
   async function putBack(err, id) {
     if (err.status !== 403) throw err;
     refusedNote = err.message;
+    refreshTeam();
     const r = await api('GET', '/api/data'), d = r.data || { purchases: [], settings: {}, profile: {} };
     if (id === null) {
       const fix = (o, v) => { if (o && typeof o === 'object') { Object.keys(o).forEach(k => delete o[k]); Object.assign(o, v || {}); } };
@@ -242,10 +235,28 @@ const Account = (() => {
     location.href = 'index.html';
   }
 
+  /* What the admins allow this person to do, kept up to date while the app is open: when an admin changes it (a family
+     viewer made a caregiver, say), the page redraws with it, with no need to sign out. Moved to another care plan, or
+     removed from one: the app loads that plan instead. */
+  async function refreshTeam() {
+    try {
+      const r = await api('GET', '/api/me'), was = user()?.team || null, before = JSON.stringify(was);
+      remember(r.user, r.team);
+      // A family that took this person off their team isn't asked for again.
+      if (get(PATIENT_KEY) && !picked()) del(PATIENT_KEY);
+      document.dispatchEvent(new Event('adltrack:me'));
+      if (r.space && get(SPACE_KEY) && r.space !== get(SPACE_KEY)) return checkApp();
+      if (JSON.stringify(r.team || null) === before) return;
+      if (typeof render === 'function') render();
+      // "George changed your access to Caregiver."
+      const t = r.team, names = { admin: 'Admin', caregiver: 'Caregiver', viewer: 'Family viewer' };
+      if (was && t && t.changedBy && typeof toast === 'function' && (was.role !== t.role || JSON.stringify(was.perms) !== JSON.stringify(t.perms))) toast(`${t.changedBy} changed your access to ${names[t.role]}.`);
+    } catch (err) { if (err.status === 401) expired(); }
+  }
+
   /* On the app: require an account, then pull changes made on other devices. */
   async function checkApp() {
-    // Keeps the stored account up to date, for example when it's made an admin.
-    refresh().catch(() => {});
+    refreshTeam();
     try {
       const { data, space } = await api('GET', '/api/data');
       // Joined a care team, or left one: this browser's copy belongs to the other plan, so it's replaced, never uploaded.
@@ -273,9 +284,10 @@ const Account = (() => {
         if (typeof save === 'function') { const s = appSave = save; save = function () { const out = s.apply(this, arguments); queue(); return out; }; }
         if (typeof saveProfile === 'function') { const s = appSaveProfile = saveProfile; saveProfile = function () { const out = s.apply(this, arguments); if (out !== false) queue(); return out; }; }
       });
-      document.addEventListener('visibilitychange', () => { if (document.hidden && get(DIRTY_KEY)) flush(); });
+      document.addEventListener('visibilitychange', () => { if (document.hidden && get(DIRTY_KEY)) flush(); if (!document.hidden) refreshTeam(); });
+      setInterval(() => { if (!document.hidden) refreshTeam(); }, 30000);
     }
   }
 
-  return { api, user, can, patients, patient, picked, pick, switchPatient, refresh, queue, flush, signUp, signIn, adopt, adoptSession, signOut, deleteAccount, clearLocal };
+  return { api, user, can, patients, patient, picked, pick, switchPatient, refresh: refreshTeam, queue, flush, signUp, signIn, adopt, adoptSession, signOut, deleteAccount, clearLocal };
 })();
