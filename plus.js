@@ -3,7 +3,7 @@
    allowed to add tasks or report incidents see it; the server checks it too (server/permissions.js).
    A new task: what to do, an optional note and photo, the date and exact time, once or repeating (every day, chosen days or
    every week), from today up to one year ahead. It shows in My Tasks on its days at its time and is done on the Take page with
-   the same Done or Skip, note and photos. An incident: what happened, when, a note, photos, witnesses and who was told, with Call 911 on
+   the same Done or Skip, note and photos. An incident: what happened, when, a note, photos, the witnesses and who was told, with Call 911 on
    the form. Both show in the daily care report, numbered and time-stamped, with who added them. Uses the Take card's blocks. */
 const PLUS_PHOTOS=3,YEAR_AHEAD=365;
 const TASK_DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -50,7 +50,7 @@ reportEntries=function(list=items,day=today(),vitalsLog){const out=reportEntries
 for(const t of list.filter(i=>i.task)){const by=t.by?['Added by '+t.by]:[];
 if(onDay(t.addedAt,day))out.push({title:'New task: '+t.name,at:t.addedAt,note:t.note||'',details:[repeatText(t),...by],name:t.name,photos:t.photos||[]});
 for(const m of (t.marks||[]).filter(m=>m.key==='task'&&m.day===day&&m.at))out.push({title:`${t.name} (${t.time?shortClock(t.time)+' task':'task'})${m.kind==='skipped'?' skipped':''}`,at:m.at,note:m.note||'',details:by,name:t.name,photos:m.photos||[]})}
-for(const i of list.filter(i=>i.incident&&onDay(i.at,day)))out.push({title:'Incident: '+i.name,at:i.at,note:i.note||'',details:[(i.witnesses||[]).length?'Witnesses: '+i.witnesses.map(w=>w.name+(w.phone?' '+w.phone:'')).join(', '):'',i.told?'Told: '+i.told:'',i.by?'Reported by '+i.by:''].filter(Boolean),name:'Incident: '+i.name,photos:i.photos||[]});
+for(const i of list.filter(i=>i.incident&&onDay(i.at,day)))out.push({title:'Incident: '+i.name,at:i.at,note:i.note||'',details:[i.witnesses?'Witnesses: '+i.witnesses:'',i.told?'Told: '+i.told:'',i.by?'Reported by '+i.by:''].filter(Boolean),name:'Incident: '+i.name,photos:i.photos||[]});
 return out.sort((x,y)=>new Date(x.at)-new Date(y.at))};
 
 /* The + itself: the Take card's round +. Someone who may do both picks one first; otherwise it opens the one they may do. */
@@ -63,7 +63,7 @@ document.addEventListener('click',e=>{if(!e.target.closest('#tasks-plus'))return
 
 let plusDraft=null;
 const blankTaskDraft=()=>({what:'',note:'',date:today(),time:'',repeat:'once',days:[],until:C.shift(today(),YEAR_AHEAD),photos:[],busy:false});
-const blankIncidentDraft=()=>({kind:'',date:today(),time:hmNow(),note:'',told:'',witnesses:[],photos:[],busy:false});
+const blankIncidentDraft=()=>({kind:'',date:today(),time:hmNow(),note:'',witnesses:'',told:'',photos:[],busy:false});
 const plusPhotos=(d,id)=>`<section class="take-block"><div class="take-line"><h2>Photo <span>${d.photos.length} of ${PLUS_PHOTOS}</span></h2>${d.photos.length>=PLUS_PHOTOS?'':`<label class="take-add" for="${id}" aria-label="Add a photo">+</label>`}</div><input type="file" id="${id}" accept="image/*" multiple hidden>${proofRow(d.photos,true)}<p class="take-muted">Optional. Up to ${PLUS_PHOTOS} photos.</p></section>`;
 const plusField=(label,html)=>`<section class="take-block"><h2>${label}</h2>${html}</section>`;
 const plusRadios=(name,list,value)=>`<div class="plus-choice">${list.map(([v,l])=>`<label><input type="radio" name="${name}" value="${v}"${v===value?' checked':''}><span>${l}</span></label>`).join('')}</div>`;
@@ -84,7 +84,7 @@ ${plusField('What happened',plusRadios('kind',INCIDENTS,d.kind))}
 ${plusField('When',`<div class="plus-when"><input name="date" type="date" max="${today()}" value="${esc(d.date)}" aria-label="Date"><input name="time" type="time" value="${esc(d.time)}" aria-label="Time"></div>`)}
 ${plusField('Note',`<textarea name="note" maxlength="1000" placeholder="What happened, and what was done">${esc(d.note)}</textarea>`)}
 ${plusPhotos(d,'plus-photo')}
-${plusWitnesses(d)}
+${plusField('Witnesses',`<input name="witnesses" maxlength="200" autocomplete="off" value="${esc(d.witnesses)}" placeholder="Ann, Luis">`)}
 ${plusField('Who was told',`<input name="told" maxlength="200" autocomplete="off" value="${esc(d.told)}" placeholder="Dr. Patel, Ann">`)}
 <button class="primary plus-save"${d.busy?' disabled':''}>Report the incident</button></form></section>`}
 Object.assign(menuPages,{plus:plusPage,'task-new':taskNewPage,'incident-new':incidentNewPage});
@@ -92,11 +92,7 @@ menuViews.push('plus','task-new','incident-new');
 const goBeforePlus=go;go=function(v){if(v==='task-new'&&(!plusDraft||!('what'in plusDraft)))plusDraft=blankTaskDraft();if(v==='incident-new'&&(!plusDraft||!('kind'in plusDraft)))plusDraft=blankIncidentDraft();if(v==='overview'||v==='plus')plusDraft=null;return goBeforePlus(v)};
 
 /* Typing keeps the draft; a new repeat choice shows its days or its last day. */
-/* Witnesses: a name and an optional phone each; the + on the line adds one, × takes it off. */
-const plusWitnesses=d=>`<section class="take-block"><div class="take-line"><h2>Witnesses <span>${d.witnesses.length||'None yet'}</span></h2><button type="button" class="take-add tasks-plus" data-witness-add aria-label="Add a witness">+</button></div>${d.witnesses.map((w,n)=>`<div class="plus-witness"><input name="witness-name" maxlength="80" autocomplete="off" value="${esc(w.name)}" placeholder="Name" aria-label="Witness ${n+1} name"><input name="witness-phone" type="tel" inputmode="tel" maxlength="30" autocomplete="off" value="${esc(w.phone)}" placeholder="Phone (optional)" aria-label="Witness ${n+1} phone"><button type="button" class="take-shot-x" data-witness-remove="${n}" aria-label="Remove witness ${n+1}">×</button></div>`).join('')}<p class="take-muted">Anyone who saw what happened.</p></section>`;
-document.addEventListener('click',e=>{const b=e.target.closest('[data-witness-add],[data-witness-remove]');if(!b||!plusDraft||!plusDraft.witnesses)return;readPlusForm(b.closest('form'));
-if(b.dataset.witnessRemove!==undefined)plusDraft.witnesses.splice(Number(b.dataset.witnessRemove),1);else{plusDraft.witnesses.push({name:'',phone:''});render();[...document.querySelectorAll('[name="witness-name"]')].pop()?.focus();return}render()});
-function readPlusForm(f){const d=plusDraft;if(d.witnesses){const names=[...f.querySelectorAll('[name="witness-name"]')],phones=[...f.querySelectorAll('[name="witness-phone"]')];d.witnesses=names.map((n,i)=>({name:n.value,phone:phones[i]?.value||''}))}for(const k of ['what','note','date','time','until','told','kind','repeat'])if(f.elements[k]){const el=f.elements[k];d[k]=el instanceof RadioNodeList?el.value:el.value}
+function readPlusForm(f){const d=plusDraft;for(const k of ['what','note','date','time','until','witnesses','told','kind','repeat'])if(f.elements[k]){const el=f.elements[k];d[k]=el instanceof RadioNodeList?el.value:el.value}
 if(f.querySelector('[name="day"]'))d.days=[...f.querySelectorAll('[name="day"]:checked')].map(c=>Number(c.value))}
 document.addEventListener('input',e=>{const f=e.target.closest('.plus-form');if(f&&plusDraft)readPlusForm(f)});
 document.addEventListener('change',async e=>{const f=e.target.closest('.plus-form');if(!f||!plusDraft)return;
@@ -116,8 +112,8 @@ const problem=task?taskProblem(d):incidentProblem(d);if(problem){toast(problem);
 d.busy=true;render();const photos=(await uploadPlus(d.photos,task?'task':'incident')).filter(Boolean),by=markedBy(),added=new Date().toISOString();
 if(task){const t={id:crypto.randomUUID(),task:true,name:d.what.trim(),...(d.note.trim()?{note:d.note.trim()}:{}),...(photos.length?{photos}:{}),date:d.date,time:d.time,repeat:d.repeat,...(d.repeat==='days'?{days:[...d.days].sort()}:{}),...(d.repeat!=='once'?{until:d.until}:{}),...(by?{by}:{}),addedAt:added,marks:[]};
   items.push(t);plusDraft=null;view='overview';tasksOpen=taskOn(t,today());save();render();window.scrollTo(0,0);toast(`Task added: ${repeatText(t)}.`);return}
-const kind=INCIDENTS.find(([k])=>k===d.kind),witnesses=d.witnesses.map(w=>({name:w.name.trim(),...(w.phone.trim()?{phone:w.phone.trim()}:{})})).filter(w=>w.name),at=new Date(d.date+'T'+d.time).toISOString();
-items.push({id:crypto.randomUUID(),incident:true,kind:kind[0],name:kind[1],at,...(d.note.trim()?{note:d.note.trim()}:{}),...(d.told.trim()?{told:d.told.trim()}:{}),...(witnesses.length?{witnesses}:{}),...(photos.length?{photos}:{}),...(by?{by}:{}),addedAt:added});
+const kind=INCIDENTS.find(([k])=>k===d.kind),at=new Date(d.date+'T'+d.time).toISOString();
+items.push({id:crypto.randomUUID(),incident:true,kind:kind[0],name:kind[1],at,...(d.note.trim()?{note:d.note.trim()}:{}),...(d.told.trim()?{told:d.told.trim()}:{}),...(d.witnesses.trim()?{witnesses:d.witnesses.split(',').map(w=>w.trim()).filter(Boolean).join(', ')}:{}),...(photos.length?{photos}:{}),...(by?{by}:{}),addedAt:added});
 plusDraft=null;reportTab=d.date===today()?'today':d.date===C.shift(today(),-1)?'previous':reportTab;view='overview';tasksOpen=false;save();render();window.scrollTo(0,0);toast('Incident reported. It’s in the daily care report.')});
 
 /* The forms aren't open to people who can't use them. */

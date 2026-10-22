@@ -205,6 +205,3 @@ body.not-home #main>.page-heading{margin-top:0}
 .plus-until{display:flex;align-items:center;gap:12px;margin-top:10px;font-size:15px;color:#111}.plus-until span{flex:none}
 .plus-911 p+p{margin-top:4px}.plus-911 .flow-text-link{font-weight:600}
 .plus-form .plus-save{width:100%;margin-top:10px}
-.plus-witness{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;padding-right:34px}
-.plus-witness .take-shot-x{top:50%;right:0;transform:translateY(-50%);background:#1c1c1c}
-@media(max-width:650px){.plus-witness{grid-template-columns:1fr}}

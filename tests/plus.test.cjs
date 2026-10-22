@@ -46,11 +46,11 @@ test('a task is done with Done or Skip on its day only, and the report shows it 
 });
 
 test('an incident shows in the report at the time it happened, numbered in time order with the rest', () => {
-  const fall = { id: 'i1', incident: true, kind: 'fall', name: 'Fall', at: at('2026-10-14', '11:20'), note: 'Slipped in the bathroom, no injury.', witnesses: [{ name: 'Ann', phone: '(555) 123-4567' }, { name: 'Bob' }], told: 'Dr. Patel, Ann', photos: ['/api/files/p'], by: 'Maria', addedAt: at('2026-10-14', '11:40') };
+  const fall = { id: 'i1', incident: true, kind: 'fall', name: 'Fall', at: at('2026-10-14', '11:20'), note: 'Slipped in the bathroom, no injury.', witnesses: 'Ann, Bob', told: 'Dr. Patel, Ann', photos: ['/api/files/p'], by: 'Maria', addedAt: at('2026-10-14', '11:40') };
   const c = app([{ ...med, doses: [{ at: at('2026-10-14', '08:05'), day: '2026-10-14', slot: '08:00', kind: 'taken' }] }, fall]);
   const e = plain(c.reportEntries(undefined, '2026-10-14', []));
   assert.deepEqual(e.map(x => x.title), ['Lisinopril 10 mg (8am dose)', 'Incident: Fall']);
-  assert.deepEqual(e[1], { title: 'Incident: Fall', at: fall.at, note: 'Slipped in the bathroom, no injury.', details: ['Witnesses: Ann (555) 123-4567, Bob', 'Told: Dr. Patel, Ann', 'Reported by Maria'], name: 'Incident: Fall', photos: ['/api/files/p'] });
+  assert.deepEqual(e[1], { title: 'Incident: Fall', at: fall.at, note: 'Slipped in the bathroom, no injury.', details: ['Witnesses: Ann, Bob', 'Told: Dr. Patel, Ann', 'Reported by Maria'], name: 'Incident: Fall', photos: ['/api/files/p'] });
   // In My Tasks at the time it happened, crossed off as done.
   assert.deepEqual(plain(c.todayTasks(undefined, '2026-10-14').map(x => [x.time, x.title, x.key, x.state])), [['08:00', 'Lisinopril 10 mg', 'dose:08:00', 'done'], ['11:20', 'Incident: Fall', 'incident', 'done'], ['18:00', 'Lisinopril 10 mg', 'dose:18:00', '']]);
   assert.equal(c.todayTasks(undefined, '2026-10-15').length, 2, 'only on its day');
