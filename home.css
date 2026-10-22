@@ -146,6 +146,7 @@
 .report-section h3 span{flex:none;align-self:center;display:grid;place-items:center;width:24px;height:24px;border-radius:7px;background:#edeae5;font-size:10px;font-weight:600;color:#555;letter-spacing:0}
 .report-section p,.report-section li{margin:0;padding-left:34px;font-size:13px;color:#777;line-height:1.45}
 .report-section ul{list-style:none;margin:0;padding:0;display:grid;gap:5px}
+.report-section h3 s{text-decoration-thickness:1.5px}
 .report-section h3 time{margin-left:auto;font-size:12px;font-weight:400;color:#777;white-space:nowrap}
 .report-section p.report-note-text{color:#111;margin:0 0 6px}
 .report-section p.report-none{padding-left:0}
@@ -156,7 +157,12 @@
 .report-photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px}
 .report-photos figure{margin:0}
 .report-photos img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:16px;background:#edeae5;display:block}
-.report-photos figcaption{margin-top:8px;font-size:13px;color:#777}.report-photos figcaption strong{display:block;color:#111;font-size:14px}
+.report-photo-open{display:block;width:100%;padding:0;border-radius:16px;cursor:zoom-in}
+.report-photos figcaption{display:flex;gap:10px;margin-top:10px;font-size:13px;color:#777;line-height:1.45}.report-photos figcaption strong{display:block;color:#111;font-size:14px;font-weight:700;letter-spacing:-.02em}.report-photos figcaption p{margin:2px 0 0}
+.report-photos figcaption span{flex:none;display:grid;place-items:center;width:24px;height:24px;border-radius:7px;background:#edeae5;font-size:10px;font-weight:600;color:#555}
+.photo-view{width:100vw;height:100dvh;max-width:none!important;max-height:none;inset:0;margin:0;padding:0;border:0;border-radius:0;background:#000;display:none;place-items:center}.photo-view[open]{display:grid}.photo-view::backdrop{background:#000}
+.photo-view img{max-width:100%;max-height:100dvh;object-fit:contain;display:block}
+.photo-view-x{position:fixed;top:16px;right:16px;width:40px;height:40px;border-radius:50%;background:#fff;color:#111;font-size:24px;line-height:1}
 @media(max-width:650px){.report-grid{grid-template-columns:1fr}.report-section:not(.wide):nth-child(odd of :not(.wide)){border-right:0}.report-section{padding:14px 16px 16px}.report-banner{padding:14px 16px}.report-photos{grid-template-columns:1fr 1fr;gap:12px}}
 @media print{.global-header,.menu-open,.tasks-sheet,.report-tabs,#report-print,.profile-hero{display:none!important}#main{padding:0!important}.report-banner{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 /* Home: the profile picture sits a little higher and the report's tabs sit close under it. */

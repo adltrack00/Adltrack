@@ -1,36 +1,49 @@
 /* Home: the daily care report. Under the profile picture, three tabs (Previous day, Today, Photos), a small black banner with
    the person's name, the date and Print, then everything done that day as numbered entries in time order. Each entry has a
-   subhead saying what happened and its time stamp, then the note written during the task, then the details: which dose, who
-   marked it and how many photos. Photos shows the proof photos added to today's doses. The medication cards are on All
-   medications, in the menu. */
+   subhead saying what happened and its time stamp, then the note written during the task, then the details. Done tasks are
+   struck through; a dose says which one, as in "Lisinopril 10 mg (8am dose)"; each vital sign is its own entry. Photos shows
+   the proof photos added to today's doses, each with the same number as its entry on Today, the medication and its note;
+   tapping one opens it full size. The medication cards are on All medications, in the menu. */
 let reportTab='today';
 const reportTime=t=>new Date(t).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
 const reportDate=day=>C.parseDate(day).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 const onDay=(t,day)=>!!t&&C.iso(new Date(t))===day;
+/* A dose time the short way: "08:00" is 8am, "20:30" is 8:30pm. */
+const shortClock=t=>{const [h,m]=String(t).split(':').map(Number);return `${h%12||12}${m?':'+String(m).padStart(2,'0'):''}${h<12?'am':'pm'}`};
+/* Each vital sign by its full name, and how its reading is written. */
+const REPORT_VITALS=[['bp','Blood pressure',x=>x+' mmHg'],['heart','Heart rate',x=>x+' bpm'],['temp','Temperature',x=>x+'°F'],['pain','Pain level',x=>x+' out of 10']];
 const REPORT_LOG={'refill-needed':'needs a refill','refill-called':'called for a refill','refill-ready':'refill ready to pick up',refilled:'refill picked up','picked-up':'picked up from the pharmacy'};
 
 /* Everything done on one day, oldest first: doses taken or skipped, vital signs, refill steps, visits and finished medications.
-   Each entry: title (the subhead), at (its time), note (written during the task) and details. */
-function reportEntries(list=items,day=today(),vitalsLog=settings.vitalsLog||(settings.vitals?[settings.vitals]:[])){const meds=list.filter(i=>i.med),out=[],by=x=>x&&x.by?'Marked by '+x.by:'';
+   Each entry: title (the subhead), done (struck through; a skipped dose isn't), at (its time), note (written during the task)
+   and details; a dose also has its medication's name and photos. Who marked it is left out: the report is already that
+   person's. A vital sign shows at the save where it was recorded: the form keeps the last readings, so one saved again
+   unchanged the same day isn't listed twice. */
+function reportEntries(list=items,day=today(),vitalsLog=settings.vitalsLog||(settings.vitals?[settings.vitals]:[])){const meds=list.filter(i=>i.med),out=[];
 for(const i of meds)for(const d of (i.doses||[]).filter(d=>dayOf(d)===day&&d.at&&['taken','skipped'].includes(d.kind)))
-out.push({title:`${i.name} ${d.kind==='taken'?'taken':'skipped'}`,at:d.at,note:d.note||'',details:[[d.slot?clockText(d.slot)+' dose':'As-needed dose',i.dose].filter(Boolean).join(' · '),by(d),d.photos&&d.photos.length?`${d.photos.length} photo${d.photos.length>1?'s':''} added`:''].filter(Boolean)});
-for(const v of vitalsLog.filter(v=>onDay(v.at,day)))out.push({title:'Vital signs recorded',at:v.at,note:'',details:[[v.bp&&'BP '+v.bp,v.heart&&'Heart '+v.heart,v.temp&&'Temp '+v.temp+'°',v.pain&&'Pain '+v.pain+'/10'].filter(Boolean).join(' · ')]});
-for(const i of meds)for(const l of (i.log||[]).filter(l=>onDay(l.at,day)&&REPORT_LOG[l.kind]))out.push({title:`${i.name}: ${REPORT_LOG[l.kind]}`,at:l.at,note:'',details:[i.pharmacy&&i.pharmacy.name||'',by(l)].filter(Boolean)});
-for(const i of meds.filter(i=>i.status==='received'&&onDay(i.finishedAt,day)))out.push({title:`${i.name} finished`,at:i.finishedAt,note:'',details:['No more reminders for it',i.finishedBy?'Marked by '+i.finishedBy:''].filter(Boolean)});
-for(const a of appointments(list).filter(a=>a.status==='received'&&a.date===day))out.push({title:`${a.name}: went`,at:day+'T'+(a.time||'12:00'),note:a.note||'',details:[a.place].filter(Boolean)});
+out.push({title:`${i.name} (${d.slot?shortClock(d.slot)+' dose':'as-needed dose'})${d.kind==='skipped'?' skipped':''}`,done:d.kind==='taken',at:d.at,note:d.note||'',details:[i.dose].filter(Boolean),name:i.name,photos:d.photos||[]});
+vitalsLog.forEach((v,n)=>{if(!onDay(v.at,day))return;const before=vitalsLog.slice(0,n).reverse().find(x=>onDay(x.at,day))||{};
+for(const [k,label,reading] of REPORT_VITALS)if(v[k]&&v[k]!==before[k])out.push({title:`${label}: ${reading(v[k])}`,done:true,at:v.at,note:'',details:[]})});
+for(const i of meds)for(const l of (i.log||[]).filter(l=>onDay(l.at,day)&&REPORT_LOG[l.kind]))out.push({title:`${i.name}: ${REPORT_LOG[l.kind]}`,done:true,at:l.at,note:'',details:[i.pharmacy&&i.pharmacy.name||''].filter(Boolean)});
+for(const i of meds.filter(i=>i.status==='received'&&onDay(i.finishedAt,day)))out.push({title:`${i.name} finished`,done:true,at:i.finishedAt,note:'',details:['No more reminders for it']});
+for(const a of appointments(list).filter(a=>a.status==='received'&&a.date===day))out.push({title:`${a.name}: went`,done:true,at:day+'T'+(a.time||'12:00'),note:a.note||'',details:[a.place].filter(Boolean)});
 return out.sort((x,y)=>new Date(x.at)-new Date(y.at))}
 
-/* Today's proof photos, newest first, each with the medication and when it was marked. */
-function reportPhotos(list=items,day=today()){return list.filter(i=>i.med).flatMap(i=>(i.doses||[]).filter(d=>dayOf(d)===day).flatMap(d=>(d.photos||[]).map(src=>({src,name:i.name,at:d.at})))).sort((a,b)=>String(b.at).localeCompare(String(a.at)))}
+/* Today's proof photos in the order of Today's entries, each with that entry's number, the medication and the note. */
+function reportPhotos(list=items,day=today()){return reportEntries(list,day).flatMap((x,n)=>(x.photos||[]).map(src=>({src,n:n+1,name:x.name,note:x.note})))}
 
 function reportHTML(){const now=today(),day=reportTab==='previous'?C.shift(now,-1):now,who=welcomeName()||'Your care';
 const tabs=[['previous','Previous day'],['today','Today'],['photos','Photos']].map(([id,label])=>`<button data-report-tab="${id}" class="${reportTab===id?'active':''}" aria-pressed="${reportTab===id}">${label}</button>`).join('');
 const head=`<div class="gallery-filters report-tabs">${tabs}</div>`;
-if(reportTab==='photos'){const shots=reportPhotos(items,now);return `<section class="report">${head}${shots.length?`<div class="report-photos">${shots.map(p=>`<figure>${proofImg(p.src)}<figcaption><strong>${esc(p.name)}</strong>${p.at?esc(reportTime(p.at)):''}</figcaption></figure>`).join('')}</div>`:`<div class="report-empty"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m4 18 5.5-5.5 4 4 2.5-2.5 4.5 4.5"/></svg><h2>No photos yet</h2><p>Photos added when a dose is taken will appear here.</p></div>`}</section>`}
-const entries=reportEntries(items,day),sections=entries.length?entries.map((x,n)=>`<div class="report-section${x.note?' wide':''}"><h3><span>${String(n+1).padStart(2,'0')}</span>${esc(x.title)}<time datetime="${esc(x.at)}">${esc(reportTime(x.at))}</time></h3>${x.note?`<p class="report-note-text">${esc(x.note)}</p>`:''}${x.details.length?`<ul>${x.details.map(l=>`<li>${esc(l)}</li>`).join('')}</ul>`:''}</div>`).join(''):`<div class="report-section wide"><p class="report-none">${day===now?'Nothing done yet today. Everything marked during the day shows here, with its time.':'Nothing was recorded this day.'}</p></div>`;
+if(reportTab==='photos'){const shots=reportPhotos(items,now);return `<section class="report">${head}${shots.length?`<div class="report-photos">${shots.map(p=>`<figure><button class="report-photo-open" data-photo-view="${esc(p.src)}" aria-label="View the photo of ${esc(p.name)} full size">${proofImg(p.src)}</button><figcaption><span>${String(p.n).padStart(2,'0')}</span><div><strong>${esc(p.name)}</strong>${p.note?`<p>${esc(p.note)}</p>`:''}</div></figcaption></figure>`).join('')}</div>`:`<div class="report-empty"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m4 18 5.5-5.5 4 4 2.5-2.5 4.5 4.5"/></svg><h2>No photos yet</h2><p>Photos added when a dose is taken will appear here.</p></div>`}</section>`}
+const entries=reportEntries(items,day),sections=entries.length?entries.map((x,n)=>`<div class="report-section${x.note?' wide':''}"><h3><span>${String(n+1).padStart(2,'0')}</span>${x.done?`<s>${esc(x.title)}</s>`:esc(x.title)}<time datetime="${esc(x.at)}">${esc(reportTime(x.at))}</time></h3>${x.note?`<p class="report-note-text">${esc(x.note)}</p>`:''}${x.details.length?`<ul>${x.details.map(l=>`<li>${esc(l)}</li>`).join('')}</ul>`:''}</div>`).join(''):`<div class="report-section wide"><p class="report-none">${day===now?'Nothing done yet today. Everything marked during the day shows here, with its time.':'Nothing was recorded this day.'}</p></div>`;
 return `<section class="report">${head}<div class="report-banner"><div><span>DAILY CARE REPORT</span><h2>${esc(who)}</h2><p>${esc(reportDate(day))}</p></div><button id="report-print">Print</button></div><div class="report-grid">${sections}</div></section>`}
 
-document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.reportTab){reportTab=b.dataset.reportTab;render();return}if(b.id==='report-print')window.print()});
+document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.reportTab){reportTab=b.dataset.reportTab;render();return}if(b.id==='report-print')window.print();if(b.dataset.photoView)viewPhoto(b.dataset.photoView)});
+
+/* A photo full size, on its own over the page; tapping anywhere or the × closes it. */
+function viewPhoto(src){let d=$('#photo-view');if(!d){d=document.createElement('dialog');d.id='photo-view';d.className='photo-view';document.body.append(d);d.addEventListener('click',()=>d.close())}
+d.innerHTML=`<button class="photo-view-x" aria-label="Close">×</button>${proofImg(src)}`;d.showModal()}
 
 /* Home is the profile picture, the report and My Tasks. All medications is the gallery on its own, with When to call under it. */
 const galleryBeforeReport=gallery;
