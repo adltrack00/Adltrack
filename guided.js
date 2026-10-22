@@ -71,8 +71,8 @@ function planCard(i,fact,action,tag='div',attrs='',rows=''){return `<${tag} clas
 const telLink=(label,phone)=>phone?`<a class="flow-text-link" href="tel:${esc(phone.replace(/[^\d+]/g,''))}">${esc(label)} ${esc(phone)}</a>`:'';
 const mapLink=ph=>ph&&ph.address?`<a class="flow-text-link" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([ph.name,ph.address].filter(Boolean).join(', '))}" target="_blank" rel="noopener">Directions to ${esc(ph.name||'the pharmacy')} ↗</a>`:'';
 const doseTime=at=>new Date(at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
-/* Who marked a dose: the first name on the profile, so a family sharing one login sees who gave it. */
-const markedBy=()=>typeof welcomeName==='function'?welcomeName():'';
+/* Who marked a dose: the signed-in person's own name, so everyone on the care team sees who gave it. */
+const markedBy=()=>(typeof Account!=='undefined'&&Account.user()?.name)||(typeof welcomeName==='function'?welcomeName():'');
 /* A time-stamped line in the med's care log, for the daily report: a refill marked, called, ready or picked up. */
 const logCare=(i,kind)=>{i.log=[...(i.log||[]),{at:new Date().toISOString(),kind,...(markedBy()?{by:markedBy()}:{})}].slice(-100)};
 const doseMark=d=>`${d.kind==='taken'?'✓ Taken':'Skipped'} at ${esc(doseTime(d.at))}${d.by?` by ${esc(d.by)}`:''}`;

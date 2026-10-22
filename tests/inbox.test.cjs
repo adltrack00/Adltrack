@@ -444,7 +444,7 @@ test('Settings gets "Add purchases from email" right below My profile, and email
     Account: { user: () => null }, document: { addEventListener: (n, f) => listeners.push(n), querySelector: () => null, body: { insertAdjacentHTML() {} } }, $: () => null };
   vm.runInNewContext(src + ';this.settingsPage=settingsPage;this.emailCards=emailCards;this.setInbox=d=>{inbox.data=d};this.privacyPage=privacyPage;', ctx);
   const rows = [...ctx.settingsPage().matchAll(/data-menu-go="([^"]+)"/g)].map(m => m[1]);
-  assert.deepEqual(rows, ['overview', 'my-profile', 'email-import', 'privacy', 'terms']);
+  assert.deepEqual(rows, ['overview', 'people', 'my-profile', 'email-import', 'privacy', 'terms']);
   ctx.setInbox({ orders: [{ id: 'eo1', store: 'Zara', products: [{ name: 'Wool blend coat', price: 129 }] }, { id: 'eo2', store: 'Target', products: [{ name: 'Knit cardigan', price: 25 }, { name: 'Jeans', price: 29.99 }] }, { id: 'eo-done', store: 'Nike', products: [{ name: 'Shoes', price: 1 }] }] });
   const cards = ctx.emailCards();
   assert.equal((cards.match(/<article class="visual-card">/g) || []).length, 2, 'an order the user already opened has no card');

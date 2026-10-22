@@ -1,8 +1,8 @@
 /* Adltrack service worker: keeps the app shell for offline starts, shows daily reminders sent by Web Push while the app is
    closed with their action buttons, and opens the item's Return step when one is tapped. Account data (/api/) is never cached here. */
-const SHELL = 'returnly-shell-v13';
-const SHELL_FILES = ['app.html', 'index.html', 'signin.html', 'signup.html', 'forgot.html', 'reset.html', 'email.html', 'style.css', 'on.css', 'klarna.css', 'precision.css', 'guided.css', 'home.css', 'menu.css', 'mobile.css', 'landing.css', 'type.css',
-  'core.js', 'nudge.js', 'account.js', 'auth.js', 'app.js', 'features.js', 'klarna.js', 'precision.js', 'guided.js', 'home.js', 'schedule.js', 'refills.js', 'menu.js', 'push.js', 'remind.js', 'today.js', 'report.js', 'landing.js', 'oracle.woff2', 'assets/roboto-serif-light.woff2', 'assets/inter-var.woff2',
+const SHELL = 'returnly-shell-v14';
+const SHELL_FILES = ['app.html', 'index.html', 'signin.html', 'signup.html', 'forgot.html', 'reset.html', 'email.html', 'join.html', 'style.css', 'on.css', 'klarna.css', 'precision.css', 'guided.css', 'home.css', 'menu.css', 'mobile.css', 'landing.css', 'type.css',
+  'core.js', 'nudge.js', 'account.js', 'auth.js', 'app.js', 'features.js', 'klarna.js', 'precision.js', 'guided.js', 'home.js', 'schedule.js', 'refills.js', 'menu.js', 'push.js', 'remind.js', 'today.js', 'report.js', 'team.js', 'landing.js', 'oracle.woff2', 'assets/roboto-serif-light.woff2', 'assets/inter-var.woff2',
   'manifest.webmanifest', 'assets/icon-192.png', 'assets/icon-512.png', 'assets/apple-touch-icon.png'];
 
 self.addEventListener('install', event => {

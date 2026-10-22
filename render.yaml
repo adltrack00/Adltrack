@@ -54,6 +54,14 @@ services:
         sync: false
       - key: EMAIL_TOKEN_SECRET
         generateValue: true
+      # Care team invites by text through Twilio: the account SID (starts with AC), its auth token and the Twilio number
+      # texts come from (+15551234567). Without them invites go by email, and admins can copy the invite link.
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM
+        sync: false
       # The contact address shown on Support, and the reply-to address of emails (for example support@yourdomain.com).
       - key: SUPPORT_EMAIL
         sync: false

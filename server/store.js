@@ -288,13 +288,34 @@ create table if not exists oauth_identities (
   email text,
   created_at timestamptz not null default now(),
   primary key (provider, subject)
-);`;
+);
+-- Care teams: the people who share one account's care plan (its items, settings and photos). owner_id is the account whose
+-- plan it is; the owner has a row too once anyone is added. user_id is set when the person joins from their invite link,
+-- and one account belongs to one care team at a time. Only a SHA-256 of each invite token is kept.
+create table if not exists team_members (
+  id uuid primary key,
+  owner_id uuid not null references users(id) on delete cascade,
+  user_id uuid references users(id) on delete cascade,
+  name text not null,
+  email text not null,
+  phone text not null default '',
+  role text not null check (role in ('admin', 'caregiver', 'viewer')),
+  perms jsonb not null default '{}',
+  invite_hash text unique,
+  invited_by uuid references users(id) on delete set null,
+  invited_at timestamptz not null default now(),
+  joined_at timestamptz,
+  unique (owner_id, email)
+);
+create unique index if not exists team_members_user_idx on team_members(user_id) where user_id is not null;
+create index if not exists team_members_owner_idx on team_members(owner_id);`;
 
 const PURCHASE_COLUMNS = 'id, store, channel, order_number as "orderNumber", purchased, delivered, source, retailer_id as "retailerId", receipt_file_id as "receiptFileId", receipt_pages as "receiptPages"';
 const JOB_COLUMNS = 'id, name, payload, unique_key as "uniqueKey", status, run_at as "runAt", attempts, max_attempts as "maxAttempts", last_error as "lastError"';
 const FILE_COLUMNS = 'id, user_id as "userId", kind, storage_key as "storageKey", content_type as "contentType", size, sha256';
 const CONNECTION_COLUMNS = 'id, user_id as "userId", provider, email, tokens, status, synced_at as "syncedAt", subscription_id as "subscriptionId", subscription_secret as "subscriptionSecret", subscription_expires as "subscriptionExpires", created_at as "createdAt"';
 const ORDER_COLUMNS = 'id, connection_id as "connectionId", order_key as "orderKey", retailer_id as "retailerId", store, order_number as "orderNumber", purchased, delivered, products, created_at as "createdAt", updated_at as "updatedAt"';
+const MEMBER_COLUMNS = 'id, owner_id as "ownerId", user_id as "userId", name, email, phone, role, perms, invited_at as "invitedAt", joined_at as "joinedAt"';
 const iso = d => new Date(d).toISOString();
 const dateOrNull = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
 const cleanPurchase = p => ({ id: p.id, store: p.store ?? null, channel: p.channel ?? null, orderNumber: p.orderNumber ?? null, purchased: dateOrNull(p.purchased), delivered: dateOrNull(p.delivered), source: p.source || 'manual', retailerId: p.retailerId ?? null, receiptFileId: p.receiptFileId ?? null, receiptPages: Array.isArray(p.receiptPages) ? p.receiptPages : [] });
@@ -594,6 +615,30 @@ function pgStore(connectionString) {
     findOAuthIdentity: (provider, subject) => one('select user_id as "userId", email from oauth_identities where provider=$1 and subject=$2', [provider, subject]),
     async saveOAuthIdentity({ provider, subject, userId, email = null }) { await pool.query('insert into oauth_identities (provider, subject, user_id, email) values ($1,$2,$3,$4) on conflict (provider, subject) do nothing', [provider, subject, userId, email]); },
 
+    /* Care teams. */
+    async addMember({ ownerId, userId = null, name, email, phone = '', role, perms = {}, inviteHash = null, invitedBy = null }) {
+      try {
+        return await one(`insert into team_members (id, owner_id, user_id, name, email, phone, role, perms, invite_hash, invited_by, joined_at) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) returning ${MEMBER_COLUMNS}`,
+          [crypto.randomUUID(), ownerId, userId, name, email, phone, role, JSON.stringify(perms), inviteHash, invitedBy, userId ? new Date() : null]);
+      } catch (err) {
+        if (err.code === '23505') throw Object.assign(new Error('exists'), { code: 'EXISTS' });
+        throw err;
+      }
+    },
+    listMembers: ownerId => all(`select ${MEMBER_COLUMNS} from team_members where owner_id=$1 order by invited_at, name`, [ownerId]),
+    getMember: (ownerId, id) => one(`select ${MEMBER_COLUMNS} from team_members where owner_id=$1 and id=$2`, [ownerId, id]),
+    membershipOf: userId => one(`select ${MEMBER_COLUMNS} from team_members where user_id=$1`, [userId]),
+    async updateMember(ownerId, id, { name, phone, role, perms }) {
+      return one(`update team_members set name=coalesce($3,name), phone=coalesce($4,phone), role=coalesce($5,role), perms=coalesce($6,perms) where owner_id=$1 and id=$2 returning ${MEMBER_COLUMNS}`,
+        [ownerId, id, name ?? null, phone ?? null, role ?? null, perms ? JSON.stringify(perms) : null]);
+    },
+    async setMemberInvite(ownerId, id, inviteHash) { return one(`update team_members set invite_hash=$3, invited_at=now() where owner_id=$1 and id=$2 and user_id is null returning ${MEMBER_COLUMNS}`, [ownerId, id, inviteHash]); },
+    deleteMember: (ownerId, id) => one(`delete from team_members where owner_id=$1 and id=$2 returning ${MEMBER_COLUMNS}`, [ownerId, id]),
+    findInvite: inviteHash => one(`select ${MEMBER_COLUMNS} from team_members where invite_hash=$1 and user_id is null`, [inviteHash]),
+    async joinMember(id, userId) {
+      try { return await one(`update team_members set user_id=$2, joined_at=now(), invite_hash=null where id=$1 and user_id is null returning ${MEMBER_COLUMNS}`, [id, userId]); }
+      catch (err) { if (err.code === '23505') throw Object.assign(new Error('exists'), { code: 'EXISTS' }); throw err; }
+    },
     async close() { await pool.end(); }
   };
 }
@@ -604,7 +649,7 @@ function fileStore(file) {
     if (db) return db;
     try { db = JSON.parse(await fs.readFile(file, 'utf8')); } catch { db = {}; }
     // Files written before the data foundation only have users, sessions and data.
-    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, places: {}, lookups: {}, reports: {}, approved: [], snapshots: {}, flags: {}, notices: {}, push: {}, reminderDays: {}, doseReminders: {}, optouts: {}, resets: {}, inboxAddresses: {}, inboxConnections: {}, inboxMessages: {}, emailOrders: {}, oauthStates: {}, identities: {}, ...db };
+    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, places: {}, lookups: {}, reports: {}, approved: [], snapshots: {}, flags: {}, notices: {}, push: {}, reminderDays: {}, doseReminders: {}, optouts: {}, resets: {}, inboxAddresses: {}, inboxConnections: {}, inboxMessages: {}, emailOrders: {}, oauthStates: {}, identities: {}, members: {}, ...db };
     return db;
   };
   // Serialise writes so concurrent requests can't interleave partial files.
@@ -621,6 +666,7 @@ function fileStore(file) {
   const later = (a, b) => (a > b ? a : new Date(Date.parse(b) + 1).toISOString());
   const copy = v => v === null || v === undefined ? v : JSON.parse(JSON.stringify(v));
   const connOut = c => c ? copy(c) : null;
+  const memberOut = m => m ? { id: m.id, ownerId: m.ownerId, userId: m.userId || null, name: m.name, email: m.email, phone: m.phone || '', role: m.role, perms: copy(m.perms || {}), invitedAt: new Date(m.invitedAt), joinedAt: m.joinedAt ? new Date(m.joinedAt) : null } : null;
   return {
     async init() { await load(); },
     async createUser({ email, name, passwordHash }) {
@@ -656,6 +702,7 @@ function fileStore(file) {
       for (const [k, c] of Object.entries(db.inboxConnections)) if (c.userId === userId) delete db.inboxConnections[k];
       for (const [k, st] of Object.entries(db.oauthStates)) if (st.userId === userId) delete db.oauthStates[k];
       for (const [k, i] of Object.entries(db.identities)) if (i.userId === userId) delete db.identities[k];
+      for (const [k, m] of Object.entries(db.members)) if (m.userId === userId || m.ownerId === userId) delete db.members[k];
       await persist();
     },
     async syncPolicies(versions) {
@@ -972,6 +1019,43 @@ function fileStore(file) {
     async findOAuthIdentity(provider, subject) { await load(); const i = db.identities[`${provider}:${subject}`]; return i ? { userId: i.userId, email: i.email } : null; },
     async saveOAuthIdentity({ provider, subject, userId, email = null }) { await load(); db.identities[`${provider}:${subject}`] ||= { userId, email, createdAt: now() }; await persist(); },
 
+    /* Care teams. */
+    async addMember({ ownerId, userId = null, name, email, phone = '', role, perms = {}, inviteHash = null, invitedBy = null }) {
+      await load();
+      const members = Object.values(db.members);
+      if (members.some(m => m.ownerId === ownerId && m.email === email) || (userId && members.some(m => m.userId === userId))) throw Object.assign(new Error('exists'), { code: 'EXISTS' });
+      const m = { id: crypto.randomUUID(), ownerId, userId, name, email, phone, role, perms, inviteHash, invitedBy, invitedAt: now(), joinedAt: userId ? now() : null };
+      db.members[m.id] = m; await persist();
+      return memberOut(m);
+    },
+    async listMembers(ownerId) { await load(); return Object.values(db.members).filter(m => m.ownerId === ownerId).sort((a, b) => a.invitedAt.localeCompare(b.invitedAt) || a.name.localeCompare(b.name)).map(memberOut); },
+    async getMember(ownerId, id) { await load(); const m = db.members[id]; return m && m.ownerId === ownerId ? memberOut(m) : null; },
+    async membershipOf(userId) { await load(); return memberOut(Object.values(db.members).find(m => m.userId === userId)); },
+    async updateMember(ownerId, id, { name, phone, role, perms }) {
+      await load();
+      const m = db.members[id];
+      if (!m || m.ownerId !== ownerId) return null;
+      Object.assign(m, name != null ? { name } : {}, phone != null ? { phone } : {}, role != null ? { role } : {}, perms ? { perms } : {});
+      await persist();
+      return memberOut(m);
+    },
+    async setMemberInvite(ownerId, id, inviteHash) {
+      await load();
+      const m = db.members[id];
+      if (!m || m.ownerId !== ownerId || m.userId) return null;
+      m.inviteHash = inviteHash; m.invitedAt = now(); await persist();
+      return memberOut(m);
+    },
+    async deleteMember(ownerId, id) { await load(); const m = db.members[id]; if (!m || m.ownerId !== ownerId) return null; delete db.members[id]; await persist(); return memberOut(m); },
+    async findInvite(inviteHash) { await load(); return memberOut(Object.values(db.members).find(m => m.inviteHash === inviteHash && !m.userId)); },
+    async joinMember(id, userId) {
+      await load();
+      const m = db.members[id];
+      if (!m || m.userId) return null;
+      if (Object.values(db.members).some(x => x.userId === userId)) throw Object.assign(new Error('exists'), { code: 'EXISTS' });
+      Object.assign(m, { userId, joinedAt: now(), inviteHash: null }); await persist();
+      return memberOut(m);
+    },
     async close() { await queue; }
   };
 }
