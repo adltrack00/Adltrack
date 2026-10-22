@@ -9,6 +9,7 @@ const { buildGuide, placeQueries } = require('./guide');
 const { cleanSubscription, validTimeZone, quiet, notification } = require('./reminders');
 const { ACTIONS, KINDS } = require('./email');
 const { createTeam } = require('./team');
+const { createPermissions } = require('./permissions');
 const { printedWindow } = require('./receipts');
 const { dischargeDraft, MAX_PAGES: MAX_DISCHARGE_PAGES } = require('./discharge');
 const { compare: compareLabel, MAX_PHOTOS: MAX_LABEL_PHOTOS } = require('./label');
@@ -427,6 +428,8 @@ function createApp({ store, data, production = false, policies = null, classifie
 
     // Whose care plan this account works on: its own, or the care team's it joined. Every care plan route below uses it.
     const access = await team.access(user), owner = access.ownerId;
+    // What this person may change on it (server/permissions.js). Viewers change nothing.
+    const may = createPermissions(access);
 
     if (route === '/api/me' && method === 'GET') {
       const full = await store.findUserByEmail(user.email);
@@ -571,6 +574,7 @@ function createApp({ store, data, production = false, policies = null, classifie
     // returned as the draft the Item card opens with. Fields the model wasn't sure about come back empty.
     if (route === '/api/receipts/read' && method === 'POST') {
       checkWrite(req);
+      may.need('meds');
       const body = await readBody(req, 30 * 1024 * 1024);
       const purchaseId = typeof body.purchaseId === 'string' ? body.purchaseId : '';
       const pages = data.receiptPages(body.pages, MAX_PAGES);
@@ -588,6 +592,7 @@ function createApp({ store, data, production = false, policies = null, classifie
     // card opens with, one card per medication. Nothing the papers don't say is added.
     if (route === '/api/discharge/read' && method === 'POST') {
       checkWrite(req);
+      may.need('meds');
       const body = await readBody(req, 60 * 1024 * 1024);
       const purchaseId = typeof body.purchaseId === 'string' ? body.purchaseId : '';
       const pages = data.receiptPages(body.pages, MAX_DISCHARGE_PAGES, 'discharge');
@@ -602,6 +607,7 @@ function createApp({ store, data, production = false, policies = null, classifie
     // for that medication. The photos themselves are saved with the medication by the app, not here.
     if (route === '/api/label/read' && method === 'POST') {
       checkWrite(req);
+      may.need('meds');
       const body = await readBody(req, 30 * 1024 * 1024);
       const photos = data.receiptPages(body.photos, MAX_LABEL_PHOTOS, 'label').filter(p => p.contentType !== 'application/pdf');
       if (!photos.length) throw new HttpError(400, 'Use a photo of the bottle.');
@@ -661,6 +667,7 @@ function createApp({ store, data, production = false, policies = null, classifie
     // A notification's action buttons ("Snooze until tomorrow", "I sent it back", "I'm keeping it"), sent by the service worker.
     if (route === '/api/reminders/action' && method === 'POST') {
       checkWrite(req);
+      may.need('care');
       const body = await readBody(req, 2_000);
       if (!reminders || !ACTIONS.includes(body.action)) throw new HttpError(400, 'Invalid action.');
       const offset = typeof body.today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.today) ? (Date.parse(body.today) - Date.parse(new Date().toISOString().slice(0, 10))) / 864e5 : NaN;
@@ -672,6 +679,7 @@ function createApp({ store, data, production = false, policies = null, classifie
     // A dose reminder's buttons ("Taken", "Snooze 15 minutes", "Skipped"), sent by the service worker.
     if (route === '/api/reminders/dose' && method === 'POST') {
       checkWrite(req);
+      may.need('tasks');
       const body = await readBody(req, 8_000);
       const saved = reminders ? await reminders.actDose(user.id, body) : null;
       if (!saved) throw new HttpError(400, 'Invalid action.');
@@ -699,6 +707,8 @@ function createApp({ store, data, production = false, policies = null, classifie
     // The whole account in one document, kept for older versions of the app.
     if (route === '/api/data' && method === 'PUT') {
       checkWrite(req);
+      // Replaces the whole plan at once, so only an admin who also does the tasks may.
+      may.need('admin'); may.need('tasks');
       const payload = cleanPayload(await readBody(req, 12 * 1024 * 1024));
       return send(res, 200, { updatedAt: await data.putData(owner, payload) });
     }
@@ -706,6 +716,7 @@ function createApp({ store, data, production = false, policies = null, classifie
     // A photo of a dose being taken: POST it as a data URL, kept with the dose by its file URL.
     if (route === '/api/files/proof' && method === 'POST') {
       checkWrite(req);
+      may.need('tasks');
       const body = await readBody(req, 14 * 1024 * 1024);
       return send(res, 201, await data.saveProof(owner, body && body.data));
     }
@@ -727,12 +738,14 @@ function createApp({ store, data, production = false, policies = null, classifie
     }
     if (route === '/api/items' && method === 'POST') {
       checkWrite(req);
+      may.need('meds');
       return send(res, 201, await data.saveItem(owner, await readBody(req, 12 * 1024 * 1024), { mustBeNew: true }));
     }
     // The QR code or return label for one item: PUT a photo, screenshot or PDF as a data URL; DELETE removes it.
     const labelMatch = /^\/api\/items\/([^/]+)\/label$/.exec(route);
     if (labelMatch && (method === 'PUT' || method === 'DELETE')) {
       checkWrite(req);
+      may.need('meds');
       let id; try { id = decodeURIComponent(labelMatch[1]); } catch { throw new HttpError(400, 'Invalid item.'); }
       const body = method === 'PUT' ? await readBody(req, 14 * 1024 * 1024) : null;
       return send(res, 200, await data.setLabel(owner, id, method === 'PUT' ? body && body.data : null));
@@ -742,23 +755,28 @@ function createApp({ store, data, production = false, policies = null, classifie
       checkWrite(req);
       let id; try { id = decodeURIComponent(itemMatch[1]); } catch { throw new HttpError(400, 'Invalid item.'); }
       if (method === 'DELETE') {
+        may.need('meds');
         const r = await data.deleteItem(owner, id);
         if (!r.deleted) throw new HttpError(404, 'Not found.');
         return send(res, 200, { ok: true, updatedAt: r.updatedAt });
       }
       const body = await readBody(req, 12 * 1024 * 1024);
       if (!body || typeof body !== 'object' || Array.isArray(body)) throw new HttpError(400, 'Invalid item.');
+      may.item((await store.getItem(owner, id))?.item, { ...body, id });
       return send(res, 200, await data.saveItem(owner, { ...body, id }));
     }
     if (route === '/api/settings' && method === 'PUT') {
       checkWrite(req);
       const { settings, profile } = cleanPayload({ purchases: [], ...(await readBody(req, 12 * 1024 * 1024)) });
+      const saved = (await store.getRawData(owner))?.payload || {};
+      may.settings({ settings: saved.settings, profile: saved.profile }, { settings, profile });
       return send(res, 200, await data.putSettings(owner, { settings, profile }));
     }
     if (route === '/api/purchases' && method === 'GET') return send(res, 200, { purchases: await data.listPurchases(owner) });
     const receiptMatch = /^\/api\/purchases\/([^/]+)\/receipt$/.exec(route);
     if (receiptMatch && method === 'PUT') {
       checkWrite(req);
+      may.need('meds');
       let id; try { id = decodeURIComponent(receiptMatch[1]); } catch { throw new HttpError(400, 'Invalid request.'); }
       const body = await readBody(req, 14 * 1024 * 1024);
       return send(res, 200, await data.attachReceipt(owner, id, body && body.data));

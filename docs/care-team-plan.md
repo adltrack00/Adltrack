@@ -57,7 +57,7 @@ When a step is merged, update its **Status** here in the same PR.
 
 ## 2. Permissions enforced
 
-**Status:** To do.
+**Status:** In review. Code: `server/permissions.js` (checked on every write in `server/app.js`), `can.js` (hides what a person can't do), `Account.can` in `account.js`.
 **Needs:** step 1.
 **Build:**
 - The server refuses changes a person isn't allowed: viewers can't change items, settings or photos; marking doses and tasks needs My Tasks; adding or changing medications and scanning papers needs that tick.

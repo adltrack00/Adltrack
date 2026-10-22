@@ -117,8 +117,9 @@ const calendarBeforeAppt=calendarPage;calendarPage=function(){const el=document.
 el.querySelectorAll('.calendar-cell[data-date]').forEach(c=>{const n=visits.filter(a=>a.date===c.dataset.date).length;if(n)c.querySelector('span').insertAdjacentHTML('afterend',`<small>${n>1?n+' visits':'Follow-up visit'}</small>`)});
 const month=C.iso(calendarMonth).slice(0,7),shown=visits.filter(a=>calendarDay?a.date===calendarDay:a.date.slice(0,7)===month),h=el.querySelector('.section-heading');
 if(h&&shown.length)h.insertAdjacentHTML('beforebegin',`<div class="section-heading"><h2>Follow-up visits</h2></div><ul class="today-list">${shown.map(a=>`<li class="today-row${a.status==='received'?' is-done':''}"><div class="today-thumb">${apptPhoto(a)}</div><div class="today-what"><strong>${esc(a.name)}</strong><small>${esc([apptDay(a),a.place].filter(Boolean).join(' · '))}</small></div><button class="today-pill" data-open="${esc(a.id)}">Open</button></li>`).join('')}</ul>`);return el.innerHTML};
-if(syncAppointments())save();
-const renderBeforeAppt=render;render=function(){if(syncAppointments())save();renderBeforeAppt()};
+/* Only someone who may change the plan makes the cards; everyone else gets them from the account. */
+if(mayDo('meds')&&syncAppointments())save();
+const renderBeforeAppt=render;render=function(){if(mayDo('meds')&&syncAppointments())save();renderBeforeAppt()};
 
 /* Example medications on day one, labelled as examples, in place of Returnly's example purchases. */
 function exampleMeds(day=today(),now=hmNow()){const base={med:true,demo:true,status:'deciding',intent:'return',confirmed:true,retailer:'',price:0,category:'box',channel:'store',purchased:day,delivered:'',photoKey:'medication',prescriber:EXAMPLE_DOCTOR,pharmacy:EXAMPLE_PHARMACY,doses:[]},given=t=>now>=t?[{at:new Date(day+'T'+t).toISOString(),day,kind:'taken',slot:t}]:[];
@@ -131,4 +132,4 @@ if(items.some(i=>i.demo&&!i.med&&!i.appt))items=[...items.filter(i=>!i.demo),...
 /* Example medications saved before the example papers had warning signs get them, so When to call can be tried. */
 for(const i of items)if(i.id==='demo-lisinopril'&&i.discharge&&!i.discharge.warningSigns)Object.assign(i.discharge,EXAMPLE_SIGNS);
 // Example medications saved before the amount was added get it, so the reminder preview reads "Lisinopril 10 mg, 1 tablet".
-{const ex=Object.fromEntries(exampleMeds().map(i=>[i.id,i]));let added=false;for(const i of items)if(i.demo&&i.med&&!i.dose&&ex[i.id]&&ex[i.id].dose){i.dose=ex[i.id].dose;added=true}if(added)save()}
+{const ex=Object.fromEntries(exampleMeds().map(i=>[i.id,i]));let added=false;for(const i of items)if(i.demo&&i.med&&!i.dose&&ex[i.id]&&ex[i.id].dose){i.dose=ex[i.id].dose;added=true}if(added&&mayDo('meds'))save()}
