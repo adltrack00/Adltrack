@@ -44,7 +44,7 @@ function helpNote(i,phone){const doc=i.prescriber||{},ph=i.pharmacy||{};return `
 function whenToCallHTML(){const groups=whenToCall();return `<h2 class="call-head">When to call</h2>${groups.length?`<ol class="radar-list call-list">${groups.map(g=>`<li><strong>${esc(g.head)}</strong>${g.signs.map(t=>`<small>${esc(t)}</small>`).join('')}<small>${callLinks(g)}</small></li>`).join('')}</ol>`:`<p class="today-empty">${esc(NO_SIGNS)}</p><ol class="radar-list call-list"><li><small>${call911}</small></li></ol>`}`}
 /* One card per row, like a list of locks: the bottle's photo, the medication and its dose, and Start at the end. The whole card
    opens the Take page (today.js); a visit opens its own card. Refill steps and pick-ups live on Your refills, not here. */
-function todayThumb(x){if(x.item.appt)return apptPhoto(x.item);if(x.key==='task'||x.key==='incident')return taskPhoto(x.item);return x.slot||x.key==='pickup'||x.key.startsWith('refill:')?medPhoto(x.item):`<div class="product-photo today-icon">${icon('clock')}</div>`}
+function todayThumb(x){if(x.item.appt)return apptPhoto(x.item);if(x.key==='task'||x.key==='incident')return taskPhoto(x.item,x.key==='task'?markOf(x.item,today(),'task'):null);return x.slot||x.key==='pickup'||x.key.startsWith('refill:')?medPhoto(x.item):`<div class="product-photo today-icon">${icon('clock')}</div>`}
 /* No Start button: a blue arrow at the end, like a list of rows. A marked dose says so on its second line. */
 const TODAY_ARROW='<svg class="today-arrow" viewBox="0 0 10 18" aria-hidden="true"><path d="m1.5 1.5 7 7.5-7 7.5"/></svg>';
 function todayRow(x){const mark=x.state==='done'?'✓ Done':x.state==='skipped'?'Skipped':'',line=[x.slot?x.item.dose:'',x.time?clockText(x.time):'',mark].filter(Boolean).join(' · ');

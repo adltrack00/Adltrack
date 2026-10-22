@@ -33,8 +33,9 @@ todayTasks=function(list=items,day=today()){const tasks=todayTasksBeforePlus(lis
 for(const t of list.filter(i=>i.task&&taskOn(i,day))){const m=markOf(t,day,'task');tasks.push({item:t,key:'task',time:t.time||'',title:t.name,sub:t.note||'',state:m?m.kind:''})}
 for(const i of list.filter(i=>i.incident&&onDay(i.at,day)))tasks.push({item:i,key:'incident',time:clockOf(i.at),title:'Incident: '+i.name,sub:i.note||'',state:'done'});
 return tasks.sort((a,b)=>(a.time||'99')<(b.time||'99')?-1:(a.time||'99')>(b.time||'99')?1:0)};
-/* A task's photo on its card and Take page, or the clock when it has none. */
-const taskPhoto=i=>i.photos&&i.photos.length?`<div class="product-photo">${proofImg(i.photos[0])}</div>`:`<div class="product-photo today-icon">${icon('clock')}</div>`;
+/* A task's photo on its card and Take page: once it's done, the first photo taken then; otherwise its own (an incident's is
+   the one uploaded with the report), or the clock when there's none. */
+const taskPhoto=(i,mark)=>{const src=(mark&&mark.photos||[])[0]||(i.photos||[])[0];return src?`<div class="product-photo">${proofImg(src)}</div>`:`<div class="product-photo today-icon">${icon('clock')}</div>`};
 
 /* The Take page for a task: its photo, what to do with its note and photos, then the same photo, note and Done, Skipped, Need help. */
 function taskTakePage(x,d,full){const i=x.item;
