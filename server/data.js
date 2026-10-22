@@ -72,7 +72,8 @@ function createData({ store, storage, jobs = null }) {
     if (!parsed) throw new DataError(400, 'Use a JPG, PNG or WebP photo.');
     return { url: fileUrl(await saveFile(userId, 'item', parsed)) };
   }
-  const proofFiles = item => (Array.isArray(item.doses) ? item.doses : []).flatMap(d => d && Array.isArray(d.photos) ? d.photos.map(fileIdFromUrl) : []).filter(Boolean);
+  // A dose's photos, a task's or an incident's own photos, and those added when a task was done.
+  const proofFiles = item => [item, ...(Array.isArray(item.doses) ? item.doses : []), ...(Array.isArray(item.marks) ? item.marks : [])].flatMap(d => d && Array.isArray(d.photos) ? d.photos.map(fileIdFromUrl) : []).filter(Boolean);
 
   /* Items. */
   async function saveItem(userId, input, { position = null, touch = true, mustBeNew = false } = {}) {

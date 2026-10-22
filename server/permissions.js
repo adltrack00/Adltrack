@@ -9,6 +9,7 @@ const SAY = {
   viewer: 'You can’t change this.',
   tasks: 'Only people with My Tasks can mark doses and tasks. Ask an admin to add it.',
   meds: 'Ask an admin to let you scan papers and change medications.',
+  addTasks: 'Ask an admin to let you add tasks.',
   admin: 'Only an admin can do this.'
 };
 // Marked from My Tasks.
@@ -19,6 +20,8 @@ const CARE_FIELDS = new Set(['refill', 'refilledOn', 'refills', 'pickup', 'disca
 const CARE_STATUS = new Set(['deciding', 'received']);
 // Saved apart from the item (the QR code or label has its own route), or the item's own id.
 const IGNORED = new Set(['id', 'label', 'labelFileId']);
+// What makes an item a medication, a visit, a task or an incident: changing it changes the plan.
+const KIND_FIELDS = new Set(['med', 'appt', 'task', 'incident']);
 // Vital signs are recorded with the plan's settings; everything else in the settings belongs to the plan.
 const VITAL_KEYS = new Set(['vitals', 'vitalsLog']);
 
@@ -31,16 +34,21 @@ const changed = (before = {}, after = {}, skip = new Set()) => [...new Set([...O
 function createPermissions(access) {
   const { role, perms } = access;
   const viewer = role === 'viewer';
-  const can = { tasks: !viewer && !!perms.tasks, meds: !viewer && !!perms.meds, admin: role === 'admin' };
+  const can = { tasks: !viewer && !!perms.tasks, addTasks: !viewer && !!perms.addTasks, meds: !viewer && !!perms.meds, admin: role === 'admin' };
   can.care = can.tasks || can.meds;
   function need(what) {
     if (viewer) throw new PermissionError(SAY.viewer);
     if (!can[what]) throw new PermissionError(SAY[what === 'care' ? 'tasks' : what]);
   }
 
-  /* An item saved whole: a new or removed item changes the plan; otherwise each changed field needs its own permission. */
+  /* An item saved whole: a new or removed item changes the plan; otherwise each changed field needs its own permission.
+     From the + on My Tasks: a new task needs "Can add new tasks" (admins always have it), and anyone who does the care or
+     manages the plan reports an incident. Neither can carry a medication or a visit with it. */
   function item(before, after) {
     if (viewer) throw new PermissionError(SAY.viewer);
+    const plain = !after.med && !after.appt && !after.doses;
+    if (!before && after.task && !after.incident && plain) return need('addTasks');
+    if (!before && after.incident && !after.task && plain && !after.marks) return need('care');
     if (!before) return need('meds');
     const skip = new Set(IGNORED);
     // An app that leaves the purchase out keeps the saved one.
@@ -49,9 +57,12 @@ function createPermissions(access) {
     // Moving a dose time moves today's marked dose with it, as part of changing the medication.
     const retimed = fields.includes('times') && can.meds;
     for (const f of fields) {
-      if (TASK_FIELDS.has(f)) { if (!retimed) need('tasks'); }
+      if (KIND_FIELDS.has(f)) need('meds');
+      else if (TASK_FIELDS.has(f)) { if (!retimed) need('tasks'); }
       else if (f === 'status' && !(CARE_STATUS.has(before.status) && CARE_STATUS.has(after.status))) need('meds');
       else if (CARE_FIELDS.has(f)) need('care');
+      // A task's own details (what, when, how often) change with "Can add new tasks".
+      else if (before.task && after.task) need('addTasks');
       else need('meds');
     }
   }
