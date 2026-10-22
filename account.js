@@ -76,6 +76,7 @@ const Account = (() => {
   async function putBack(err, id) {
     if (err.status !== 403) throw err;
     refusedNote = err.message;
+    refreshTeam();
     const r = await api('GET', '/api/data'), d = r.data || { purchases: [], settings: {}, profile: {} };
     if (id === null) {
       const fix = (o, v) => { if (o && typeof o === 'object') { Object.keys(o).forEach(k => delete o[k]); Object.assign(o, v || {}); } };
@@ -206,10 +207,21 @@ const Account = (() => {
     location.href = 'index.html';
   }
 
+  /* What the admins allow this person to do, kept up to date while the app is open: when an admin changes it (a family
+     viewer made a caregiver, say), the page redraws with it, with no need to sign out. Moved to another care plan, or
+     removed from one: the app loads that plan instead. */
+  async function refreshTeam() {
+    try {
+      const r = await api('GET', '/api/me'), before = JSON.stringify(user()?.team || null);
+      remember(r.user, r.team);
+      if (r.space && get(SPACE_KEY) && r.space !== get(SPACE_KEY)) return checkApp();
+      if (JSON.stringify(r.team || null) !== before && typeof render === 'function') render();
+    } catch (err) { if (err.status === 401) expired(); }
+  }
+
   /* On the app: require an account, then pull changes made on other devices. */
   async function checkApp() {
-    // Keeps the stored account up to date, for example when it's made an admin.
-    api('GET', '/api/me').then(r => remember(r.user, r.team)).catch(() => {});
+    refreshTeam();
     try {
       const { data, space } = await api('GET', '/api/data');
       // Joined a care team, or left one: this browser's copy belongs to the other plan, so it's replaced, never uploaded.
@@ -237,7 +249,8 @@ const Account = (() => {
         if (typeof save === 'function') { const s = appSave = save; save = function () { const out = s.apply(this, arguments); queue(); return out; }; }
         if (typeof saveProfile === 'function') { const s = appSaveProfile = saveProfile; saveProfile = function () { const out = s.apply(this, arguments); if (out !== false) queue(); return out; }; }
       });
-      document.addEventListener('visibilitychange', () => { if (document.hidden && get(DIRTY_KEY)) flush(); });
+      document.addEventListener('visibilitychange', () => { if (document.hidden && get(DIRTY_KEY)) flush(); if (!document.hidden) refreshTeam(); });
+      setInterval(() => { if (!document.hidden) refreshTeam(); }, 30000);
     }
   }
 
