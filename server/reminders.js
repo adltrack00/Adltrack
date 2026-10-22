@@ -1,7 +1,11 @@
 /* Daily reminders: one rule picks the day's reminder (every return due, grouped, most urgent first, respecting snoozeUntil,
    "Gentle" and quiet hours; the words come from nudge.js), and each user gets it once a day at their reminder time: by Web
    Push, by email when push isn't set up on any device, or by the open app's own notification. Whichever claims the day first
-   sends it, so the user never gets two. A pushed reminder that isn't opened 3 days before a deadline is followed by email. */
+   sends it, so the user never gets two. A pushed reminder that isn't opened 3 days before a deadline is followed by email.
+   Everything is sent per family, to the people on that family's care team, and names the patient ("Rose · 8:00 AM: …"):
+   a caregiver on three families gets each family's reminders, and tapping one opens that family. Dose and task reminders go
+   to the people with My Tasks; incidents straight away, missed doses and the end-of-day report to everyone. Each person picks
+   quiet hours and which of these they get (alert_prefs), except incidents, which always arrive. */
 const C = require('../core.js');
 const N = require('../nudge.js');
 
@@ -13,7 +17,7 @@ const FOLLOW_UP_MS = 4 * 60 * 60 * 1000;
 const daysLabel = N.daysLabel;
 
 /* What a push message carries: the notification's words, the item it opens and its action buttons. */
-const notification = r => ({ title: r.title, body: r.body, itemId: r.itemId, url: r.url, actions: r.actions });
+const notification = r => ({ title: r.title, body: r.body, itemId: r.itemId, url: r.url, actions: r.actions, ...(r.tag ? { tag: r.tag } : {}) });
 
 /* The day's reminder for these items on `today` (the user's local date), or null when nothing needs one. */
 function pick(items, today, settings = {}) {
@@ -56,9 +60,12 @@ function cleanSubscription(sub) {
    Only confirmed medications that are in the house (not waiting at the pharmacy) and not finished; "as needed" ones never
    get one. The words are the instructions as printed: the app never tells anyone how much to take. */
 const DOSE_WINDOW_MIN = 60;
+// Not marked an hour after its time: the people with My Tasks are reminded again, and 15 minutes later everyone is alerted.
+const MISSED_MIN = 60, ALERT_MIN = MISSED_MIN + 15;
 const minutes = t => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
-function dosesDue(items, date, time) {
-  const at = minutes(time), due = {};
+/* The doses due at `time`: from their time until an hour after, or that window `after` minutes later (for a missed dose). */
+function dosesDue(items, date, time, after = 0) {
+  const at = minutes(time) - after, due = {};
   for (const i of items || []) {
     if (!i || !i.med || i.demo || i.status !== 'deciding' || i.pickup || i.asNeeded || !Array.isArray(i.times)) continue;
     for (const t of new Set(i.times)) {
@@ -76,11 +83,15 @@ const SNOOZE_MIN = 15;
 /* "8:00 PM: Lisinopril 10 mg, 1 tablet": the name and the amount as printed, then the instructions word for word. */
 const doseLine = i => i.name + (i.dose ? ', ' + i.dose : '');
 const doseHow = i => i.instructions || [i.dose, i.route, i.frequency].filter(Boolean).join(' ');
-function doseNotification({ time, items }, date = '') {
+/* Who the notification is about, and the link that opens their family: "Rose · " and "app.html?patient=…&". */
+const about = patient => patient && patient.name ? patient.name + ' · ' : '';
+const opens = (patient, rest = '') => 'app.html' + ((q => q ? '?' + q : '')([patient && patient.id ? 'patient=' + encodeURIComponent(patient.id) : '', rest].filter(Boolean).join('&')));
+function doseNotification({ time, items }, date = '', { patient = null, again = false } = {}) {
   const one = items.length === 1;
   const lines = one ? [doseHow(items[0])].filter(Boolean) : items.slice(0, 4).map(i => doseLine(i) + (doseHow(i) ? ': ' + doseHow(i) : ''));
   if (items.length > 4) lines.push(`Plus ${items.length - 4} more.`);
-  return { title: `${clock12(time)}: ${one ? doseLine(items[0]) : items.length + ' medications'}`.slice(0, 200), body: lines.join(' · ').slice(0, 500), itemId: items[0].id, url: 'app.html?remind=' + encodeURIComponent(items[0].id), actions: DOSE_ACTIONS, dose: { date, time, ids: items.map(i => i.id) } };
+  if (again) lines.unshift('Not marked yet.');
+  return { title: `${about(patient)}${clock12(time)}: ${one ? doseLine(items[0]) : items.length + ' medications'}`.slice(0, 200), body: lines.join(' · ').slice(0, 500), itemId: items[0].id, url: opens(patient, 'remind=' + encodeURIComponent(items[0].id)), actions: DOSE_ACTIONS, dose: { date, time, ids: items.map(i => i.id), ...(patient && patient.id ? { patient: patient.id } : {}) }, tag: `dose ${patient && patient.id || ''} ${date} ${time}` };
 }
 /* The medications among `ids` whose dose at `time` on `date` isn't marked yet (for a snoozed or tested reminder, which may
    come after the hour a dose reminder is normally sent in). */
@@ -102,11 +113,66 @@ function appointmentsDue(items, date, time, settings = {}) {
   }
   return out;
 }
-function appointmentNotification({ item: i, kind }) {
+function appointmentNotification({ item: i, kind }, patient = null) {
   const when = kind === 'day' ? 'tomorrow' : 'today';
   const what = 'Follow-up visit' + (i.with ? ' with ' + i.with : '');
   const body = [[validTime(i.time) ? clock12(i.time) : '', i.place].filter(Boolean).join(' · '), i.phone ? 'Call ' + i.phone + ' to change it.' : ''].filter(Boolean).join('. ');
-  return { title: `Adltrack · ${what} ${when}`.slice(0, 120), body: body.slice(0, 500), itemId: i.id, url: 'app.html?remind=' + encodeURIComponent(i.id), actions: [] };
+  return { title: `${about(patient) || 'Adltrack · '}${what} ${when}`.slice(0, 120), body: body.slice(0, 500), itemId: i.id, url: opens(patient, 'remind=' + encodeURIComponent(i.id)), actions: [], tag: 'appt ' + i.id };
+}
+
+/* Tasks added with the + on My Tasks: due on their days (once, every day, chosen weekdays or every week, until their last
+   day), reminded at their time until an hour after, unless already marked done or skipped. */
+const weekday = day => C.parseDate(day).getDay();
+function taskOn(t, day) {
+  if (!t || !t.task || t.incident || !C.parseDate(t.date) || day < t.date) return false;
+  if (!t.repeat || t.repeat === 'once') return day === t.date;
+  if (t.until && day > t.until) return false;
+  return t.repeat === 'daily' || t.repeat === 'weekly' && weekday(day) === weekday(t.date) || t.repeat === 'days' && (t.days || []).includes(weekday(day));
+}
+const taskMarked = (t, day) => (t.marks || []).some(m => m && m.key === 'task' && m.day === day);
+function tasksDue(items, date, time) {
+  const at = minutes(time);
+  return (items || []).filter(t => taskOn(t, date) && !t.demo && validTime(t.time) && at >= minutes(t.time) && at < minutes(t.time) + DOSE_WINDOW_MIN && !taskMarked(t, date));
+}
+function taskNotification(t, date, patient = null) {
+  return { title: `${about(patient)}${clock12(t.time)}: ${t.name}`.slice(0, 200), body: (t.note || 'Mark it done or skipped in My Tasks.').slice(0, 500), itemId: t.id, url: opens(patient), actions: [], tag: `task ${t.id} ${date}` };
+}
+
+/* The medications whose dose at `time` on `date` nobody marked taken or skipped. */
+const missedAt = (items, date, time) => (items || []).filter(i => i && i.med && !i.demo && i.status === 'deciding' && !i.pickup && !i.asNeeded && Array.isArray(i.times) && i.times.includes(time)
+  && !(i.doses || []).some(d => d && d.slot === time && (d.day || String(d.at || '').slice(0, 10)) === date));
+function missedNotification(time, list, date, patient = null) {
+  const names = list.slice(0, 4).map(doseLine).join(', ') + (list.length > 4 ? ` and ${list.length - 4} more` : '');
+  return { title: `${about(patient)}Missed dose at ${clock12(time)}`.slice(0, 200), body: `${names} ${list.length === 1 ? 'wasn’t' : 'weren’t'} marked taken or skipped. About a missed dose, check the instructions or call the pharmacist.`.slice(0, 500), itemId: list[0].id, url: opens(patient), actions: [], tag: `missed ${patient && patient.id || ''} ${date} ${time}` };
+}
+
+/* An incident from the + on My Tasks, sent to everyone straight away. Like the report, it doesn't say who reported it. */
+function incidentNotification(i, time, patient = null) {
+  return { title: `${about(patient)}Incident: ${i.name || 'Other'}`.slice(0, 200), body: [time ? clock12(time) : '', i.note || ''].filter(Boolean).join(' · ').slice(0, 500) || 'Open the daily care report to see it.', itemId: i.id, url: opens(patient), actions: [], tag: 'incident ' + i.id };
+}
+
+/* The end-of-day report: the day's doses, tasks and incidents in one line, with the report a tap away. `dayOf` turns an
+   incident's time into a local date. */
+function daySummary(items, date, dayOf = at => String(at || '').slice(0, 10)) {
+  let doses = 0, taken = 0, skipped = 0, tasks = 0, done = 0, incidents = 0;
+  for (const i of items || []) {
+    if (!i || i.demo) continue;
+    if (i.med && i.status === 'deciding' && !i.pickup && !i.asNeeded && Array.isArray(i.times)) for (const t of new Set(i.times.filter(validTime))) {
+      doses++;
+      const d = (i.doses || []).find(d => d && d.slot === t && (d.day || String(d.at || '').slice(0, 10)) === date);
+      if (d && d.kind === 'taken') taken++; else if (d && d.kind === 'skipped') skipped++;
+    }
+    if (taskOn(i, date)) { tasks++; if ((i.marks || []).some(m => m && m.key === 'task' && m.day === date && m.kind === 'done')) done++; }
+    if (i.incident && dayOf(i.at) === date) incidents++;
+  }
+  return { doses, taken, skipped, tasks, done, incidents };
+}
+function endOfDayNotification(s, date, patient = null) {
+  const parts = [];
+  if (s.doses) parts.push(`${s.taken} of ${s.doses} dose${s.doses === 1 ? '' : 's'} taken${s.skipped ? `, ${s.skipped} skipped` : ''}`);
+  if (s.tasks) parts.push(`${s.done} of ${s.tasks} task${s.tasks === 1 ? '' : 's'} done`);
+  if (s.incidents) parts.push(`${s.incidents} incident${s.incidents === 1 ? '' : 's'}`);
+  return { title: `${about(patient)}Today’s care report`.slice(0, 200), body: `${parts.length ? parts.join(' · ') + '.' : 'Nothing was due today.'} Tap to see the daily care report.`.slice(0, 500), itemId: null, url: opens(patient), actions: [], tag: `day ${patient && patient.id || ''} ${date}` };
 }
 const appointmentSlot = (i, kind) => `${i.date} appt ${kind} ${String(i.id).slice(0, 100)}`;
 
@@ -138,7 +204,21 @@ function createPush({ vapid = null, send = null } = {}) {
   };
 }
 
+
+/* Each person's own choices on Reminders: which reminders and alerts they get, the time of their end-of-day report and their
+   quiet hours. Incidents ignore all of these. */
+const ALERT_KINDS = ['doses', 'missed', 'endOfDay'];
+const END_OF_DAY = '20:00';
+function cleanPrefs(body = {}) {
+  const out = {};
+  for (const k of ALERT_KINDS) if (typeof body[k] === 'boolean') out[k] = body[k];
+  if (validTime(body.endOfDayTime)) out.endOfDayTime = body.endOfDayTime;
+  for (const k of ['quietStart', 'quietEnd']) if (validTime(body[k]) || body[k] === '') out[k] = body[k];
+  return out;
+}
+
 function createReminders({ store, push, email = null, data = null, now = () => new Date(), log = console }) {
+  const { permsFor } = require('./team');
   const settingsOf = async userId => ((await store.getRawData(userId))?.payload?.settings) || {};
   const timeZoneOf = async (userId, settings) => {
     const subs = await store.listPushSubscriptions(userId);
@@ -146,13 +226,37 @@ function createReminders({ store, push, email = null, data = null, now = () => n
   };
   const emailOn = async (userId, kind) => !!(email && email.available()) && !(await store.emailOptouts(userId)).includes(kind);
 
-  /* Claims the user's reminder for `date` (their local date) once; returns the reminder to show, or null when the day was
-     already claimed or nothing is due. A day with nothing due is claimed too, so it's checked once. */
-  async function claim(userId, date, by, settings = null) {
-    const c = await store.claimReminderDay(userId, date, by);
-    if (!c.claimed) return { claimed: false, reminder: null };
-    return { claimed: true, previous: c.previous, reminder: pick(await store.listItems(userId), date, settings || await settingsOf(userId)) };
+  /* A person's choices, with quiet hours they set before choices were per person (on their own plan) kept. */
+  async function prefsOf(userId) {
+    const own = await settingsOf(userId), saved = (await store.alertPrefs(userId)) || {};
+    const p = { doses: true, missed: true, endOfDay: true, endOfDayTime: END_OF_DAY, ...(validTime(own.quietStart) && validTime(own.quietEnd) ? { quietStart: own.quietStart, quietEnd: own.quietEnd } : {}), ...saved };
+    if (!validTime(p.quietStart) || !validTime(p.quietEnd)) { delete p.quietStart; delete p.quietEnd; }
+    return p;
   }
+
+  /* Everyone on a family's care team who has joined, with what they may do. A plan with no team is its owner's alone (unless
+     its owner now only cares for other families, whose plans they see instead). */
+  async function teamOf(ownerId) {
+    const members = (await store.listMembers(ownerId)).filter(m => m.userId);
+    if (members.length) return members.map(m => ({ userId: m.userId, role: m.role, perms: permsFor(m.role, m.perms) }));
+    if ((await store.membershipsOf(ownerId)).length) return [];
+    return [{ userId: ownerId, role: 'admin', perms: { tasks: true, addTasks: true, meds: true } }];
+  }
+  const withTasks = p => p.role !== 'viewer' && !!p.perms.tasks;
+  /* The families this person is on, each with what they may do there (their own plan when they're on none). */
+  async function plansOf(userId) {
+    const list = await store.membershipsOf(userId);
+    if (!list.length) return [{ ownerId: userId, role: 'admin', perms: { tasks: true, addTasks: true, meds: true } }];
+    return list.map(m => ({ ownerId: m.ownerId, role: m.role, perms: permsFor(m.role, m.perms) }));
+  }
+  /* The patient a notification is about: the name on the family's Home profile, or the name of whoever set the plan up. */
+  async function patientOf(ownerId) {
+    const profile = (await store.getRawData(ownerId))?.payload?.profile || {};
+    const name = typeof profile.name === 'string' && profile.name.trim() && profile.name.trim().toLowerCase() !== 'you' ? profile.name.trim().slice(0, 40) : (await store.findUserById(ownerId))?.name || '';
+    return { id: ownerId, name };
+  }
+  /* Dose times belong to the patient's home: the family's own time zone, else that of a device on the team. */
+  const planZone = (settings, people) => validTimeZone(settings && settings.timeZone) ? settings.timeZone : (people.find(p => p.timeZone) || {}).timeZone || 'UTC';
 
   async function sendTo(userId, subs, message, options) {
     let sent = 0, failed = 0;
@@ -165,6 +269,48 @@ function createReminders({ store, push, email = null, data = null, now = () => n
     return { sent, failed };
   }
 
+  /* Sends one message to each of these people's devices, if they want this kind (`kind`, one of ALERT_KINDS) and it isn't
+     their quiet hours where their device is. `always` (incidents) skips both checks. */
+  async function deliver(people, message, options, { kind = null, always = false } = {}) {
+    let sent = 0, failed = 0;
+    for (const p of people) {
+      const subs = await store.listPushSubscriptions(p.userId);
+      if (!subs.length) continue;
+      if (!always) {
+        const prefs = await prefsOf(p.userId);
+        if (kind && prefs[kind] === false) continue;
+        if (quiet(prefs, localParts(now(), subs[0].timeZone).time)) continue;
+      }
+      const r = await sendTo(p.userId, subs, message, options);
+      sent += r.sent; failed += r.failed;
+    }
+    return { sent, failed };
+  }
+
+  /* The day's refill and visit reminder, for each family this person does the tasks for: [{ ownerId, reminder }]. */
+  async function dailyFor(userId, date) {
+    const out = [];
+    for (const plan of await plansOf(userId)) {
+      if (!withTasks(plan)) continue;
+      const settings = await settingsOf(plan.ownerId);
+      if (settings.daily === false) continue;
+      const r = pick(await store.listItems(plan.ownerId), date, settings);
+      if (!r) continue;
+      const patient = await patientOf(plan.ownerId);
+      out.push({ ownerId: plan.ownerId, reminder: { ...r, title: r.title.replace(/^Adltrack · /, about(patient) || 'Adltrack · '), url: opens(patient, 'remind=' + encodeURIComponent(r.itemId)), tag: 'daily ' + plan.ownerId } });
+    }
+    return out;
+  }
+
+  /* Claims the user's reminder for `date` (their local date) once; returns the reminders to show (one per family), or none
+     when the day was already claimed or nothing is due. A day with nothing due is claimed too, so it's checked once. */
+  async function claim(userId, date, by) {
+    const c = await store.claimReminderDay(userId, date, by);
+    if (!c.claimed) return { claimed: false, reminder: null, reminders: [] };
+    const reminders = (await dailyFor(userId, date)).map(d => d.reminder);
+    return { claimed: true, previous: c.previous, reminder: reminders[0] || null, reminders };
+  }
+
   async function mail(userId, reminder, kind, date) {
     const user = await store.findUserById(userId);
     if (!user) return false;
@@ -172,21 +318,21 @@ function createReminders({ store, push, email = null, data = null, now = () => n
     return true;
   }
 
-  /* Every minute: queue a send for each user whose reminder time has come today in their time zone (outside quiet hours),
-     and who can be reached: a device for push, or email when push isn't set up. */
+  /* Every minute: each family's dose, task and visit reminders, missed doses and end-of-day reports (by push), then each
+     user's daily refill and visit reminder at their reminder time (outside their quiet hours), for those who can be reached:
+     a device for push, or email when push isn't set up. */
   async function dispatch() {
     const canPush = push.available(), canEmail = !!(email && email.available());
     if (!canPush && !canEmail) return 0;
     let queued = 0;
-    const candidates = await store.reminderCandidates();
-    if (canPush) queued += await dispatchDoses(candidates);
-    for (const c of candidates) {
+    if (canPush) for (const plan of await store.carePlans()) queued += await dispatchPlan(plan);
+    for (const c of await store.reminderCandidates()) {
       const settings = c.settings || {};
       if (settings.daily === false) continue;
       const tz = c.timeZone || (validTimeZone(settings.timeZone) ? settings.timeZone : null);
       if (!tz && !(canPush && c.hasPush)) continue;
-      const local = localParts(now(), tz);
-      if (!isDue(settings, local.time) || c.lastDate === local.date) continue;
+      const local = localParts(now(), tz), prefs = await prefsOf(c.userId);
+      if (!isDue({ time: settings.time, quietStart: prefs.quietStart, quietEnd: prefs.quietEnd }, local.time) || c.lastDate === local.date) continue;
       if (!(canPush && c.hasPush) && !(await emailOn(c.userId, 'daily'))) continue;
       queued++;
       await store.enqueueJob({ name: 'reminders.send', payload: { userId: c.userId, date: local.date }, runAt: new Date(), uniqueKey: `reminder:${c.userId}:${local.date}`, maxAttempts: 4 });
@@ -194,65 +340,116 @@ function createReminders({ store, push, email = null, data = null, now = () => n
     return queued;
   }
 
-  /* Every minute, for each user with a device: claim each dose that has come due (once per dose) and queue its push. The
-     items are read only for users push can reach, since dose reminders go by push alone (an email per dose would be noise). */
-  async function dispatchDoses(candidates) {
+  /* One family, each minute: whatever has come due is claimed once for the family (so each is sent once, however many people
+     are on the team) and queued. Only families with someone push can reach are read. */
+  async function dispatchPlan({ ownerId, settings }) {
+    settings = settings || {};
+    const people = [];
+    for (const p of await teamOf(ownerId)) { const subs = await store.listPushSubscriptions(p.userId); if (subs.length) people.push({ ...p, timeZone: subs[0].timeZone }); }
+    if (!people.length) return 0;
+    const local = localParts(now(), planZone(settings, people)), { date, time } = local, items = await store.listItems(ownerId);
     let queued = 0;
-    for (const c of candidates) {
-      if (!c.hasPush || (c.settings || {}).daily === false) continue;
-      const local = localParts(now(), c.timeZone), items = await store.listItems(c.userId);
-      for (const d of dosesDue(items, local.date, local.time)) {
-        const slot = `${local.date} ${d.time}`;
-        if (!(await store.claimDoseReminder(c.userId, slot))) continue;
-        queued++;
-        await store.enqueueJob({ name: 'reminders.dose', payload: { userId: c.userId, date: local.date, time: d.time }, runAt: new Date(), uniqueKey: `dose:${c.userId}:${slot}`, maxAttempts: 4 });
-      }
+    const queue = async (slot, name, payload, claimFor = ownerId) => {
+      if (!(await store.claimDoseReminder(claimFor, slot))) return;
+      queued++;
+      await store.enqueueJob({ name, payload, runAt: new Date(), uniqueKey: `${name}:${claimFor}:${slot}`, maxAttempts: 4 });
+    };
+    if (settings.daily !== false && people.some(withTasks)) {
+      for (const d of dosesDue(items, date, time)) await queue(`${date} ${d.time}`, 'reminders.dose', { ownerId, date, time: d.time });
+      // Still not marked an hour later: the people with My Tasks are reminded again.
+      for (const d of dosesDue(items, date, time, MISSED_MIN)) await queue(`${date} ${d.time} again`, 'reminders.dose', { ownerId, date, time: d.time, again: true });
+      for (const t of tasksDue(items, date, time)) await queue(`${date} task ${String(t.id).slice(0, 100)} ${t.time}`, 'reminders.task', { ownerId, date, id: t.id });
       // Follow-up appointments, claimed the same way so each one is reminded once the day before and once 2 hours before.
-      for (const a of appointmentsDue(items, local.date, local.time, c.settings || {})) {
-        const slot = appointmentSlot(a.item, a.kind);
-        if (!(await store.claimDoseReminder(c.userId, slot))) continue;
-        queued++;
-        await store.enqueueJob({ name: 'reminders.appointment', payload: { userId: c.userId, id: a.item.id, kind: a.kind, slot }, runAt: new Date(), uniqueKey: `appt:${c.userId}:${slot}`, maxAttempts: 4 });
-      }
+      for (const a of appointmentsDue(items, date, time, settings)) await queue(appointmentSlot(a.item, a.kind), 'reminders.appointment', { ownerId, id: a.item.id, kind: a.kind, slot: appointmentSlot(a.item, a.kind) });
+    }
+    // And 15 minutes after that, everyone on the team is told the dose was missed.
+    for (const d of dosesDue(items, date, time, ALERT_MIN)) await queue(`${date} ${d.time} missed`, 'alerts.missed', { ownerId, date, time: d.time });
+    // The end-of-day report, at each person's own time where they are.
+    for (const p of people) {
+      const prefs = await prefsOf(p.userId), mine = localParts(now(), p.timeZone);
+      if (prefs.endOfDay === false || minutes(mine.time) < minutes(prefs.endOfDayTime) || minutes(mine.time) >= minutes(prefs.endOfDayTime) + DOSE_WINDOW_MIN || quiet(prefs, mine.time)) continue;
+      await queue(`${mine.date} day ${ownerId}`, 'alerts.endOfDay', { ownerId, userId: p.userId, date: mine.date }, p.userId);
     }
     return queued;
   }
 
-  /* One dose time's push: the medications still due at that time (one marked taken since is left out). A snoozed one goes
-     again for the medications it was about, if their dose still isn't marked. */
-  async function sendDose({ userId, date, time, ids = null }) {
-    const slot = `${date} ${time}`, list = await store.listItems(userId);
-    const left = Array.isArray(ids) ? unmarked(list, date, time, ids) : [];
-    const due = Array.isArray(ids) ? (left.length ? { time, items: left } : null) : dosesDue(list, date, time).find(d => d.time === time);
-    const subs = push.available() ? await store.listPushSubscriptions(userId) : [];
-    if (!due || !subs.length) return;
-    const { sent, failed } = await sendTo(userId, subs, doseNotification(due, date), { topic: 'dose', ttl: DOSE_WINDOW_MIN * 60, urgency: 'high' });
-    if (!sent && failed) { if (!ids) await store.releaseDoseReminder(userId, slot); throw new Error(`Dose push failed for all ${failed} device${failed === 1 ? '' : 's'}.`); }
+  /* One dose time's push to the people with My Tasks: the medications still due at that time (one marked since is left out).
+     A snoozed one goes again, to the person who snoozed it, for the medications it was about if their dose still isn't
+     marked; `again` is the reminder an hour after. Jobs queued before reminders went per family carry only userId. */
+  async function sendDose({ ownerId, userId, date, time, ids = null, again = false, only = null }) {
+    ownerId = ownerId || userId;
+    const slot = `${date} ${time}${again ? ' again' : ''}`, list = await store.listItems(ownerId);
+    const left = Array.isArray(ids) ? unmarked(list, date, time, ids) : again ? missedAt(list, date, time) : [];
+    const due = Array.isArray(ids) || again ? (left.length ? { time, items: left } : null) : dosesDue(list, date, time).find(d => d.time === time);
+    if (!due || !push.available()) return;
+    const people = (await teamOf(ownerId)).filter(p => withTasks(p) && (!only || p.userId === only));
+    const { sent, failed } = await deliver(people, doseNotification(due, date, { patient: await patientOf(ownerId), again }), { topic: 'dose', ttl: DOSE_WINDOW_MIN * 60, urgency: 'high' }, { kind: 'doses' });
+    if (!sent && failed) { if (!ids) await store.releaseDoseReminder(ownerId, slot); throw new Error(`Dose push failed for all ${failed} device${failed === 1 ? '' : 's'}.`); }
+  }
+
+  /* A task from the + at its time, to the people with My Tasks, if it still isn't marked. */
+  async function sendTask({ ownerId, date, id }) {
+    const t = (await store.listItems(ownerId)).find(i => i.id === id);
+    if (!t || !taskOn(t, date) || taskMarked(t, date) || !push.available()) return;
+    const people = (await teamOf(ownerId)).filter(withTasks);
+    await deliver(people, taskNotification(t, date, await patientOf(ownerId)), { topic: 'task', ttl: DOSE_WINDOW_MIN * 60, urgency: 'high' }, { kind: 'doses' });
   }
 
   /* One appointment's push, if it's still due (not marked Went or moved since it was queued). */
-  async function sendAppointment({ userId, id, kind, slot }) {
-    const settings = await settingsOf(userId), local = localParts(now(), await timeZoneOf(userId, settings));
-    const due = appointmentsDue(await store.listItems(userId), local.date, local.time, settings).find(a => a.item.id === id && a.kind === kind && appointmentSlot(a.item, kind) === slot);
-    const subs = push.available() ? await store.listPushSubscriptions(userId) : [];
-    if (!due || !subs.length) return;
-    const { sent, failed } = await sendTo(userId, subs, appointmentNotification(due), { topic: 'appointment', ttl: SOON_MIN * 60, urgency: 'high' });
-    if (!sent && failed) { await store.releaseDoseReminder(userId, slot); throw new Error(`Appointment push failed for all ${failed} device${failed === 1 ? '' : 's'}.`); }
+  async function sendAppointment({ ownerId, userId, id, kind, slot }) {
+    ownerId = ownerId || userId;
+    const settings = await settingsOf(ownerId), team = await teamOf(ownerId), people = [];
+    for (const p of team) { const subs = await store.listPushSubscriptions(p.userId); if (subs.length) people.push({ ...p, timeZone: subs[0].timeZone }); }
+    const local = localParts(now(), planZone(settings, people));
+    const due = appointmentsDue(await store.listItems(ownerId), local.date, local.time, settings).find(a => a.item.id === id && a.kind === kind && appointmentSlot(a.item, kind) === slot);
+    if (!due || !people.length) return;
+    const { sent, failed } = await deliver(people.filter(withTasks), appointmentNotification(due, await patientOf(ownerId)), { topic: 'appointment', ttl: SOON_MIN * 60, urgency: 'high' }, { kind: 'doses' });
+    if (!sent && failed) { await store.releaseDoseReminder(ownerId, slot); throw new Error(`Appointment push failed for all ${failed} device${failed === 1 ? '' : 's'}.`); }
+  }
+
+  /* A dose nobody marked an hour and a quarter after its time: everyone on the team is told. */
+  async function sendMissed({ ownerId, date, time }) {
+    const list = missedAt(await store.listItems(ownerId), date, time);
+    if (!list.length || !push.available()) return;
+    await deliver(await teamOf(ownerId), missedNotification(time, list, date, await patientOf(ownerId)), { topic: 'missed', ttl: 6 * 60 * 60, urgency: 'high' }, { kind: 'missed' });
+  }
+
+  /* One person's end-of-day report for one family. */
+  async function sendEndOfDay({ ownerId, userId, date }) {
+    if (!push.available() || !(await teamOf(ownerId)).some(p => p.userId === userId)) return;
+    const subs = await store.listPushSubscriptions(userId), tz = subs[0]?.timeZone || 'UTC';
+    const summary = daySummary(await store.listItems(ownerId), date, at => at ? localParts(new Date(at), tz).date : '');
+    await deliver([{ userId }], endOfDayNotification(summary, date, await patientOf(ownerId)), { topic: 'day', ttl: 12 * 60 * 60 }, { kind: 'endOfDay' });
+  }
+
+  /* An incident was reported: everyone on the team hears straight away (but the person who reported it), quiet hours or not. */
+  async function incidentReported(ownerId, item, byUserId = null) {
+    if (!push.available() || !item || !item.incident) return;
+    await store.enqueueJob({ name: 'alerts.incident', payload: { ownerId, id: item.id, by: byUserId }, runAt: new Date(), uniqueKey: `incident:${ownerId}:${String(item.id).slice(0, 100)}`, maxAttempts: 4 });
+  }
+  async function sendIncident({ ownerId, id, by = null }) {
+    const i = (await store.listItems(ownerId)).find(x => x.id === id);
+    if (!i || !i.incident || !push.available()) return;
+    const people = (await teamOf(ownerId)).filter(p => p.userId !== by), settings = await settingsOf(ownerId);
+    const tz = validTimeZone(settings.timeZone) ? settings.timeZone : 'UTC';
+    const time = i.at && !Number.isNaN(Date.parse(i.at)) ? localParts(new Date(i.at), tz).time : '';
+    await deliver(people, incidentNotification(i, time, await patientOf(ownerId)), { topic: 'incident', ttl: 24 * 60 * 60, urgency: 'high' }, { always: true });
   }
 
   async function send({ userId, date }) {
-    const settings = await settingsOf(userId);
     let subs = push.available() ? await store.listPushSubscriptions(userId) : [];
     const daily = await emailOn(userId, 'daily');
     if (!subs.length && !daily) return;
-    const c = await claim(userId, date, subs.length ? 'push' : 'email', settings);
-    if (!c.claimed || !c.reminder) return;
+    const c = await claim(userId, date, subs.length ? 'push' : 'email');
+    if (!c.claimed || !c.reminders.length) return;
+    if (subs.length && (await prefsOf(userId)).doses === false) return;
     if (subs.length) {
-      const { sent, failed } = await sendTo(userId, subs, notification(c.reminder));
+      let sent = 0, failed = 0;
+      for (const r of c.reminders) { const x = await sendTo(userId, subs, notification(r)); sent += x.sent; failed += x.failed; }
       if (sent) {
-        if (failed) log.error(`Reminder push failed for ${failed} of ${subs.length} devices.`);
+        if (failed) log.error(`Reminder push failed for ${failed} of ${subs.length * c.reminders.length} sends.`);
         // An item with 3 days left: if this reminder isn't opened, follow it up by email.
-        if (c.reminder.items.some(id => c.reminder.days[id] === 3) && await emailOn(userId, 'unopened'))
+        if (c.reminders.some(r => r.items.some(id => r.days[id] === 3)) && await emailOn(userId, 'unopened'))
           await store.enqueueJob({ name: 'reminders.followup', payload: { userId, date }, runAt: new Date(now().getTime() + FOLLOW_UP_MS), uniqueKey: `followup:${userId}:${date}`, maxAttempts: 4 });
         return;
       }
@@ -263,9 +460,9 @@ function createReminders({ store, push, email = null, data = null, now = () => n
       }
       subs = [];
     }
-    // No device could be reached by push: the same reminder by email.
+    // No device could be reached by push: the same reminders by email.
     if (daily) {
-      try { await mail(userId, c.reminder, 'daily', date); }
+      try { for (const r of c.reminders) await mail(userId, r, 'daily', date); }
       catch (err) { await store.releaseReminderDay(userId, date, c.previous); throw err; }
     }
   }
@@ -274,25 +471,28 @@ function createReminders({ store, push, email = null, data = null, now = () => n
   async function followup({ userId, date }) {
     const day = await store.reminderDay(userId);
     if (!day || day.lastDate !== date || day.openedDate === date || !(await emailOn(userId, 'unopened'))) return;
-    const settings = await settingsOf(userId);
-    if (settings.daily === false) return;
+    const settings = await settingsOf(userId), prefs = await prefsOf(userId);
     const tz = await timeZoneOf(userId, settings), local = localParts(now(), tz);
     if (local.date !== date) return;
-    if (quiet(settings, local.time)) {
+    if (quiet(prefs, local.time)) {
       await store.enqueueJob({ name: 'reminders.followup', payload: { userId, date }, runAt: new Date(now().getTime() + 30 * 60 * 1000), uniqueKey: `followup:${userId}:${date}:${local.time}`, maxAttempts: 4 });
       return;
     }
-    const reminder = pick(await store.listItems(userId), date, settings);
-    if (reminder && reminder.items.some(id => reminder.days[id] === 3)) await mail(userId, reminder, 'unopened', date);
+    for (const { reminder } of await dailyFor(userId, date)) if (reminder.items.some(id => reminder.days[id] === 3)) await mail(userId, reminder, 'unopened', date);
   }
 
   /* A reminder was opened (tapped, an action used, or an email link followed). */
   const opened = userId => store.markReminderOpened(userId);
 
-  /* "Snooze until tomorrow", "I sent it back" and "I'm keeping it", from a notification or an email, without opening the app.
-     `today` is the user's local date. */
+  /* "Snooze until tomorrow", "I sent it back" and "I'm keeping it", from a notification or an email, without opening the app,
+     on whichever family's plan the item is on, when this person does the care there. `today` is the user's local date. */
   async function act(userId, itemId, action, today) {
-    const found = typeof itemId === 'string' && itemId.length <= 200 ? await store.getItem(userId, itemId) : null;
+    if (typeof itemId !== 'string' || itemId.length > 200) return null;
+    let found = null, ownerId = null;
+    for (const plan of await plansOf(userId)) {
+      if (plan.role === 'viewer' || !(plan.perms.tasks || plan.perms.meds)) continue;
+      if ((found = await store.getItem(plan.ownerId, itemId))) { ownerId = plan.ownerId; break; }
+    }
     if (!found) return null;
     const item = { ...found.item };
     delete item.label;
@@ -301,41 +501,42 @@ function createReminders({ store, push, email = null, data = null, now = () => n
     else if (action === 'keep') { item.status = 'kept'; item.intent = 'keep'; }
     else return null;
     await opened(userId);
-    return (await data.saveItem(userId, item)).item;
+    return (await data.saveItem(ownerId, item)).item;
   }
 
-  /* "Taken", "Skipped" and "Snooze 15 minutes" on a dose reminder, without opening the app. Taken and Skipped record the dose
-     for each medication the reminder was about (one already marked keeps its mark); a skipped dose is only recorded, never
-     moved. Snooze sends the same reminder again in 15 minutes. Returns the saved medications, or null. */
-  async function actDose(userId, { action, date, time, ids }) {
+  /* "Taken", "Skipped" and "Snooze 15 minutes" on a dose reminder, without opening the app, on the family's plan the reminder
+     came from (`ownerId`). Taken and Skipped record the dose for each medication the reminder was about (one already marked
+     keeps its mark), with the name of the person who tapped it; a skipped dose is only recorded, never moved. Snooze sends
+     the same reminder again in 15 minutes, to that person. Returns the saved medications, or null. */
+  async function actDose(ownerId, { action, date, time, ids }, { by = '', userId = null } = {}) {
     if (!['taken', 'skipped', 'snooze15'].includes(action) || !validTime(time) || !/^\d{4}-\d{2}-\d{2}$/.test(date || '') || !Array.isArray(ids) || !ids.length || ids.length > 20 || !ids.every(id => typeof id === 'string' && id.length <= 200)) return null;
-    const list = unmarked(await store.listItems(userId), date, time, ids);
-    await opened(userId);
+    const list = unmarked(await store.listItems(ownerId), date, time, ids);
+    if (userId) await opened(userId);
     if (action === 'snooze15') {
-      if (list.length) await store.enqueueJob({ name: 'reminders.dose', payload: { userId, date, time, ids: list.map(i => i.id) }, runAt: new Date(now().getTime() + SNOOZE_MIN * 60 * 1000), uniqueKey: `dose-snooze:${userId}:${date} ${time}:${now().getTime()}`, maxAttempts: 4 });
+      if (list.length) await store.enqueueJob({ name: 'reminders.dose', payload: { ownerId, date, time, ids: list.map(i => i.id), ...(userId ? { only: userId } : {}) }, runAt: new Date(now().getTime() + SNOOZE_MIN * 60 * 1000), uniqueKey: `dose-snooze:${ownerId}:${userId}:${date} ${time}:${now().getTime()}`, maxAttempts: 4 });
       return [];
     }
-    const by = String(((await store.getRawData(userId))?.payload?.profile?.name) || '').trim().slice(0, 60);
+    by = String(by || '').trim().slice(0, 60);
     const saved = [];
     for (const i of list) {
       const item = { ...i };
       delete item.label;
       item.doses = [...(i.doses || []), { at: now().toISOString(), day: date, kind: action, slot: time, ...(by && by.toLowerCase() !== 'you' ? { by } : {}) }].slice(-200);
-      saved.push((await data.saveItem(userId, item)).item);
+      saved.push((await data.saveItem(ownerId, item)).item);
     }
     return saved;
   }
 
-  /* The test notification: the next dose of the first confirmed medication with dose times (examples included, so it can be
-     tried on day one), with the same three buttons, which mark that dose. Null when there's no medication to show. */
-  async function testDose(userId) {
-    const local = await localNow(userId), list = await store.listItems(userId);
+  /* The test notification: the next dose of the first confirmed medication with dose times on the family's plan (examples
+     included, so it can be tried on day one), with the same three buttons, which mark that dose. Null when there's none. */
+  async function testDose(ownerId, userId = ownerId) {
+    const local = localParts(now(), await timeZoneOf(userId, await settingsOf(ownerId))), list = await store.listItems(ownerId);
     for (const i of list) {
       if (!i || !i.med || i.status !== 'deciding' || i.pickup || i.asNeeded || !Array.isArray(i.times)) continue;
       const times = [...new Set(i.times.filter(validTime))].sort();
       const open = times.filter(t => unmarked([i], local.date, t, [i.id]).length);
       const time = open.find(t => t >= local.time) || open[open.length - 1];
-      if (time) return doseNotification({ time, items: [i] }, local.date);
+      if (time) return doseNotification({ time, items: [i] }, local.date, { patient: await patientOf(ownerId) });
     }
     return null;
   }
@@ -343,7 +544,10 @@ function createReminders({ store, push, email = null, data = null, now = () => n
   /* The user's local date and time now. */
   const localNow = async userId => localParts(now(), await timeZoneOf(userId, await settingsOf(userId)));
 
-  return { claim, dispatch, send, sendDose, sendAppointment, sendTo, followup, opened, act, actDose, testDose, localNow, settingsOf };
+  /* Reminders: this person's choices, saved as they change them. */
+  const savePrefs = async (userId, body) => { await store.setAlertPrefs(userId, { ...((await store.alertPrefs(userId)) || {}), ...cleanPrefs(body) }); return prefsOf(userId); };
+
+  return { claim, dispatch, send, sendDose, sendTask, sendAppointment, sendMissed, sendEndOfDay, incidentReported, sendIncident, sendTo, followup, opened, act, actDose, testDose, localNow, settingsOf, prefsOf, savePrefs, teamOf };
 }
 
-module.exports = { pick, notification, dosesDue, doseNotification, unmarked, DOSE_ACTIONS, appointmentsDue, appointmentNotification, daysLabel, localParts, validTimeZone, reminderTime, quiet, sendTime, isDue, cleanSubscription, vapidConfig, createPush, createReminders, PUSH_HOSTS };
+module.exports = { pick, notification, dosesDue, doseNotification, unmarked, DOSE_ACTIONS, appointmentsDue, appointmentNotification, taskOn, tasksDue, taskNotification, missedAt, missedNotification, incidentNotification, daySummary, endOfDayNotification, MISSED_MIN, ALERT_MIN, cleanPrefs, daysLabel, localParts, validTimeZone, reminderTime, quiet, sendTime, isDue, cleanSubscription, vapidConfig, createPush, createReminders, PUSH_HOSTS };

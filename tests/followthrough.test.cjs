@@ -88,7 +88,7 @@ test('without push, the reminder is emailed at the user\'s time in their time zo
     assert.notEqual(instantAt('2026-10-31', '09:00', 'America/Los_Angeles').getUTCHours(), instantAt('2026-11-02', '09:00', 'America/Los_Angeles').getUTCHours());
     const mail = app.mails[0];
     assert.deepEqual(mail.to, ['ana@example.com']);
-    assert.equal(mail.subject, 'Adltrack: 10 days left');
+    assert.equal(mail.subject, 'Ana · 10 days left');
     assert.match(mail.text, /Item0 · \$40 back · 10 days left\. Pack it\./);
     assert.match(mail.html, /Snooze until tomorrow/);
     assert.deepEqual(Object.keys(mail.headers), ['List-Unsubscribe', 'List-Unsubscribe-Post']);
@@ -108,7 +108,7 @@ test('quiet hours move the pushed reminder to their end; the open app is told to
     assert.equal(await app.reminders.dispatch(), 0);
     app.clock.now = () => new Date(instantAt(today, '06:59', 'Europe/Paris'));
     assert.equal(await app.reminders.dispatch(), 0);
-    assert.deepEqual((await c('POST', '/api/reminders/claim', { date: today, time: '06:59' })).body, { reminder: null, quiet: true });
+    assert.deepEqual((await c('POST', '/api/reminders/claim', { date: today, time: '06:59' })).body, { reminder: null, reminders: [], quiet: true });
     app.clock.now = () => new Date(instantAt(today, '07:00', 'Europe/Paris'));
     assert.equal(await app.reminders.dispatch(), 1);
     await app.jobs.drain();
@@ -166,7 +166,7 @@ test('a pushed reminder that isn\'t opened 3 days before the deadline is followe
     app.clock.now = () => new Date(instantAt(today, '13:00', 'UTC'));
     await app.reminders.followup({ userId: id, date: today });
     assert.equal(app.mails.length, 1);
-    assert.equal(app.mails[0].subject, 'Adltrack: Only 3 days left');
+    assert.equal(app.mails[0].subject, 'Ana · Only 3 days left');
     assert.deepEqual(app.mails[0].tags, [{ name: 'type', value: 'reminder-unopened' }]);
 
     // Opened (tapped) the next time: no email follows.

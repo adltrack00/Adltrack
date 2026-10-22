@@ -1,5 +1,8 @@
 /* Accounts: sign-in gate for the app, and background sync of this browser's copy to the signed-in account.
-   The browser keeps the full copy; changes upload one item at a time, plus settings and profile. */
+   The browser keeps the full copy; changes upload one item at a time, plus settings and profile. What others on the care
+   team save shows here within a few seconds, without reloading: the open app asks every few seconds whether the plan
+   changed, and takes the new copy in place. Each upload says which marks this copy had seen, so two people marking at once
+   never undo each other's marks (server/items.js, mergeMarks). */
 const Account = (() => {
   const ACCOUNT_KEY = 'returnly-account-v1', SYNCED_KEY = 'returnly-synced-at', DIRTY_KEY = 'returnly-unsynced';
   // What the account last confirmed: a fingerprint of each item by id, and of settings plus profile.
@@ -9,6 +12,10 @@ const Account = (() => {
   // The care plan this browser picked, for a caregiver on several families: sent with every request, which then reads and
   // changes that family's plan.
   const PATIENT_KEY = 'adltrack-patient';
+  // The marks (doses and tasks, by item) and vital signs this copy last had from the account.
+  const SEEN_KEY = 'adltrack-seen-marks';
+  // How often the open app asks whether someone else saved something.
+  const LIVE_MS = 2500;
   const DATA_KEYS = { purchases: 'back-purchases-v1', settings: 'back-reminders-v1', profile: 'returnly-profile-v1' };
   const get = k => { try { return localStorage.getItem(k); } catch { return null; } };
   const set = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
@@ -63,7 +70,13 @@ const Account = (() => {
   // Short fingerprint of a JSON value, to spot which items changed since the last upload.
   const fingerprint = v => { const s = JSON.stringify(v) || ''; let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return s.length + ':' + (h >>> 0).toString(36); };
   const settingsPrint = d => fingerprint({ settings: d.settings || {}, profile: d.profile || {} });
+  // The same ids the server tells marks apart by.
+  const markId = e => e && typeof e === 'object' ? `${e.at || ''}|${e.day || ''}|${e.slot || e.key || ''}|${e.kind || ''}` : JSON.stringify(e);
+  const marksOf = i => [...(Array.isArray(i.doses) ? i.doses : []), ...(Array.isArray(i.marks) ? i.marks : [])].map(markId);
+  const vitalsOf = s => (s && Array.isArray(s.vitalsLog) ? s.vitalsLog : []).map(v => v && v.at).filter(Boolean);
+  const seenMarks = () => parse(SEEN_KEY, null) || { items: {}, vitals: null };
   function markSynced(data, updatedAt = data.updatedAt) {
+    set(SEEN_KEY, JSON.stringify({ items: Object.fromEntries((data.purchases || []).filter(i => i && typeof i.id === 'string').map(i => [i.id, marksOf(i)])), vitals: vitalsOf(data.settings) }));
     set(ITEMS_KEY, JSON.stringify(Object.fromEntries((data.purchases || []).filter(i => i && typeof i.id === 'string').map(i => [i.id, fingerprint(i)]))));
     set(SETTINGS_KEY, settingsPrint(data));
     set(SYNCED_KEY, updatedAt || '');
@@ -76,7 +89,7 @@ const Account = (() => {
     markSynced(data);
     del(DIRTY_KEY);
   }
-  function clearLocal() { [...Object.values(DATA_KEYS), 'back-last-nudge', 'returnly-push-endpoint', ACCOUNT_KEY, SYNCED_KEY, DIRTY_KEY, ITEMS_KEY, SETTINGS_KEY, SPACE_KEY, PATIENT_KEY].forEach(del); }
+  function clearLocal() { [...Object.values(DATA_KEYS), 'back-last-nudge', 'returnly-push-endpoint', ACCOUNT_KEY, SYNCED_KEY, DIRTY_KEY, ITEMS_KEY, SETTINGS_KEY, SPACE_KEY, PATIENT_KEY, SEEN_KEY].forEach(del); }
   function remember(u, team = user()?.team) { set(ACCOUNT_KEY, JSON.stringify({ email: u.email, name: u.name, ...(u.admin ? { admin: true } : {}), ...(u.passwordless ? { passwordless: true } : {}), ...(team ? { team } : {}) })); }
 
   /* The account stores photos as files and sends back their private URLs; swap them into this browser's copy
@@ -129,7 +142,8 @@ const Account = (() => {
   function queue() { set(DIRTY_KEY, '1'); clearTimeout(timer); timer = setTimeout(flush, 800); }
   async function upload() {
     const snap = snapshot();
-    let synced = parse(ITEMS_KEY, null), latest = null;
+    let synced = parse(ITEMS_KEY, null);
+    const seen = seenMarks();
     // First upload from this browser: learn what the account already has, so local deletions reach it too.
     if (!synced) { const r = await api('GET', '/api/items'); synced = Object.fromEntries(r.items.map(i => [i.id, ''])); }
     const done = () => set(ITEMS_KEY, JSON.stringify(synced));
@@ -141,7 +155,8 @@ const Account = (() => {
       const path = '/api/items/' + encodeURIComponent(item.id);
       let r;
       try {
-        if (item.id in synced) r = await api('PUT', path, item);
+        // The marks this copy had seen go with it, so a mark someone else just saved isn't taken off.
+        if (item.id in synced) r = await api('PUT', path, Array.isArray(seen.items[item.id]) ? { ...item, _seen: seen.items[item.id] } : item);
         else { try { r = await api('POST', '/api/items', item); } catch (err) { if (err.status !== 409) throw err; r = await api('PUT', path, item); } }
       } catch (err) {
         const saved = await putBack(err, item.id);
@@ -150,23 +165,25 @@ const Account = (() => {
       }
       adoptItem(r.item);
       // Fingerprint what was sent (with the account's photo URL), so edits made during the upload still go up next time.
-      synced[item.id] = fingerprint(withPhoto(item, r.item.photo)); latest = r.updatedAt; done();
+      synced[item.id] = fingerprint(withPhoto(item, r.item.photo)); done();
+      seen.items[item.id] = marksOf(item); set(SEEN_KEY, JSON.stringify(seen));
     }
     for (const id of Object.keys(synced)) {
       if (present.has(id)) continue;
-      try { latest = (await api('DELETE', '/api/items/' + encodeURIComponent(id), {})).updatedAt; }
+      try { await api('DELETE', '/api/items/' + encodeURIComponent(id), {}); }
       catch (err) { if (err.status !== 404) { const saved = await putBack(err, id); if (saved) { synced[id] = fingerprint(saved); done(); continue; } } }
       delete synced[id]; done();
     }
     if (get(SETTINGS_KEY) !== settingsPrint(snap)) {
       try {
-        const r = await api('PUT', '/api/settings', { settings: snap.settings, profile: snap.profile });
+        const r = await api('PUT', '/api/settings', { settings: snap.settings, profile: snap.profile, ...(Array.isArray(seen.vitals) ? { seenVitals: seen.vitals } : {}) });
         adoptProfile(r.profile);
         set(SETTINGS_KEY, settingsPrint({ settings: snap.settings, profile: withPhoto(snap.profile, r.profile.photo) }));
-        latest = r.updatedAt;
+        seen.vitals = vitalsOf(snap.settings); set(SEEN_KEY, JSON.stringify(seen));
       } catch (err) { set(SETTINGS_KEY, settingsPrint(await putBack(err, null))); }
     }
-    if (latest) set(SYNCED_KEY, latest);
+    // The last copy taken from the account stays as it was, so the next check loads anything someone else saved meanwhile
+    // (and any of their marks the account kept alongside ours).
     if (refusedNote) {
       if (appSave) appSave();
       if (typeof render === 'function') render();
@@ -269,9 +286,40 @@ const Account = (() => {
         if (plain(data.purchases) === plain(local.purchases) && settingsPrint(data) === settingsPrint(local)) return markSynced(local, data.updatedAt);
         writeLocal(data); location.reload(); return;
       }
-      if (data && data.updatedAt !== get(SYNCED_KEY)) { writeLocal(data); location.reload(); return; }
+      if (data && data.updatedAt !== get(SYNCED_KEY)) { applyRemote(data); return; }
       if (!data) flush();
     } catch (err) { if (err.status === 401) expired(); }
+  }
+
+  /* Someone else on the care team saved something: take the account's copy in place and redraw, without reloading. Waits
+     while this copy has changes still to upload, or while someone is typing in a box, so nothing being written is lost. */
+  const typing = () => { const a = document.activeElement; return !!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.type !== 'checkbox' && a.type !== 'radio'; };
+  function applyRemote(data) {
+    const d = data || { purchases: [], settings: {}, profile: {} }, local = snapshot();
+    const same = fingerprint(local.purchases) === fingerprint(d.purchases || []) && settingsPrint(local) === settingsPrint(d);
+    writeLocal(d);
+    if (same) return false;
+    const fix = (o, v) => { if (o && typeof o === 'object') { Object.keys(o).forEach(k => delete o[k]); Object.assign(o, v || {}); } };
+    if (typeof items !== 'undefined' && Array.isArray(items)) items.splice(0, items.length, ...(d.purchases || []));
+    if (typeof settings !== 'undefined') fix(settings, d.settings);
+    if (typeof profile !== 'undefined') fix(profile, d.profile);
+    if (typeof render === 'function') render();
+    return true;
+  }
+  let pulling = false;
+  async function pull() {
+    if (pulling || inflight || timer || get(DIRTY_KEY) || !user() || typing()) return;
+    pulling = true;
+    try {
+      const v = await api('GET', '/api/changes');
+      if (v.space && get(SPACE_KEY) && v.space !== get(SPACE_KEY)) return checkApp();
+      if (v.updatedAt === get(SYNCED_KEY)) return;
+      const { data } = await api('GET', '/api/data');
+      // Something was changed or typed here meanwhile: it goes up first, and the next check loads the rest.
+      if (get(DIRTY_KEY) || inflight || typing()) return;
+      applyRemote(data);
+    } catch (err) { if (err.status === 401) expired(); }
+    finally { pulling = false; }
   }
 
   const onAuthPage = document.body.classList.contains('local-auth');
@@ -284,10 +332,11 @@ const Account = (() => {
         if (typeof save === 'function') { const s = appSave = save; save = function () { const out = s.apply(this, arguments); queue(); return out; }; }
         if (typeof saveProfile === 'function') { const s = appSaveProfile = saveProfile; saveProfile = function () { const out = s.apply(this, arguments); if (out !== false) queue(); return out; }; }
       });
-      document.addEventListener('visibilitychange', () => { if (document.hidden && get(DIRTY_KEY)) flush(); if (!document.hidden) refreshTeam(); });
+      document.addEventListener('visibilitychange', () => { if (document.hidden && get(DIRTY_KEY)) flush(); if (!document.hidden) { refreshTeam(); pull(); } });
       setInterval(() => { if (!document.hidden) refreshTeam(); }, 30000);
+      setInterval(() => { if (!document.hidden) pull(); }, LIVE_MS);
     }
   }
 
-  return { api, user, can, patients, patient, picked, pick, switchPatient, refresh: refreshTeam, queue, flush, signUp, signIn, adopt, adoptSession, signOut, deleteAccount, clearLocal };
+  return { api, user, can, patients, patient, picked, pick, switchPatient, refresh: refreshTeam, queue, flush, pull, signUp, signIn, adopt, adoptSession, signOut, deleteAccount, clearLocal };
 })();

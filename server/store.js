@@ -134,6 +134,12 @@ create table if not exists dose_reminders (
   sent_at timestamptz not null default now(),
   primary key (user_id, slot)
 );
+-- Each person's own choices on Reminders (which reminders and alerts they get, their end-of-day time and quiet hours).
+create table if not exists alert_prefs (
+  user_id uuid primary key references users(id) on delete cascade,
+  prefs jsonb not null default '{}',
+  updated_at timestamptz not null default now()
+);
 -- Reminder email types an account unsubscribed from ('daily': when push isn't set up; 'unopened': 3 days before a deadline).
 create table if not exists email_optouts (
   user_id uuid not null references users(id) on delete cascade,
@@ -487,6 +493,12 @@ function pgStore(connectionString) {
         where d.user_id is not null or p.time_zone is not null`);
     },
     reminderDay: userId => one('select last_date as "lastDate", opened_date as "openedDate" from reminder_days where user_id=$1', [userId]),
+    // Every care plan (one per family), with its settings, for the reminders and alerts sent to its team.
+    carePlans: () => all(`select user_id as "ownerId", payload->'settings' as settings from user_data`),
+    // When the plan last changed, so open apps can tell straight away that someone else saved something.
+    async dataVersion(userId) { const row = await one('select updated_at as "updatedAt" from user_data where user_id=$1', [userId]); return row ? iso(row.updatedAt) : null; },
+    async alertPrefs(userId) { const row = await one('select prefs from alert_prefs where user_id=$1', [userId]); return row ? row.prefs : null; },
+    async setAlertPrefs(userId, prefs) { await pool.query('insert into alert_prefs (user_id, prefs) values ($1,$2) on conflict (user_id) do update set prefs=excluded.prefs, updated_at=now()', [userId, JSON.stringify(prefs)]); },
     async markReminderOpened(userId) { await pool.query('update reminder_days set opened_date=last_date where user_id=$1', [userId]); },
     async emailOptouts(userId) { return (await all('select kind from email_optouts where user_id=$1 order by kind', [userId])).map(r => r.kind); },
     async setEmailOptout(userId, kind, off) {
@@ -652,7 +664,7 @@ function fileStore(file) {
     if (db) return db;
     try { db = JSON.parse(await fs.readFile(file, 'utf8')); } catch { db = {}; }
     // Files written before the data foundation only have users, sessions and data.
-    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, places: {}, lookups: {}, reports: {}, approved: [], snapshots: {}, flags: {}, notices: {}, push: {}, reminderDays: {}, doseReminders: {}, optouts: {}, resets: {}, inboxAddresses: {}, inboxConnections: {}, inboxMessages: {}, emailOrders: {}, oauthStates: {}, identities: {}, members: {}, ...db };
+    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, places: {}, lookups: {}, reports: {}, approved: [], snapshots: {}, flags: {}, notices: {}, push: {}, reminderDays: {}, doseReminders: {}, optouts: {}, alertPrefs: {}, resets: {}, inboxAddresses: {}, inboxConnections: {}, inboxMessages: {}, emailOrders: {}, oauthStates: {}, identities: {}, members: {}, ...db };
     return db;
   };
   // Serialise writes so concurrent requests can't interleave partial files.
@@ -696,7 +708,7 @@ function fileStore(file) {
       for (const [k, s] of Object.entries(db.sessions)) if (s.userId === userId) delete db.sessions[k];
       for (const [k, f] of Object.entries(db.files)) if (f.userId === userId) delete db.files[k];
       for (const [k, p] of Object.entries(db.push)) if (p.userId === userId) delete db.push[k];
-      delete db.reminderDays[userId]; delete db.doseReminders[userId]; delete db.optouts[userId];
+      delete db.reminderDays[userId]; delete db.doseReminders[userId]; delete db.optouts[userId]; delete db.alertPrefs[userId];
       for (const [k, r] of Object.entries(db.resets)) if (r.userId === userId) delete db.resets[k];
       for (const [k, r] of Object.entries(db.reports)) if (r.userId === userId) delete db.reports[k];
       for (const [k, n] of Object.entries(db.notices)) if (n.userId === userId) delete db.notices[k];
@@ -857,6 +869,10 @@ function fileStore(file) {
       return Object.keys(db.users).filter(id => db.data[id] || latest[id]).map(id => ({ userId: id, timeZone: latest[id]?.timeZone || null, hasPush: !!latest[id], settings: db.data[id]?.settings || null, lastDate: db.reminderDays[id]?.lastDate || null }));
     },
     async reminderDay(userId) { await load(); const r = db.reminderDays[userId]; return r ? { lastDate: r.lastDate, openedDate: r.openedDate || null } : null; },
+    async carePlans() { await load(); return Object.entries(db.data).filter(([id]) => db.users[id]).map(([ownerId, d]) => ({ ownerId, settings: d && d.settings || null })); },
+    async dataVersion(userId) { await load(); return db.data[userId]?.updatedAt || null; },
+    async alertPrefs(userId) { await load(); return db.alertPrefs[userId] ? copy(db.alertPrefs[userId]) : null; },
+    async setAlertPrefs(userId, prefs) { await load(); db.alertPrefs[userId] = copy(prefs); await persist(); },
     async markReminderOpened(userId) { await load(); const r = db.reminderDays[userId]; if (r) { r.openedDate = r.lastDate; await persist(); } },
     async emailOptouts(userId) { await load(); return [...(db.optouts[userId] || [])].sort(); },
     async setEmailOptout(userId, kind, off) {

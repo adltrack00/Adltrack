@@ -24,6 +24,8 @@ const IGNORED = new Set(['id', 'label', 'labelFileId']);
 const KIND_FIELDS = new Set(['med', 'appt', 'task', 'incident']);
 // Vital signs are recorded with the plan's settings; everything else in the settings belongs to the plan.
 const VITAL_KEYS = new Set(['vitals', 'vitalsLog']);
+// Turned on by anyone who allows notifications on their phone, viewers too, so alerts reach everyone.
+const ANYONE_KEYS = new Set(['notifications']);
 
 /* JSON with object keys sorted, so a value saved and read back (where the database may reorder keys) compares equal. */
 const stable = v => JSON.stringify(v, (k, x) => x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) : x);
@@ -69,8 +71,9 @@ function createPermissions(access) {
 
   /* The plan's settings and the Home profile, saved together. */
   function settings(before, after) {
+    const keys = changed(before.settings || {}, after.settings || {}).filter(k => !ANYONE_KEYS.has(k));
+    if (!keys.length && !changed(before.profile || {}, after.profile || {}).length) return;
     if (viewer) throw new PermissionError(SAY.viewer);
-    const keys = changed(before.settings || {}, after.settings || {});
     if (keys.some(k => VITAL_KEYS.has(k))) need('tasks');
     if (keys.some(k => !VITAL_KEYS.has(k)) || changed(before.profile || {}, after.profile || {}).length) need('meds');
   }

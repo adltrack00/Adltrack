@@ -82,7 +82,34 @@ function decode(row) {
 }
 
 const JSON_COLUMNS = new Set(FIELDS.filter(f => f[2] === 'json').map(f => f[1]));
+
+/* Two people marking at once: each app sends the whole item, so a mark the other person saved a moment ago would be lost.
+   The app says which marks it had seen (`seen`, from markId); a saved mark it hadn't seen is kept, and one it had seen and
+   left out was taken off on purpose. The same dose or task marked twice on one day keeps the mark that arrived last. */
+const MARK_FIELDS = { doses: d => `${d.day || String(d.at || '').slice(0, 10)}|${d.slot || ''}`, marks: m => `${m.day || ''}|${m.key || ''}` };
+const markId = e => e && typeof e === 'object' ? `${e.at || ''}|${e.day || ''}|${e.slot || e.key || ''}|${e.kind || ''}` : JSON.stringify(e);
+function mergeMarks(saved, incoming, seen) {
+  if (!saved || !Array.isArray(seen)) return incoming;
+  const known = new Set(seen.filter(k => typeof k === 'string')), out = { ...incoming };
+  for (const [field, slotOf] of Object.entries(MARK_FIELDS)) {
+    const mine = Array.isArray(incoming[field]) ? incoming[field] : null, theirs = Array.isArray(saved[field]) ? saved[field] : [];
+    if (!mine && incoming[field] !== undefined) continue;
+    const have = new Set((mine || []).map(markId)), slots = new Set((mine || []).filter(e => e && typeof e === 'object').map(slotOf));
+    const extra = theirs.filter(e => !have.has(markId(e)) && !known.has(markId(e)) && !(e && typeof e === 'object' && slots.has(slotOf(e))));
+    if (extra.length) out[field] = [...(mine || []), ...extra].sort((a, b) => String(a && a.at || '').localeCompare(String(b && b.at || ''))).slice(field === 'doses' ? -200 : -400);
+  }
+  return out;
+}
+/* The same for vital signs, kept in the plan's settings: entries are told apart by when they were taken. */
+function mergeVitals(saved, incoming, seen) {
+  if (!Array.isArray(seen) || !Array.isArray(saved?.vitalsLog)) return incoming;
+  const known = new Set(seen), mine = Array.isArray(incoming.vitalsLog) ? incoming.vitalsLog : [], have = new Set(mine.map(v => v && v.at));
+  const extra = saved.vitalsLog.filter(v => v && v.at && !have.has(v.at) && !known.has(v.at));
+  if (!extra.length) return incoming;
+  const log = [...mine, ...extra].sort((a, b) => String(a.at).localeCompare(String(b.at))).slice(-60);
+  return { ...incoming, vitalsLog: log, vitals: log[log.length - 1] };
+}
 const fileUrl = id => `/api/files/${id}`;
 const fileIdFromUrl = v => (typeof v === 'string' && FILE_URL.exec(v) || [])[1] || null;
 
-module.exports = { FIELDS, JSON_COLUMNS, columnsSql, encode, decode, fileUrl, fileIdFromUrl, isDate };
+module.exports = { FIELDS, JSON_COLUMNS, columnsSql, encode, decode, fileUrl, fileIdFromUrl, isDate, markId, mergeMarks, mergeVitals };

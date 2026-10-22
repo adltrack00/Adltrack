@@ -115,7 +115,7 @@ if(task){const t={id:crypto.randomUUID(),task:true,name:d.what.trim(),...(d.note
   items.push(t);plusDraft=null;view='overview';tasksOpen=taskOn(t,today());save();render();window.scrollTo(0,0);toast(`Task added: ${repeatText(t)}.`);return}
 const kind=INCIDENTS.find(([k])=>k===d.kind),at=new Date(d.date+'T'+d.time).toISOString();
 items.push({id:crypto.randomUUID(),incident:true,kind:kind[0],name:kind[1],at,...(d.note.trim()?{note:d.note.trim()}:{}),...(d.told.trim()?{told:d.told.trim()}:{}),...(d.witnesses.trim()?{witnesses:d.witnesses.split(',').map(w=>w.trim()).filter(Boolean).join(', ')}:{}),...(photos.length?{photos}:{}),...(by?{by}:{}),addedAt:added});
-plusDraft=null;reportTab=d.date===today()?'today':d.date===C.shift(today(),-1)?'previous':reportTab;view='overview';tasksOpen=false;save();render();window.scrollTo(0,0);toast('Incident reported. It’s in the daily care report.')});
+plusDraft=null;reportTab=d.date===today()?'today':d.date===C.shift(today(),-1)?'previous':reportTab;view='overview';tasksOpen=false;save();render();window.scrollTo(0,0);toast('Incident reported. Everyone on the care team is told, and it’s in the daily care report.')});
 
 /* The forms aren't open to people who can't use them. */
 const renderBeforePlus=render;
