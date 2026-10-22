@@ -49,7 +49,7 @@ When a step is merged, update its **Status** here in the same PR.
 
 ## 1. Care teams and People in Settings
 
-**Status:** In review (PR #26).
+**Status:** Done (PR #26).
 **Build:** Settings → People. Admins add a person by name, email and mobile number as Family viewer, Caregiver or Admin, and tick what they can also do. The invite goes by email (Resend) and text (Twilio, `TWILIO_*`), with a link to copy. `join.html` shows who added you, then create an account or sign in and join. Everyone on a team shares the owner's care plan. Entries carry the signed-in person's own name. Code: `server/team.js`, `server/sms.js`, `team.js`, the `team_members` table.
 **Done when:** an admin adds a caregiver, the caregiver joins from the link, and a dose the caregiver marks shows on the admin's phone with the caregiver's name.
 
