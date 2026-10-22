@@ -266,6 +266,8 @@ The AI reader (sections 2 and 3) needs `ANTHROPIC_API_KEY`. The server reads it 
 
 ## 18. Family sharing
 
+**Replaced by [care-team-plan.md](care-team-plan.md)** (roles, care homes, alerts), decided 2026-10-22.
+
 **Status:** Partly done (care teams PR). Settings → People: admins add family and paid caregivers by name, email and mobile number as Family viewer, Caregiver or Admin, tick what each may do (My Tasks, add new tasks, scan papers and change medications), and the invite goes by email (Resend) and text (Twilio), with a link the admin can copy. Everyone who joins works on the same care plan, and every entry carries the signed-in person's name. Still to come: roles enforced, several patients per home, the viewer dashboard, the + button, live updates and alerts.
 **Build:**
 - **Invite a family member** by email to the same patient's plan. Everyone sees the same Today list.
