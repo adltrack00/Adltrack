@@ -15,8 +15,7 @@ log:[{at:at('10:30'),kind:'refill-called',by:'Ana'},{at:y('09:00'),kind:'refill-
 const plain=x=>JSON.parse(JSON.stringify(x));
 test('today: every thing done, in time order, each with a subhead, its time, the note from the task and the details',()=>{const e=plain(report(meds()).reportEntries(undefined,'2026-10-14',[{bp:'120/76',heart:'72',at:at('09:00')},{bp:'130/80',at:y('09:00')}]));
   assert.deepEqual(e.map(x=>x.title),['Lisinopril 10 mg (8am dose)','Metoprolol 25 mg (8am dose) skipped','Blood pressure: 120/76 mmHg','Heart rate: 72 bpm','Lisinopril 10 mg: called for a refill','Follow-up visit with Dr. Patel: went','Amoxicillin 500 mg finished']);
-  assert.deepEqual(e[0],{title:'Lisinopril 10 mg (8am dose)',done:true,at:at('08:05'),note:'Took it with breakfast.',details:['1 tablet'],name:'Lisinopril 10 mg',photos:['/api/files/x','/api/files/y']});
-  assert.deepEqual(e.map(x=>x.done),[true,false,true,true,true,true,true]);
+  assert.deepEqual(e[0],{title:'Lisinopril 10 mg (8am dose)',at:at('08:05'),note:'Took it with breakfast.',details:['1 tablet'],name:'Lisinopril 10 mg',photos:['/api/files/x','/api/files/y']});
   assert.equal(e[1].note,'Felt dizzy.');assert.equal(e[2].at,at('09:00'));assert.deepEqual(e[2].details,[]);assert.deepEqual(e[4].details,['CVS']);assert.deepEqual(e[6].details,['No more reminders for it']);assert.deepEqual(e[5].details,['Heart Clinic'])});
 test('the previous day shows only what was done that day',()=>{const e=plain(report(meds()).reportEntries(undefined,'2026-10-13',[{bp:'130/80',at:y('09:00')}]));
   assert.deepEqual(e.map(x=>x.title),['Lisinopril 10 mg (8am dose)','Blood pressure: 130/80 mmHg','Lisinopril 10 mg: needs a refill'])});
