@@ -92,7 +92,7 @@ Admins can change anyone's role at any time (Settings → People → tap their n
 
 ## 5. The + button: new tasks and incidents
 
-**Status:** In review (PR open). Code: `plus.js` (the + and its forms, tasks in My Tasks and the report), `server/permissions.js` (a new task needs "Can add new tasks", an incident anyone who does the care or manages the plan).
+**Status:** Done (PR #32). Code: `plus.js` (the + and its forms, tasks in My Tasks and the report), `server/permissions.js` (a new task needs "Can add new tasks", an incident anyone who does the care or manages the plan).
 **Needs:** steps 2 and 3.
 **Build:**
 - Everything here belongs to the family on screen: a caregiver on several families adds a task or reports an incident for the patient they're looking at, and it shows only in that family's My Tasks and report.
