@@ -126,6 +126,14 @@
 .tasks-sheet:not(.open):not(.dragging) .tasks-body{visibility:hidden}
 .tasks-body .home-today{margin:0}
 @media(max-width:650px){.tasks-top,.tasks-body{padding-left:20px;padding-right:20px}.tasks-top h2{font-size:30px}.tasks-sheet{height:70px}}
+/* Today so far (viewer.js): for people without My Tasks, the same white sheet in the same place, holding one short line of
+   today's numbers and the last update time. It doesn't pull up. */
+#main:has(.so-far){padding-bottom:150px}
+.tasks-sheet.so-far,.tasks-sheet.so-far.open{height:auto}
+.so-far .tasks-top{cursor:default;touch-action:auto;user-select:text;padding-top:22px;padding-bottom:max(20px,env(safe-area-inset-bottom))}
+.so-far .tasks-top h2{margin:0}
+.so-far-line{margin:10px 0 0;font-size:17px;line-height:1.4;color:#000}
+.so-far-when{margin:4px 0 0;font-size:14px;color:#777}
 /* Daily care report on Home (report.js): three tabs, a small black banner with the name, date and Print, then numbered entries,
    two to a row (an entry with a note takes the full row). Each: number, subhead, time stamp on the right, the note, then details
    in grey. One column on phones. */

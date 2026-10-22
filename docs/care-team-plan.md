@@ -83,7 +83,7 @@ Admins can change anyone's role at any time (Settings → People → tap their n
 
 ## 4. Family viewer dashboard
 
-**Status:** To do.
+**Status:** In review. Code: `viewer.js` ("Today so far" in the My Tasks sheet's place, for anyone without My Tasks), its styles in `home.css`.
 **Needs:** steps 2 and 3.
 **Build:** Home for viewers: the same daily care report (Previous day, Today, Photos) in the same place, without the My Tasks sheet. In its place, a short "Today so far" line: doses given of doses due, tasks done, incidents, with the last update time. All menu pages stay, read only. A viewer signed up by more than one family (a grandchild following two grandparents, say) keeps step 3's picker and the switch under the photo, and each family's Home shows only that family's patient.
 **Done when:** a viewer's Home shows the report, photos and "Today so far", with no task buttons anywhere; a viewer on two families switches between them and each shows its own "Today so far".
