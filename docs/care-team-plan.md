@@ -83,7 +83,7 @@ Admins can change anyone's role at any time (Settings → People → tap their n
 
 ## 4. Family viewer dashboard
 
-**Status:** In review (PR #31). Decided with George on 2026-10-22: My Tasks stays the same on every dashboard. Code: `can.js`.
+**Status:** Done (PR #31). Decided with George on 2026-10-22: My Tasks stays the same on every dashboard. Code: `can.js`.
 **Needs:** steps 2 and 3.
 **Build:** Home for viewers is the same Home: the daily care report (Previous day, Today, Photos) in the same place, and the same My Tasks sheet with its done count (1/3) and line showing how far the day has gone and what's left. A viewer can open My Tasks and see every task, but tapping a task or a vital sign does nothing, so they can't mark or change anything. All menu pages stay, read only. A viewer signed up by more than one family (a grandchild following two grandparents, say) keeps step 3's picker and the switch under the photo, and each family's Home shows only that family's patient.
 **Done when:** a viewer's Home shows the report, photos and My Tasks exactly as a caregiver's does, with no way to mark a task anywhere; a viewer on two families switches between them and each shows its own My Tasks.
