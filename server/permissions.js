@@ -6,7 +6,7 @@
 class PermissionError extends Error { constructor(message) { super(message); this.status = 403; } }
 
 const SAY = {
-  viewer: 'You’re following along. Ask an admin to change this.',
+  viewer: 'You can’t change this.',
   tasks: 'Only people with My Tasks can mark doses and tasks. Ask an admin to add it.',
   meds: 'Ask an admin to let you scan papers and change medications.',
   admin: 'Only an admin can do this.'

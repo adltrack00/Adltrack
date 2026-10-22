@@ -1,8 +1,7 @@
 /* Permissions on screen: what a person can't do isn't offered (the server refuses it anyway, see server/permissions.js).
-   Family viewers follow along: no My Tasks sheet, nothing that changes the plan, and one line on each page saying so. Without
+   Everyone sees only what the admins allow: family viewers get no My Tasks sheet and nothing that changes the plan. Without
    My Tasks there's no sheet and no Taken or Skipped; without the medications tick there's no Add discharge papers +, Confirm,
    or the controls that edit a medication, a visit, the profile or the reminder settings. Runs after every page is drawn. */
-const FOLLOW_NOTE='You’re following along. Ask an admin to change this.';
 function applyPermissions(){const main=$('#main');if(!main)return;
 const drop=sel=>main.querySelectorAll(sel).forEach(n=>n.remove()),off=sel=>main.querySelectorAll(sel).forEach(n=>{n.disabled=true});
 if(!mayDo('tasks'))drop('#tasks-sheet,[data-med-dose]');
@@ -11,8 +10,7 @@ if(!mayDo('meds')){drop('[data-add],[data-return],#add-appointment,[data-appt-re
   // The bottle and profile photos stay, but tapping them no longer offers a new one.
   main.querySelectorAll('label[for="flow-photo-med"],label[for="profile-photo"]').forEach(l=>{l.removeAttribute('for');l.removeAttribute('role');l.removeAttribute('tabindex');l.removeAttribute('aria-label')});
   off('[data-dose-time],#reminder-form input,#reminder-form button,#appt-form input,#profile-name-form input,#profile-name-form button')}
-if(mayDo('viewer')&&!main.querySelector('.follow-note')){const at=['.flow-tabs','.sub-title','.page-heading','.take-hero','.profile-hero'].map(s=>main.querySelector(s)).find(Boolean);
-  const note=`<p class="sub-intro follow-note">${FOLLOW_NOTE}</p>`;if(at)at.insertAdjacentHTML('afterend',note);else main.insertAdjacentHTML('afterbegin',note)}}
+}
 const renderBeforeCan=render;
 render=function(){
   // The Take page and the scan and confirm steps aren't open to people who can't use them.

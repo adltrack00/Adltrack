@@ -73,5 +73,3 @@ div.person-row{cursor:default}div.person-row:hover{background:none}
 .people-done{width:100%;margin-top:12px}
 #invite-link-form .people-add{margin-top:6px}
 #person-add-form .primary,#person-edit-form .primary{width:100%;margin-top:26px}
-/* Viewers: the "following along" line under each page title. */
-.follow-note{margin:6px 0 22px}

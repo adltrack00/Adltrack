@@ -77,7 +77,7 @@ test('a family viewer sees everything but can change nothing, even by calling th
     for (const [method, url, body] of refused) {
       const r = await ann(method, url, body);
       assert.equal(r.status, 403, `${method} ${url}`);
-      assert.equal(r.body.error, 'You’re following along. Ask an admin to change this.');
+      assert.equal(r.body.error, 'You can’t change this.');
     }
     const after = await george('GET', '/api/data');
     assert.deepEqual(after.body.data, before.body.data);

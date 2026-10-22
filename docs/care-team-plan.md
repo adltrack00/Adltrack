@@ -62,7 +62,6 @@ When a step is merged, update its **Status** here in the same PR.
 **Build:**
 - The server refuses changes a person isn't allowed: viewers can't change items, settings or photos; marking doses and tasks needs My Tasks; adding or changing medications and scanning papers needs that tick.
 - The app hides what a person can't do: no My Tasks sheet for viewers; no Add discharge papers +, Confirm or Edit for people without the medications tick.
-- A short line on each page a viewer opens: "You're following along. Ask an admin to change this."
 **Done when:** a viewer can see everything but change nothing, even by calling the API directly, and a caregiver without the medications tick can do tasks but can't edit a medication.
 
 ---
