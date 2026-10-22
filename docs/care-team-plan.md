@@ -58,12 +58,11 @@ Admins can change anyone's role at any time (Settings → People → tap their n
 
 ## 2. Permissions enforced
 
-**Status:** To do.
+**Status:** Done (PR #27). Code: `server/permissions.js` (checked on every write in `server/app.js`), `can.js` (hides what a person can't do), `Account.can` in `account.js`.
 **Needs:** step 1.
 **Build:**
 - The server refuses changes a person isn't allowed: viewers can't change items, settings or photos; marking doses and tasks needs My Tasks; adding or changing medications and scanning papers needs that tick.
 - The app hides what a person can't do: no My Tasks sheet for viewers; no Add discharge papers +, Confirm or Edit for people without the medications tick.
-- A short line on each page a viewer opens: "You're following along. Ask an admin to change this."
 - **Role changes switch over by themselves.** When an admin moves someone up (Family viewer → Caregiver or Admin) or down, that person's app changes to match without signing out: the next time it opens, and within a minute while it's open. For example, My Tasks appears for a viewer who becomes a caregiver. A short note tells them: "George changed your access to Caregiver."
 **Done when:** a viewer can see everything but change nothing, even by calling the API directly; a caregiver without the medications tick can do tasks but can't edit a medication; and when an admin moves a viewer up to Caregiver, My Tasks appears on that person's open app within a minute.
 

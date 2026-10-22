@@ -10,7 +10,7 @@ function inQuiet(t){const a=settings.quietStart,b=settings.quietEnd;if(!validClo
 const sendClock=()=>inQuiet(settings.time)?settings.quietEnd:settings.time;
 
 /* The device's time zone goes with the settings, so emailed reminders arrive at the chosen time where the user is. */
-try{const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;if(tz&&settings.timeZone!==tz){settings.timeZone=tz;save()}}catch{}
+try{const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;if(tz&&settings.timeZone!==tz&&mayDo('meds')){settings.timeZone=tz;save()}}catch{}
 if(Account.user())Account.api('GET','/api/email/prefs').then(p=>{emailPrefs=p;if(view==='reminders')render()}).catch(()=>{});
 
 function reminderExtraRows(){const emailOn=emailPrefs.available&&(emailPrefs.daily||emailPrefs.unopened);return `<form id="reminder-extra-form"><label class="check-label"><input type="checkbox" name="email" ${emailOn?'checked':''} ${emailPrefs.available?'':'disabled'}> Also email me${emailPrefs.available?'':' (email isn’t set up yet)'}</label><label>Quiet hours from <input type="time" name="quietStart" value="${esc(validClock(settings.quietStart)?settings.quietStart:'')}"></label><label>Quiet hours until <input type="time" name="quietEnd" value="${esc(validClock(settings.quietEnd)?settings.quietEnd:'')}"></label><label class="check-label"><input type="checkbox" name="gentle" ${settings.gentle?'checked':''}> Gentle: fewer daily reminders for refills and visits (dose reminders stay the same)</label></form>`}

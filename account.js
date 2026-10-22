@@ -20,6 +20,15 @@ const Account = (() => {
   }
 
   const user = () => parse(ACCOUNT_KEY, null);
+  /* What this person may do on the care plan (the server checks it too): 'tasks' (My Tasks), 'meds' (scan papers and change
+     medications), 'care' (either: refill steps, picked up, finished), 'viewer' (follows along). Own plan: everything. */
+  function can(what) {
+    const t = user()?.team;
+    if (!t) return what !== 'viewer';
+    if (what === 'viewer') return t.role === 'viewer';
+    if (t.role === 'viewer') return false;
+    return what === 'care' ? !!(t.perms.tasks || t.perms.meds) : !!t.perms[what];
+  }
   const snapshot = () => ({ purchases: parse(DATA_KEYS.purchases, []) || [], settings: parse(DATA_KEYS.settings, {}), profile: parse(DATA_KEYS.profile, {}) });
   const hasRealPurchases = () => (parse(DATA_KEYS.purchases, []) || []).some(i => !i.demo);
 
@@ -62,6 +71,31 @@ const Account = (() => {
     if (appSaveProfile) appSaveProfile(); else set(DATA_KEYS.profile, JSON.stringify(p));
   }
 
+  /* A change this person isn't allowed to make (403) is put back to what the account has, here and on screen. */
+  let refusedNote = '';
+  async function putBack(err, id) {
+    if (err.status !== 403) throw err;
+    refusedNote = err.message;
+    refreshTeam();
+    const r = await api('GET', '/api/data'), d = r.data || { purchases: [], settings: {}, profile: {} };
+    if (id === null) {
+      const fix = (o, v) => { if (o && typeof o === 'object') { Object.keys(o).forEach(k => delete o[k]); Object.assign(o, v || {}); } };
+      if (typeof settings !== 'undefined') fix(settings, d.settings); else set(DATA_KEYS.settings, JSON.stringify(d.settings || {}));
+      if (typeof profile !== 'undefined') fix(profile, d.profile); else set(DATA_KEYS.profile, JSON.stringify(d.profile || {}));
+      if (appSaveProfile) appSaveProfile();
+      return d;
+    }
+    const saved = d.purchases.find(i => i && i.id === id) || null;
+    if (typeof items !== 'undefined' && Array.isArray(items)) {
+      const n = items.findIndex(i => i && i.id === id);
+      if (saved && n >= 0) items[n] = saved; else if (saved) items.push(saved); else if (n >= 0) items.splice(n, 1);
+    } else {
+      const all = parse(DATA_KEYS.purchases, []).filter(i => i && i.id !== id);
+      set(DATA_KEYS.purchases, JSON.stringify(saved ? [...all, saved] : all));
+    }
+    return saved;
+  }
+
   /* Debounced upload of what changed: one call per created, updated or deleted item (last write wins). */
   let timer = null, inflight = false, again = false, warned = false;
   function queue() { set(DIRTY_KEY, '1'); clearTimeout(timer); timer = setTimeout(flush, 800); }
@@ -78,24 +112,39 @@ const Account = (() => {
       if (synced[item.id] === fingerprint(item)) continue;
       const path = '/api/items/' + encodeURIComponent(item.id);
       let r;
-      if (item.id in synced) r = await api('PUT', path, item);
-      else { try { r = await api('POST', '/api/items', item); } catch (err) { if (err.status !== 409) throw err; r = await api('PUT', path, item); } }
+      try {
+        if (item.id in synced) r = await api('PUT', path, item);
+        else { try { r = await api('POST', '/api/items', item); } catch (err) { if (err.status !== 409) throw err; r = await api('PUT', path, item); } }
+      } catch (err) {
+        const saved = await putBack(err, item.id);
+        if (saved) synced[item.id] = fingerprint(saved); else delete synced[item.id];
+        done(); continue;
+      }
       adoptItem(r.item);
       // Fingerprint what was sent (with the account's photo URL), so edits made during the upload still go up next time.
       synced[item.id] = fingerprint(withPhoto(item, r.item.photo)); latest = r.updatedAt; done();
     }
     for (const id of Object.keys(synced)) {
       if (present.has(id)) continue;
-      try { latest = (await api('DELETE', '/api/items/' + encodeURIComponent(id), {})).updatedAt; } catch (err) { if (err.status !== 404) throw err; }
+      try { latest = (await api('DELETE', '/api/items/' + encodeURIComponent(id), {})).updatedAt; }
+      catch (err) { if (err.status !== 404) { const saved = await putBack(err, id); if (saved) { synced[id] = fingerprint(saved); done(); continue; } } }
       delete synced[id]; done();
     }
     if (get(SETTINGS_KEY) !== settingsPrint(snap)) {
-      const r = await api('PUT', '/api/settings', { settings: snap.settings, profile: snap.profile });
-      adoptProfile(r.profile);
-      set(SETTINGS_KEY, settingsPrint({ settings: snap.settings, profile: withPhoto(snap.profile, r.profile.photo) }));
-      latest = r.updatedAt;
+      try {
+        const r = await api('PUT', '/api/settings', { settings: snap.settings, profile: snap.profile });
+        adoptProfile(r.profile);
+        set(SETTINGS_KEY, settingsPrint({ settings: snap.settings, profile: withPhoto(snap.profile, r.profile.photo) }));
+        latest = r.updatedAt;
+      } catch (err) { set(SETTINGS_KEY, settingsPrint(await putBack(err, null))); }
     }
     if (latest) set(SYNCED_KEY, latest);
+    if (refusedNote) {
+      if (appSave) appSave();
+      if (typeof render === 'function') render();
+      if (typeof toast === 'function') toast(refusedNote);
+      refusedNote = '';
+    }
   }
   async function flush() {
     clearTimeout(timer); timer = null;
@@ -158,10 +207,25 @@ const Account = (() => {
     location.href = 'index.html';
   }
 
+  /* What the admins allow this person to do, kept up to date while the app is open: when an admin changes it (a family
+     viewer made a caregiver, say), the page redraws with it, with no need to sign out. Moved to another care plan, or
+     removed from one: the app loads that plan instead. */
+  async function refreshTeam() {
+    try {
+      const r = await api('GET', '/api/me'), was = user()?.team || null, before = JSON.stringify(was);
+      remember(r.user, r.team);
+      if (r.space && get(SPACE_KEY) && r.space !== get(SPACE_KEY)) return checkApp();
+      if (JSON.stringify(r.team || null) === before) return;
+      if (typeof render === 'function') render();
+      // "George changed your access to Caregiver."
+      const t = r.team, names = { admin: 'Admin', caregiver: 'Caregiver', viewer: 'Family viewer' };
+      if (was && t && t.changedBy && typeof toast === 'function' && (was.role !== t.role || JSON.stringify(was.perms) !== JSON.stringify(t.perms))) toast(`${t.changedBy} changed your access to ${names[t.role]}.`);
+    } catch (err) { if (err.status === 401) expired(); }
+  }
+
   /* On the app: require an account, then pull changes made on other devices. */
   async function checkApp() {
-    // Keeps the stored account up to date, for example when it's made an admin.
-    api('GET', '/api/me').then(r => remember(r.user, r.team)).catch(() => {});
+    refreshTeam();
     try {
       const { data, space } = await api('GET', '/api/data');
       // Joined a care team, or left one: this browser's copy belongs to the other plan, so it's replaced, never uploaded.
@@ -189,9 +253,10 @@ const Account = (() => {
         if (typeof save === 'function') { const s = appSave = save; save = function () { const out = s.apply(this, arguments); queue(); return out; }; }
         if (typeof saveProfile === 'function') { const s = appSaveProfile = saveProfile; saveProfile = function () { const out = s.apply(this, arguments); if (out !== false) queue(); return out; }; }
       });
-      document.addEventListener('visibilitychange', () => { if (document.hidden && get(DIRTY_KEY)) flush(); });
+      document.addEventListener('visibilitychange', () => { if (document.hidden && get(DIRTY_KEY)) flush(); if (!document.hidden) refreshTeam(); });
+      setInterval(() => { if (!document.hidden) refreshTeam(); }, 30000);
     }
   }
 
-  return { api, user, queue, flush, signUp, signIn, adopt, adoptSession, signOut, deleteAccount, clearLocal };
+  return { api, user, can, queue, flush, signUp, signIn, adopt, adoptSession, signOut, deleteAccount, clearLocal };
 })();

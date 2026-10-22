@@ -72,6 +72,8 @@ const telLink=(label,phone)=>phone?`<a class="flow-text-link" href="tel:${esc(ph
 const mapLink=ph=>ph&&ph.address?`<a class="flow-text-link" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([ph.name,ph.address].filter(Boolean).join(', '))}" target="_blank" rel="noopener">Directions to ${esc(ph.name||'the pharmacy')} ↗</a>`:'';
 const doseTime=at=>new Date(at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
 /* Who marked a dose: the signed-in person's own name, so everyone on the care team sees who gave it. */
+/* What this person may do on the care plan (account.js); the same app opened without an account may do everything. */
+const mayDo=w=>typeof Account==='undefined'||Account.can(w);
 const markedBy=()=>(typeof Account!=='undefined'&&Account.user()?.name)||(typeof welcomeName==='function'?welcomeName():'');
 /* A time-stamped line in the med's care log, for the daily report: a refill marked, called, ready or picked up. */
 const logCare=(i,kind)=>{i.log=[...(i.log||[]),{at:new Date().toISOString(),kind,...(markedBy()?{by:markedBy()}:{})}].slice(-100)};
@@ -134,7 +136,7 @@ else body=done?planCard(i,'','<button class="pick-toggle" data-view="overview">B
 return flowShell('','',body,tab==='return'?3:4,{sent:sent||tab==='paid',received:done})};
 /* Profile shortcut on the scan screen: skip scanning and go straight to the dashboard. */
 function syncFlowProfile(){const box=$('.global-header>div');if(!box)return;let b=$('#flow-profile');if(!b){b=document.createElement('button');b.id='flow-profile';b.className='flow-profile';b.dataset.view='overview';b.title='Go to my dashboard';b.setAttribute('aria-label','Go to my dashboard');box.append(b)}b.hidden=!['upload','review','plan'].includes(view);if(!b.hidden)b.innerHTML=avatarInner()}
-render=function(){if(startRefills())save();renderBeforeJourney();syncFlowProfile();document.body.classList.toggle('flow-active',['upload','review','plan'].includes(view));if(view==='upload'&&cameraStep())startJourneyCamera();else if(cameraStream)stopJourneyCamera()};
+render=function(){if(mayDo('care')&&startRefills())save();renderBeforeJourney();syncFlowProfile();document.body.classList.toggle('flow-active',['upload','review','plan'].includes(view));if(view==='upload'&&cameraStep())startJourneyCamera();else if(cameraStream)stopJourneyCamera()};
 function openReview(note=''){journey.error=note;journey.step='review';if(!draft.products.length)draft.products.push(blankProduct());view='review';render();window.scrollTo(0,0)}
 /* Receipt reading (server): the pages are saved privately with the purchase and read by the AI model. Photos are sent as a
    smaller JPEG copy; PDFs as they are. */
