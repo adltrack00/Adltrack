@@ -1,0 +1,13 @@
+/* App-wide lettering, matched to Apple's San Francisco (SF Pro) as used in the Latch and DOOR apps.
+   iPhone, iPad and Mac show real SF Pro. Everywhere else shows Inter, the closest open font, bundled below
+   so Windows and Android look the same instead of falling back to Arial or Segoe UI.
+   Loaded last on every page so it wins over the older Arial / Oracle / Roboto Serif rules. */
+@font-face{font-family:'Inter Adl';src:url(assets/inter-var.woff2) format('woff2-variations'),url(assets/inter-var.woff2) format('woff2');font-weight:100 900;font-style:normal;font-display:swap}
+:root{--font-sf:-apple-system,BlinkMacSystemFont,'SF Pro Text','SF Pro Display','Inter Adl','Helvetica Neue',Arial,sans-serif}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{font-family:var(--font-sf);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;font-optical-sizing:auto}
+/* Every element, including ones that named Arial or a serif directly; code boxes keep their monospace. */
+body *:not(code):not(pre):not(kbd):not(samp),.mobile-menu:not([hidden]),#toast{font-family:var(--font-sf)!important}
+.csv-paste textarea{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace!important}
+/* Light weights don't exist in the reference screens; the lightest text there is regular. */
+.mobile-menu:not([hidden]){font-weight:400}
