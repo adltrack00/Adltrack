@@ -50,7 +50,7 @@ const Push = (() => {
 
   /* Shows the open app's daily notification; through the service worker when possible (required on Android). */
   async function show(reminder) {
-    try { await (await ready()).showNotification(reminder.title, { body: reminder.body, icon: 'assets/icon-192.png', tag: 'returnly-daily', actions: (reminder.actions || []).slice(0, 4), data: { url: reminder.url, itemId: reminder.itemId } }); return; } catch {}
+    try { await (await ready()).showNotification(reminder.title, { body: reminder.body, icon: 'assets/icon-192.png', tag: reminder.tag || 'returnly-daily', actions: (reminder.actions || []).slice(0, 4), data: { url: reminder.url, itemId: reminder.itemId } }); return; } catch {}
     try { const n = new Notification(reminder.title, { body: reminder.body }); n.onclick = () => { window.focus(); openItem(reminder.itemId); }; } catch {}
   }
 
@@ -65,14 +65,24 @@ const Push = (() => {
     return true;
   }
 
+  /* A notification from another family than the one on screen opens that family first (a caregiver on several families). */
+  const otherPatient = id => !!id && Account.patients().some(p => p.id === id) && Account.patient()?.id !== id;
+
   if (!document.body.classList.contains('local-auth')) {
     document.addEventListener('DOMContentLoaded', () => {
-      const params = new URLSearchParams(location.search), id = params.get('remind');
-      if (id) { openItem(id); history.replaceState(null, '', location.pathname); }
+      const params = new URLSearchParams(location.search), id = params.get('remind'), patient = params.get('patient');
+      if (otherPatient(patient)) { Account.switchPatient(patient).catch(() => {}); return; }
+      if (patient && Account.patients().some(p => p.id === patient)) Account.pick(patient);
+      if (id) openItem(id);
+      if (id || patient) history.replaceState(null, '', location.pathname);
       // Keeps this device's subscription and time zone current on the account.
       if (Account.user() && typeof settings !== 'undefined' && settings.notifications) subscribe();
     });
-    if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.type === 'returnly-open-item') openItem(e.data.itemId); });
+    if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => {
+      if (!e.data || e.data.type !== 'returnly-open-item') return;
+      if (otherPatient(e.data.patient)) { history.replaceState(null, '', location.pathname + (e.data.itemId ? '?remind=' + encodeURIComponent(e.data.itemId) : '')); Account.switchPatient(e.data.patient).catch(() => {}); return; }
+      if (e.data.itemId) openItem(e.data.itemId);
+    });
   }
 
   return { supported, subscribe, active, test, forget, show, openItem };

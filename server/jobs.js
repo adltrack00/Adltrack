@@ -83,6 +83,12 @@ function defineJobs(jobs, { store, storage, data = null, reminders = null }) {
     jobs.define('reminders.dose', payload => reminders.sendDose(payload));
     // A follow-up appointment: the day before and 2 hours before.
     jobs.define('reminders.appointment', payload => reminders.sendAppointment(payload));
+    // A task from the + on My Tasks, at its time.
+    jobs.define('reminders.task', payload => reminders.sendTask(payload));
+    // Alerts to everyone on a family's care team: a missed dose, each person's end-of-day report, and an incident.
+    jobs.define('alerts.missed', payload => reminders.sendMissed(payload));
+    jobs.define('alerts.endOfDay', payload => reminders.sendEndOfDay(payload));
+    jobs.define('alerts.incident', payload => reminders.sendIncident(payload));
   }
   // Retries deleting stored files that couldn't be removed straight away (for example, after "Delete my account").
   jobs.define('files.delete', async ({ keys }) => {

@@ -214,7 +214,8 @@ for (const [label, db] of STORES) {
       const [msg] = app.service.sent;
       assert.equal(msg.endpoint, sub.endpoint);
       assert.deepEqual(msg.keys, sub.keys);
-      assert.deepEqual(msg.message, { title: 'Adltrack · 5 days left', body: 'Dress · $40 back · 5 days left. Pack it. Plus 1 other return window.', itemId: 'Dress', url: 'app.html?remind=Dress',
+      const anaId = await app.userId('ana@example.com');
+      assert.deepEqual(msg.message, { title: 'Ana · 5 days left', body: 'Dress · $40 back · 5 days left. Pack it. Plus 1 other return window.', itemId: 'Dress', url: `app.html?patient=${anaId}&remind=Dress`, tag: 'daily ' + anaId,
         actions: [{ action: 'snooze', title: 'Snooze until tomorrow' }, { action: 'sent', title: 'I sent it back' }, { action: 'keep', title: 'I’m keeping it' }] });
       assert.deepEqual(msg.options, { TTL: 43200, urgency: 'normal', topic: 'daily' });
 
@@ -370,9 +371,9 @@ for (const [label, db] of STORES) {
       await app.jobs.drain();
       assert.equal(app.service.sent.length, 1);
       const [msg] = app.service.sent;
-      assert.equal(msg.message.title, '8:00 AM: 2 medications');
+      assert.equal(msg.message.title, 'Ana · 8:00 AM: 2 medications');
       assert.deepEqual(msg.message.actions.map(a => a.title), ['Taken', 'Snooze 15 minutes', 'Skipped']);
-      assert.deepEqual(msg.message.dose, { date: today, time: '08:00', ids: ['Lisinopril 10 mg', 'Metoprolol 25 mg'] });
+      assert.deepEqual(msg.message.dose, { date: today, time: '08:00', ids: ['Lisinopril 10 mg', 'Metoprolol 25 mg'], patient: await app.userId('ana@example.com') });
       assert.equal(msg.message.body, 'Lisinopril 10 mg: Take 1 tablet by mouth every morning. · Metoprolol 25 mg: Take 1 tablet by mouth twice a day.');
       assert.deepEqual(msg.options, { TTL: 3600, urgency: 'high', topic: 'dose' });
       // The next minute: already sent, so nothing more.
@@ -423,7 +424,7 @@ for (const [label, db] of STORES) {
       await app.jobs.drain();
       const visits = () => app.service.sent.filter(m => m.options.topic === 'appointment');
       assert.equal(visits().length, 1);
-      assert.equal(visits()[0].message.title, 'Adltrack · Follow-up visit with Dr. Patel tomorrow');
+      assert.equal(visits()[0].message.title, 'Ana · Follow-up visit with Dr. Patel tomorrow');
       assert.equal(visits()[0].message.body, '2:00 PM · Heart Clinic. Call (555) 201-3344 to change it.');
       app.clock.now = () => new Date(instantAt(today, '15:00', 'America/Chicago'));
       await app.reminders.dispatch();
@@ -433,7 +434,7 @@ for (const [label, db] of STORES) {
       await app.reminders.dispatch();
       await app.jobs.drain();
       assert.equal(visits().length, 2);
-      assert.equal(visits()[1].message.title, 'Adltrack · Follow-up visit with Dr. Patel today');
+      assert.equal(visits()[1].message.title, 'Ana · Follow-up visit with Dr. Patel today');
     } finally { await app.close(); }
   });
 }
@@ -454,10 +455,10 @@ for (const [label, db] of STORES) {
       app.clock.now = () => new Date(instantAt(today, '19:30', 'America/Chicago'));
       assert.deepEqual((await c('POST', '/api/push/test', { endpoint: sub.endpoint })).body, { sent: true });
       const test1 = app.service.sent.pop().message;
-      assert.equal(test1.title, '8:00 PM: Lisinopril 10 mg, 1 tablet');
+      assert.equal(test1.title, 'Ana · 8:00 PM: Lisinopril 10 mg, 1 tablet');
       assert.equal(test1.body, 'Take 1 tablet by mouth every morning.');
       assert.deepEqual(test1.actions.map(a => a.action), ['taken', 'snooze15', 'skipped']);
-      assert.deepEqual(test1.dose, { date: today, time: '20:00', ids: ['Lisinopril 10 mg'] });
+      assert.deepEqual(test1.dose, { date: today, time: '20:00', ids: ['Lisinopril 10 mg'], patient: anaId });
 
       // Taken marks the dose, with who marked it; a second tap keeps the first mark.
       let r = await c('POST', '/api/reminders/dose', { action: 'taken', ...test1.dose });
@@ -478,7 +479,7 @@ for (const [label, db] of STORES) {
       app.clock.now = () => new Date(instantAt(today, '09:10', 'America/Chicago'));
       await app.reminders.sendDose({ userId: anaId, date: today, time: '08:00', ids: ['Lisinopril 10 mg'] });
       const again = app.service.sent.pop().message;
-      assert.equal(again.title, '8:00 AM: Lisinopril 10 mg, 1 tablet');
+      assert.equal(again.title, 'Ana · 8:00 AM: Lisinopril 10 mg, 1 tablet');
       await c('POST', '/api/reminders/dose', { action: 'taken', date: today, time: '08:00', ids: ['Lisinopril 10 mg'] });
       await app.reminders.sendDose({ userId: anaId, date: today, time: '08:00', ids: ['Lisinopril 10 mg'] });
       assert.equal(app.service.sent.length, 0);

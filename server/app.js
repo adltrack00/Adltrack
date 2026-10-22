@@ -7,6 +7,7 @@ const { evaluate } = require('./engine');
 const { MAX_PAGES } = require('./receipts');
 const { buildGuide, placeQueries } = require('./guide');
 const { cleanSubscription, validTimeZone, quiet, notification } = require('./reminders');
+const { mergeMarks, mergeVitals } = require('./items');
 const { ACTIONS, KINDS } = require('./email');
 const { createTeam } = require('./team');
 const { createPermissions } = require('./permissions');
@@ -648,7 +649,7 @@ function createApp({ store, data, production = false, policies = null, classifie
       if (!sub) return send(res, 200, { sent: false });
       if (!pushTestLimit('user:' + user.id)) throw new HttpError(429, 'Too many test notifications. Try again later.');
       // A real dose with its Taken, Snooze and Skipped buttons when there's a medication to show.
-      const dose = await reminders.testDose(user.id);
+      const dose = await reminders.testDose(owner, user.id);
       const r = await reminders.sendTo(user.id, [sub], dose || { title: 'Adltrack · Reminders are on', body: 'Reminders arrive at each dose time, even when Adltrack is closed.', url: 'app.html' });
       return send(res, 200, { sent: r.sent > 0 });
     }
@@ -660,16 +661,16 @@ function createApp({ store, data, production = false, policies = null, classifie
       const offset = typeof body.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.date) ? (Date.parse(body.date) - Date.parse(new Date().toISOString().slice(0, 10))) / 864e5 : NaN;
       if (!(Math.abs(offset) <= 1)) throw new HttpError(400, 'Invalid date.');
       if (!reminders) return send(res, 200, { reminder: null });
-      // Inside quiet hours nothing is claimed; the app asks again once they end.
-      const settings = await reminders.settingsOf(user.id);
-      if (typeof body.time === 'string' && quiet(settings, body.time)) return send(res, 200, { reminder: null, quiet: true });
-      const r = (await reminders.claim(user.id, body.date, 'app', settings)).reminder;
-      return send(res, 200, { reminder: r && notification(r) });
+      // Inside this person's quiet hours nothing is claimed; the app asks again once they end.
+      if (typeof body.time === 'string' && quiet(await reminders.prefsOf(user.id), body.time)) return send(res, 200, { reminder: null, reminders: [], quiet: true });
+      // One reminder per family this person does the tasks for, each naming its patient.
+      const list = (await reminders.claim(user.id, body.date, 'app')).reminders.map(notification);
+      return send(res, 200, { reminder: list[0] || null, reminders: list });
     }
     // A notification's action buttons ("Snooze until tomorrow", "I sent it back", "I'm keeping it"), sent by the service worker.
+    // The item may be on any family this person is on; they must do the care on that one (checked in reminders.act).
     if (route === '/api/reminders/action' && method === 'POST') {
       checkWrite(req);
-      may.need('care');
       const body = await readBody(req, 2_000);
       if (!reminders || !ACTIONS.includes(body.action)) throw new HttpError(400, 'Invalid action.');
       const offset = typeof body.today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.today) ? (Date.parse(body.today) - Date.parse(new Date().toISOString().slice(0, 10))) / 864e5 : NaN;
@@ -678,12 +679,13 @@ function createApp({ store, data, production = false, policies = null, classifie
       if (!item) throw new HttpError(404, 'Not found.');
       return send(res, 200, { item });
     }
-    // A dose reminder's buttons ("Taken", "Snooze 15 minutes", "Skipped"), sent by the service worker.
+    // A dose reminder's buttons ("Taken", "Snooze 15 minutes", "Skipped"), sent by the service worker for the family the
+    // reminder came from (X-Patient), and marked with the name of the person who tapped it.
     if (route === '/api/reminders/dose' && method === 'POST') {
       checkWrite(req);
       may.need('tasks');
       const body = await readBody(req, 8_000);
-      const saved = reminders ? await reminders.actDose(user.id, body) : null;
+      const saved = reminders ? await reminders.actDose(owner, body, { by: user.name, userId: user.id }) : null;
       if (!saved) throw new HttpError(400, 'Invalid action.');
       return send(res, 200, { items: saved });
     }
@@ -693,6 +695,16 @@ function createApp({ store, data, production = false, policies = null, classifie
       if (reminders) await reminders.opened(user.id);
       return send(res, 200, { ok: true });
     }
+    // Reminders and alerts this person gets, wherever they're on a care team: dose and task reminders, missed doses, the
+    // end-of-day report and its time, and quiet hours. Incidents always arrive. Everyone picks their own, viewers too.
+    if (route === '/api/alerts/prefs' && method === 'GET') return send(res, 200, { prefs: reminders ? await reminders.prefsOf(user.id) : {} });
+    if (route === '/api/alerts/prefs' && method === 'PUT') {
+      checkWrite(req);
+      if (!reminders) throw new HttpError(503, 'Reminders aren’t available right now.');
+      return send(res, 200, { prefs: await reminders.savePrefs(user.id, await readBody(req, 2_000)) });
+    }
+    // When the care plan on screen last changed: open apps ask every few seconds, and load what someone else saved.
+    if (route === '/api/changes' && method === 'GET') return send(res, 200, { updatedAt: await store.dataVersion(owner), space: spaceOf(owner) });
     // Reminder emails: which types are on ("Also email me" on Reminders, and the unsubscribe links in each email).
     if (route === '/api/email/prefs' && method === 'GET') {
       const off = await store.emailOptouts(user.id);
@@ -745,8 +757,12 @@ function createApp({ store, data, production = false, policies = null, classifie
       checkWrite(req);
       // A new medication or visit needs the medications tick; a task or an incident from the + needs what adding one needs.
       const body = await readBody(req, 12 * 1024 * 1024);
+      if (body && typeof body === 'object') delete body._seen;
       may.item(null, body && typeof body === 'object' && !Array.isArray(body) ? body : {});
-      return send(res, 201, await data.saveItem(owner, body, { mustBeNew: true }));
+      const saved = await data.saveItem(owner, body, { mustBeNew: true });
+      // An incident from the + reaches everyone on the care team straight away.
+      if (reminders && saved.item.incident) await reminders.incidentReported(owner, saved.item, user.id);
+      return send(res, 201, saved);
     }
     // The QR code or return label for one item: PUT a photo, screenshot or PDF as a data URL; DELETE removes it.
     const labelMatch = /^\/api\/items\/([^/]+)\/label$/.exec(route);
@@ -769,13 +785,18 @@ function createApp({ store, data, production = false, policies = null, classifie
       }
       const body = await readBody(req, 12 * 1024 * 1024);
       if (!body || typeof body !== 'object' || Array.isArray(body)) throw new HttpError(400, 'Invalid item.');
-      may.item((await store.getItem(owner, id))?.item, { ...body, id });
-      return send(res, 200, await data.saveItem(owner, { ...body, id }));
+      // Marks someone else saved since this app last loaded are kept (see mergeMarks).
+      const { _seen: seen, ...sent } = body, before = (await store.getItem(owner, id))?.item;
+      const item = mergeMarks(before, { ...sent, id }, seen);
+      may.item(before, item);
+      return send(res, 200, await data.saveItem(owner, item));
     }
     if (route === '/api/settings' && method === 'PUT') {
       checkWrite(req);
-      const { settings, profile } = cleanPayload({ purchases: [], ...(await readBody(req, 12 * 1024 * 1024)) });
-      const saved = (await store.getRawData(owner))?.payload || {};
+      const body = await readBody(req, 12 * 1024 * 1024), saved = (await store.getRawData(owner))?.payload || {};
+      const { settings: sent, profile } = cleanPayload({ purchases: [], ...body, seenVitals: undefined });
+      // Vital signs someone else saved since this app last loaded are kept, like marks.
+      const settings = mergeVitals(saved.settings, sent, body.seenVitals);
       may.settings({ settings: saved.settings, profile: saved.profile }, { settings, profile });
       return send(res, 200, await data.putSettings(owner, { settings, profile }));
     }

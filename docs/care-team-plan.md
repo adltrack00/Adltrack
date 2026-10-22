@@ -106,7 +106,8 @@ Admins can change anyone's role at any time (Settings → People → tap their n
 
 ## 6. Live updates and alerts for everyone
 
-**Status:** To do.
+**Status:** Done (PR #33). Code: `server/reminders.js` (everything sent per family to that family's team: `teamOf`, `dispatchPlan`, missed doses, end-of-day reports, incidents, each person's `alert_prefs`), `server/items.js` (`mergeMarks` and `mergeVitals`, so two people marking at once keep both marks), `/api/changes` and `/api/alerts/prefs` in `server/app.js`, `account.js` (the open app checks every 2.5 seconds and takes changes in place), `remind.js` (each person's choices on Reminders), `push.js` and `sw.js` (a notification opens its family).
+Decided while building it: an unmarked dose reminds the people with My Tasks again at 60 minutes and alerts everyone at 75 minutes; quiet hours hold back everything except incidents; the person who reports an incident isn't sent their own alert; the end-of-day report comes at each person's own time (8:00 PM unless they change it).
 **Needs:** steps 2, 3 and 5.
 **Build:**
 - Reminders and alerts are sent per family, to everyone on that family's team. Today reminders are sent per account (`server/reminders.js`), so this step makes them loop over every family a person is on: a caregiver on three families gets each family's reminders, and every notification names the patient ("Rose · Lisinopril 10 mg"). Tapping it opens that family's Home.
