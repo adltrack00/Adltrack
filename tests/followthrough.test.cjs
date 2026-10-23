@@ -6,6 +6,7 @@ const { createData } = require('../server/data');
 const { createJobs, defineJobs } = require('../server/jobs');
 const { pick, localParts, quiet, sendTime, isDue, createPush, createReminders } = require('../server/reminders');
 const { createEmail, createTokens } = require('../server/email');
+const { createSms } = require('../server/sms');
 const C = require('../core.js');
 
 const today = C.iso(new Date());
@@ -30,7 +31,8 @@ async function boot({ withEmail = true, withPush = true, support = '' } = {}) {
   const push = createPush(withPush ? { vapid: { publicKey: 'BPublicKeyForTests', privateKey: 'private', subject: 'mailto:test@example.com' }, send: async (sub, payload) => { pushed.push(JSON.parse(payload)); } } : {});
   const email = createEmail(withEmail ? { secret: 'test-secret', send: async m => { mails.push(m); } } : {});
   const clock = { now: () => new Date() };
-  const reminders = createReminders({ store, push, email, data, now: () => clock.now(), log: { error() {} } });
+  const texts = [], sms = createSms({ send: async m => { texts.push(m); } });
+  const reminders = createReminders({ store, push, email, sms, data, now: () => clock.now(), log: { error() {} } });
   defineJobs(jobs, { store, storage, data, reminders });
   const server = http.createServer(createApp({ store, data, push, reminders, email, supportEmail: support }));
   await new Promise(r => server.listen(0, '127.0.0.1', r));
@@ -46,7 +48,7 @@ async function boot({ withEmail = true, withPush = true, support = '' } = {}) {
   };
   const signUp = async name => { const c = client(); const r = await c('POST', '/api/signup', { name, email: `${name.toLowerCase()}@example.com`, password: 'password123' }); assert.equal(r.status, 201); return c; };
   const userId = async name => (await store.findUserByEmail(`${name.toLowerCase()}@example.com`)).id;
-  return { store, jobs, data, pushed, mails, clock, reminders, email, base, client, signUp, userId, close: async () => { await jobs.stop(); await new Promise(r => server.close(r)); await store.close(); } };
+  return { store, jobs, data, pushed, mails, texts, clock, reminders, email, base, client, signUp, userId, close: async () => { await jobs.stop(); await new Promise(r => server.close(r)); await store.close(); } };
 }
 const tokenFrom = (mail, pattern) => new URLSearchParams(new URL(mail.text.match(pattern)[1]).hash.slice(1));
 
@@ -295,4 +297,31 @@ test('emails go to Resend\'s API with the key, our sender, reply-to and unsubscr
   assert.match(body.text, /https:\/\/returnly\.test\/app\.html\?remind=Dress/);
   // A refused send is an error, so the reminder job retries it.
   await assert.rejects(email.sendReset('ana@example.com', 'tok'), /Email failed \(422\)/);
+});
+
+test('an appointment reminder goes by push and email, and by text to a phone on the care team; the early ones only as chosen', async () => {
+  const app = await boot();
+  try {
+    const c = await app.signUp('Ana'), on = C.shift(today, 7);
+    await c('PUT', '/api/settings', { settings: { time: '09:00', daily: true, timeZone: 'UTC' }, profile: {} });
+    await c('POST', '/api/push/subscribe', { subscription: subscription(), timeZone: 'UTC' });
+    await c('POST', '/api/items', { id: 'visit', name: 'Follow-up visit with Dr. Patel', appt: true, with: 'Dr. Patel', place: 'Heart Clinic', date: on, time: '14:00', phone: '', note: '', remind: ['week', 'daily'], status: 'deciding', confirmed: true, steps: {}, window: null, price: 0, retailer: '', purchased: today });
+    const send = async (day, time) => { app.clock.now = () => new Date(instantAt(day, time, 'UTC')); await app.reminders.dispatch(); await app.jobs.drain(); };
+    const visits = () => app.pushed.filter(m => /Follow-up visit/.test(m.title)).map(m => m.title);
+    await send(today, '09:00');
+    assert.deepEqual(visits(), ['Ana · Follow-up visit with Dr. Patel in a week']);
+    const mail = app.mails.find(m => /in a week/.test(m.subject));
+    assert.ok(mail, 'emailed too');
+    assert.doesNotMatch(mail.text, /push notifications aren/);
+    await send(today, '15:00');
+    assert.equal(visits().length, 1);
+    await send(C.shift(today, 1), '09:00');
+    assert.deepEqual(visits().slice(1), ['Ana · Follow-up visit with Dr. Patel in 6 days']);
+    // A care team member with a phone gets it by text.
+    const ana = await app.userId('Ana');
+    await app.store.addMember({ ownerId: ana, userId: ana, name: 'Ana', email: 'ana@example.com', phone: '(555) 201-3344', role: 'admin', perms: { tasks: true } });
+    await send(C.shift(today, 2), '09:00');
+    assert.deepEqual(app.texts.map(t => t.to), ['+15552013344']);
+    assert.match(app.texts[0].body, /Follow-up visit with Dr\. Patel in 5 days\. 2:00 PM · Heart Clinic/);
+  } finally { await app.close(); }
 });

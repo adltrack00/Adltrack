@@ -57,9 +57,9 @@ if (email.available() && !process.env.EMAIL_TOKEN_SECRET) console.warn('EMAIL_TO
 const sms = createSms({ config: smsConfig(process.env) });
 // Each family's plan is paid by card through Stripe (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET); without it trials still run.
 const billing = createBilling({ store, stripe: createStripe({ config: stripeConfig(process.env) }), plan: planConfig(process.env) });
-const reminders = createReminders({ store, push, email, data });
-// The every-minute reminder dispatch only runs when push or email is set up.
-defineJobs(jobs, { store, storage, data, reminders: push.available() || email.available() ? reminders : null });
+const reminders = createReminders({ store, push, email, sms, data });
+// The every-minute reminder dispatch only runs when push, email or texts are set up.
+defineJobs(jobs, { store, storage, data, reminders: push.available() || email.available() || sms.available() ? reminders : null });
 const port = Number(process.env.PORT || 4174);
 // Render routes traffic to 0.0.0.0; locally we stay on localhost only.
 const host = process.env.HOST || (production ? '0.0.0.0' : '127.0.0.1');

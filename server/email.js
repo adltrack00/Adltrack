@@ -52,7 +52,7 @@ function reminderEmail(reminder, { kind, links }) {
   const html = page(`<p style="font-size:22px;line-height:1.3;margin:0 0 12px">${esc(reminder.title.replace(/^Adltrack · /, ''))}</p>
 <p style="font-size:14px;line-height:1.6;margin:0 0 22px">${esc(reminder.body)}</p>
 ${button(links.open, 'Open in Adltrack', true)}<div style="margin-top:6px">${actionLinks.join('')}</div>`,
-    `You get this because daily reminders are on in Adltrack${kind === 'daily' ? ' and push notifications aren’t set up on a device' : ' and the last reminder wasn’t opened'}. <a href="${esc(links.unsubscribe)}" style="color:#777">Unsubscribe from ${esc(KIND_NAMES[kind])}</a> · <a href="${esc(links.unsubscribeOther)}" style="color:#777">Unsubscribe from ${esc(KIND_NAMES[other])}</a>`);
+    `You get this because daily reminders are on in Adltrack${String(reminder.tag || '').startsWith('appt ') ? '' : kind === 'daily' ? ' and push notifications aren’t set up on a device' : ' and the last reminder wasn’t opened'}. <a href="${esc(links.unsubscribe)}" style="color:#777">Unsubscribe from ${esc(KIND_NAMES[kind])}</a> · <a href="${esc(links.unsubscribeOther)}" style="color:#777">Unsubscribe from ${esc(KIND_NAMES[other])}</a>`);
   const text = `${reminder.title}\n\n${reminder.body}\n\nOpen in Adltrack: ${links.open}\n${reminder.actions.map(a => `${a.title}: ${links[a.action]}`).join('\n')}\n\nUnsubscribe from ${KIND_NAMES[kind]}: ${links.unsubscribe}\nUnsubscribe from ${KIND_NAMES[other]}: ${links.unsubscribeOther}\n`;
   return { subject: reminder.title.replace(/^Adltrack · /, 'Adltrack: '), html, text };
 }

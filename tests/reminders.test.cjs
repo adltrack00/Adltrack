@@ -490,3 +490,19 @@ for (const [label, db] of STORES) {
     } finally { await app.close(); }
   });
 }
+
+test('a visit can also be reminded a week before, 2 days before and every day until then, at the reminder time', () => {
+  const settings = { time: '09:00' }, on = C.shift(today, 7);
+  const due = (o, day, time = '09:00') => appointmentsDue([visit('Dr. Patel', { date: on, ...o })], day, time, settings).map(a => [a.kind, a.days]);
+  // Nothing early unless chosen.
+  assert.deepEqual(due({}, today), []);
+  assert.deepEqual(due({ remind: ['week'] }, today), [['week', 7]]);
+  assert.deepEqual(due({ remind: ['week'] }, today, '08:59'), []);
+  assert.deepEqual(due({ remind: ['two'] }, C.shift(on, -2)), [['two', 2]]);
+  assert.deepEqual(due({ remind: ['two'] }, C.shift(on, -3)), []);
+  // Every day: each day from the chosen ones on, until the day before (which is always reminded).
+  assert.deepEqual(due({ remind: ['daily'] }, C.shift(on, -5)), [['daily', 5]]);
+  assert.deepEqual(due({ remind: ['daily', 'week'] }, today), [['week', 7]]);
+  assert.deepEqual(due({ remind: ['daily'] }, C.shift(on, -1)), [['day', 1]]);
+  assert.deepEqual(due({ remind: ['daily'] }, on, '12:30'), [['soon', 0]]);
+});

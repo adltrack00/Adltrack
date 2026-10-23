@@ -1,4 +1,4 @@
-/* Text messages through Twilio: care team invites. Why Twilio: one plain HTTPS call with no extra library, a US number
+/* Text messages through Twilio: care team invites and appointment reminders. Why Twilio: one plain HTTPS call with no extra library, a US number
    in minutes, and delivery to every US carrier. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_FROM (the Twilio
    number, as +15551234567). Without them invites go by email only, and the admin can copy the link. */
 
@@ -33,6 +33,9 @@ function createSms({ config = null, send = null, fetch: fetchImpl = globalThis.f
   } : null);
   return {
     available: () => !!sender,
+    async sendText(to, body) {
+      await sender({ to, body });
+    },
     async sendInvite(to, { inviter, role, link }) {
       await sender({ to, body: `${inviter} added you to their care team on Adltrack as ${role}. Join here: ${link}` });
     }
