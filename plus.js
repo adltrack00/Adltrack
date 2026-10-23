@@ -79,9 +79,10 @@ const plusRadios=(name,list,value)=>`<div class="plus-choice">${list.map(([v,l])
    of it, with the usual reminders plus any chosen (a week before, 2 days before, every day until then), which are only
    messages (server/reminders.js), never My Tasks.
    Appointments read from the papers are added on their own and show the same way once confirmed. */
-const plusRow=(attr,label)=>`<button class="settings-row" ${attr}><span>${label}</span>${menuIcon(menuIcons.chevron)}</button>`;
-const plusRows=()=>[mayAddTask()&&settingsRow('task-new','New task'),mayDo('meds')&&plusRow('data-add','Scan discharge papers'),mayDo('meds')&&plusRow('id="flow-bottles"','Scan medications'),mayDo('meds')&&settingsRow('appt-new','Add appointment'),mayReport()&&settingsRow('incident-new','Report an incident')].filter(Boolean);
-function plusPage(){return `<section class="sub-page settings-page">${subHeader('Add to My Tasks','overview')}<div class="settings-list">${plusRows().join('')}</div></section>`}
+/* Each a white card with the My Tasks blue arrow, like the History list. */
+const plusRow=(attr,label)=>`<button class="plus-row" ${attr}><span>${label}</span>${TODAY_ARROW}</button>`;
+const plusRows=()=>[mayAddTask()&&plusRow('data-menu-go="task-new"','New task'),mayDo('meds')&&plusRow('data-add','Scan discharge papers'),mayDo('meds')&&plusRow('id="flow-bottles"','Scan medications'),mayDo('meds')&&plusRow('data-menu-go="appt-new"','Add appointment'),mayReport()&&plusRow('data-menu-go="incident-new"','Report an incident')].filter(Boolean);
+function plusPage(){return `<section class="sub-page settings-page">${subHeader('Add to My Tasks','overview')}<div class="plus-list">${plusRows().join('')}</div></section>`}
 function taskNewPage(){const d=plusDraft,last=C.shift(today(),YEAR_AHEAD);
 return `<section class="sub-page take-page plus-page">${subHeader('New task',plusRows().length>1?'plus':'overview')}<form id="task-form" class="plus-form" novalidate>
 ${plusField('What to do',`<input name="what" maxlength="100" required autocomplete="off" value="${esc(d.what)}" placeholder="Change the dressing on the left knee">`)}

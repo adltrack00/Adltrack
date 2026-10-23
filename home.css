@@ -208,3 +208,8 @@ body.not-home #main>.page-heading{margin-top:0}
 .plus-until{display:flex;align-items:center;gap:12px;margin-top:10px;font-size:15px;color:#111}.plus-until span{flex:none}
 .plus-911 p+p{margin-top:4px}.plus-911 .flow-text-link{font-weight:600}
 .plus-form .plus-save{width:100%;margin-top:10px}
+/* The + list (Add to My Tasks), like the History list: white rounded cards with a soft shadow, the name on the left and the
+   My Tasks blue arrow on the right. */
+.plus-list{display:grid;gap:10px;margin:0 -12px}
+.plus-row{display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;min-height:98px;border:0;border-radius:16px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.04),0 2px 10px rgba(0,0,0,.06);padding:0 26px;font:inherit;font-size:17px;font-weight:500;color:#111;text-align:left;cursor:pointer}
+@media(max-width:650px){.plus-list{margin:0 -8px}.plus-row{padding:0 24px 0 26px}}
