@@ -127,7 +127,7 @@
 .tasks-body .home-today{margin:0}
 @media(max-width:650px){.tasks-top,.tasks-body{padding-left:20px;padding-right:20px}.tasks-top h2{font-size:30px}.tasks-sheet{height:70px}}
 /* Daily care report on Home (report.js): three tabs, then one page of a little note pad: cream paper with the pad's edges
-   under it. At the top, with no lines and in the lines' blue: "Daily Care Report", the name a little larger, and the
+   under it. At the top, with no lines, in the same black as the entries: "— Daily Care Report", the name a little larger, and the
    date under it the same size as the title, as tall as the old black banner; Print on the right. From 01 down, blue lines and a red margin line, with each entry handwritten on the
    lines: its number in the margin, the subhead with its time stamp on the right, the note, then the details in grey. */
 @font-face{font-family:'Caveat Adl';src:url(assets/caveat-var.woff2) format('woff2');font-weight:400 700;font-style:normal;font-display:swap}
@@ -140,9 +140,10 @@
 /* The handwriting wins over the app-wide lettering in type.css. */
 .report-paper *{font-family:'Caveat Adl','Segoe Print','Bradley Hand',cursive!important}
 .report-banner{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:14px 16px 14px calc(var(--margin) + var(--gutter))}
-.report-banner span{display:block;font-size:20px;font-weight:600;line-height:1.1;color:var(--blue);white-space:nowrap}
-.report-banner h2{font-size:28px;font-weight:700;line-height:1.1;margin:1px 0;letter-spacing:0;color:var(--blue)}
-.report-banner p{margin:0;font-size:20px;font-weight:600;line-height:1.1;color:var(--blue);white-space:nowrap}
+.report-banner span{display:flex;align-items:center;gap:8px;font-size:20px;font-weight:600;line-height:1.1;color:var(--ink);white-space:nowrap}
+.report-banner span::before{content:'';width:18px;height:2px;background:var(--ink)}
+.report-banner h2{font-size:28px;font-weight:700;line-height:1.1;margin:1px 0;letter-spacing:0;color:var(--ink)}
+.report-banner p{margin:0;font-size:20px;font-weight:600;line-height:1.1;color:var(--ink);white-space:nowrap}
 .report-banner button{flex:none;align-self:center;border:1.5px solid var(--ink);border-radius:20px;background:#f8f6f1;color:var(--ink);font-size:19px;line-height:28px;padding:0 14px}
 .report-grid{padding-bottom:calc(2*var(--line));background:linear-gradient(to right,transparent var(--margin),var(--red) var(--margin) calc(var(--margin) + 2px),transparent 0),repeating-linear-gradient(to bottom,var(--blue) 0 2px,transparent 2px var(--line))}
 .report-section{position:relative;padding:0 16px 0 calc(var(--margin) + var(--gutter))}
