@@ -1,4 +1,4 @@
-/* The + at the top right of My Tasks, across from its title: a new task or an incident, for the family on screen
+/* The + at the top right of My Tasks, in the back button's round white style: a new task or an incident, for the family on screen
    (each family's plan is its own, so a caregiver on several families adds it to the patient they're looking at). Only people
    allowed to add tasks or report incidents see it; the server checks it too (server/permissions.js).
    A new task: what to do, an optional note and photo, the date and exact time, once or repeating (every day, chosen days or
@@ -54,8 +54,9 @@ for(const m of (t.marks||[]).filter(m=>m.key==='task'&&m.day===day&&m.at))out.pu
 for(const i of list.filter(i=>i.incident&&onDay(i.at,day)))out.push({title:'Incident: '+i.name,at:i.at,note:i.note||'',details:[i.witnesses?'Witnesses: '+i.witnesses:'',i.told?'Told: '+i.told:''].filter(Boolean),name:'Incident: '+i.name,photos:i.photos||[]});
 return out.sort((x,y)=>new Date(x.at)-new Date(y.at))};
 
-/* The + itself: the Take card's round +. Someone who may do both picks one first; otherwise it opens the one they may do. */
-const plusButton=()=>mayAddTask()||mayReport()?'<button class="take-add tasks-plus" id="tasks-plus" aria-label="Add a task or report an incident">+</button>':'';
+/* The + itself, at the top right across from the My Tasks title: the round white back button from the other pages, with a plus the size of
+   its arrow. Someone who may do both picks one first; otherwise it opens the one they may do. */
+const plusButton=()=>mayAddTask()||mayReport()?`<button class="tasks-plus" id="tasks-plus" aria-label="Add a task or report an incident">${menuIcon('<path d="M12 5v14M5 12h14"/>')}</button>`:'';
 /* Tapping an incident in My Tasks shows it in today's daily care report. */
 document.addEventListener('click',e=>{const b=e.target.closest('[data-today-start$="|incident"]');if(!b)return;e.stopImmediatePropagation();reportTab='today';setTasksOpen(false);view='overview';render();window.scrollTo(0,0)},true);
 document.addEventListener('click',e=>{if(!e.target.closest('#tasks-plus'))return;e.stopPropagation();go(mayAddTask()&&mayReport()?'plus':mayAddTask()?'task-new':'incident-new')});
