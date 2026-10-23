@@ -71,6 +71,13 @@ function inviteEmail({ inviter, name, role, link }) {
   return { subject: `${inviter} added you to their care team on Adltrack`, html, text: `${inviter} added you to their care team on Adltrack\n\nHi ${name}, you're on Adltrack as ${role}. Join the care team (the link works for 14 days):\n${link}\n\nIf you weren't expecting this, ignore this email.\n` };
 }
 
+/* To whoever runs Adltrack (ALERT_EMAIL): reminders stopped sending, or started again. */
+function healthEmail({ stopped, since, appUrl }) {
+  const head = stopped ? 'Adltrack reminders have stopped sending.' : 'Adltrack reminders are sending again.';
+  const body = stopped ? `The reminder check hasn’t run since ${since}. Dose reminders and alerts aren’t going out. Open Render, check the adltrack service’s logs and restart it if it’s stuck.` : 'The reminder check is running again. Nothing else to do.';
+  return { subject: head, html: page(`<p style="font-size:22px;line-height:1.3;margin:0 0 12px">${esc(head)}</p><p style="font-size:14px;line-height:1.6;margin:0 0 22px">${esc(body)}</p>${button(appUrl + '/api/health', 'See the health check', true)}`, 'Sent by Adltrack’s health check.'), text: `${head}\n\n${body}\n\n${appUrl}/api/health\n` };
+}
+
 /* Sends email. `send(message)` is the Resend call (tests pass a fake). */
 function createEmail({ config = null, secret = '', send = null, fetch: fetchImpl = globalThis.fetch } = {}) {
   const tokens = createTokens(secret);
@@ -111,8 +118,11 @@ function createEmail({ config = null, secret = '', send = null, fetch: fetchImpl
     },
     async sendInvite(to, invite) {
       await sender(message(to, inviteEmail(invite), 'team-invite'));
+    },
+    async sendHealth(to, status) {
+      await sender(message(to, healthEmail({ ...status, appUrl }), 'health'));
     }
   };
 }
 
-module.exports = { createEmail, emailConfig, createTokens, reminderEmail, resetEmail, inviteEmail, KINDS, ACTIONS };
+module.exports = { createEmail, emailConfig, createTokens, reminderEmail, resetEmail, inviteEmail, healthEmail, KINDS, ACTIONS };

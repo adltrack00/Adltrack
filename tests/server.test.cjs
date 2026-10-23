@@ -40,7 +40,7 @@ test('sign up, sync data, sign out and sign back in on another device', async ()
   const app = await boot();
   try {
     const phone = app.client();
-    const signup = await phone('POST', '/api/signup', { name: 'George', email: ' George@Example.com ', password: 'password123' });
+    const signup = await phone('POST', '/api/signup', { name: 'George', email: ' George@Example.com ', password: 'Care-plan-2026' });
     assert.equal(signup.status, 201);
     assert.deepEqual(signup.body.user, { email: 'george@example.com', name: 'George' });
     assert.match(signup.headers.get('set-cookie'), /HttpOnly/);
@@ -51,7 +51,7 @@ test('sign up, sync data, sign out and sign back in on another device', async ()
 
     const laptop = app.client();
     assert.equal((await laptop('POST', '/api/login', { email: 'george@example.com', password: 'nope-nope' })).status, 401);
-    const login = await laptop('POST', '/api/login', { email: 'GEORGE@example.com', password: 'password123' });
+    const login = await laptop('POST', '/api/login', { email: 'GEORGE@example.com', password: 'Care-plan-2026' });
     assert.equal(login.status, 200);
     assert.equal(login.body.data.purchases[0].name, 'Shoes');
   } finally { await app.close(); }
@@ -61,8 +61,8 @@ test('each account only sees its own purchases', async () => {
   const app = await boot();
   try {
     const a = app.client(), b = app.client();
-    await a('POST', '/api/signup', { name: 'Ann', email: 'ann@example.com', password: 'password123' });
-    await b('POST', '/api/signup', { name: 'Bo', email: 'bo@example.com', password: 'password123' });
+    await a('POST', '/api/signup', { name: 'Ann', email: 'ann@example.com', password: 'Care-plan-2026' });
+    await b('POST', '/api/signup', { name: 'Bo', email: 'bo@example.com', password: 'Care-plan-2026' });
     await a('PUT', '/api/data', { purchases: [{ id: 'secret' }] });
     assert.equal((await b('GET', '/api/data')).body.data, null);
   } finally { await app.close(); }
@@ -73,9 +73,9 @@ test('duplicate emails, weak passwords and bad emails are rejected', async () =>
   try {
     const c = app.client();
     assert.equal((await c('POST', '/api/signup', { name: 'A', email: 'a@example.com', password: 'short' })).status, 400);
-    assert.equal((await c('POST', '/api/signup', { name: 'A', email: 'not-an-email', password: 'password123' })).status, 400);
-    assert.equal((await c('POST', '/api/signup', { name: 'A', email: 'a@example.com', password: 'password123' })).status, 201);
-    assert.equal((await app.client()('POST', '/api/signup', { name: 'A', email: 'A@example.com', password: 'password123' })).status, 409);
+    assert.equal((await c('POST', '/api/signup', { name: 'A', email: 'not-an-email', password: 'Care-plan-2026' })).status, 400);
+    assert.equal((await c('POST', '/api/signup', { name: 'A', email: 'a@example.com', password: 'Care-plan-2026' })).status, 201);
+    assert.equal((await app.client()('POST', '/api/signup', { name: 'A', email: 'A@example.com', password: 'Care-plan-2026' })).status, 409);
   } finally { await app.close(); }
 });
 
@@ -83,7 +83,7 @@ test('cross-site writes and non-JSON posts are refused', async () => {
   const app = await boot();
   try {
     const c = app.client();
-    assert.equal((await c('POST', '/api/signup', { name: 'A', email: 'x@example.com', password: 'password123' }, { Origin: 'https://evil.example' })).status, 403);
+    assert.equal((await c('POST', '/api/signup', { name: 'A', email: 'x@example.com', password: 'Care-plan-2026' }, { Origin: 'https://evil.example' })).status, 403);
     const form = await fetch(app.base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'email=a&password=b' });
     assert.equal(form.status, 415);
   } finally { await app.close(); }
@@ -93,10 +93,10 @@ test('repeated wrong passwords lock the email temporarily', async () => {
   const app = await boot();
   try {
     const c = app.client();
-    await c('POST', '/api/signup', { name: 'L', email: 'lock@example.com', password: 'password123' });
+    await c('POST', '/api/signup', { name: 'L', email: 'lock@example.com', password: 'Care-plan-2026' });
     const other = app.client();
     for (let i = 0; i < 10; i++) await other('POST', '/api/login', { email: 'lock@example.com', password: 'wrong-' + i }, { 'X-Forwarded-For': '10.0.0.' + i });
-    const locked = await other('POST', '/api/login', { email: 'lock@example.com', password: 'password123' }, { 'X-Forwarded-For': '10.0.1.1' });
+    const locked = await other('POST', '/api/login', { email: 'lock@example.com', password: 'Care-plan-2026' }, { 'X-Forwarded-For': '10.0.1.1' });
     assert.equal(locked.status, 429);
   } finally { await app.close(); }
 });
@@ -105,11 +105,11 @@ test('deleting an account needs the password and removes the data', async () => 
   const app = await boot();
   try {
     const c = app.client();
-    await c('POST', '/api/signup', { name: 'D', email: 'd@example.com', password: 'password123' });
+    await c('POST', '/api/signup', { name: 'D', email: 'd@example.com', password: 'Care-plan-2026' });
     await c('PUT', '/api/data', { purchases: [{ id: 1 }] });
     assert.equal((await c('DELETE', '/api/account', { password: 'wrong-pass' })).status, 401);
-    assert.equal((await c('DELETE', '/api/account', { password: 'password123' })).status, 200);
-    assert.equal((await app.client()('POST', '/api/login', { email: 'd@example.com', password: 'password123' })).status, 401);
+    assert.equal((await c('DELETE', '/api/account', { password: 'Care-plan-2026' })).status, 200);
+    assert.equal((await app.client()('POST', '/api/login', { email: 'd@example.com', password: 'Care-plan-2026' })).status, 401);
   } finally { await app.close(); }
 });
 
@@ -128,8 +128,8 @@ test('a dose photo is saved privately to the account and removed with its medica
   const app = await boot();
   try {
     const a = app.client(), b = app.client();
-    await a('POST', '/api/signup', { name: 'Ann', email: 'ann@example.com', password: 'password123' });
-    await b('POST', '/api/signup', { name: 'Bo', email: 'bo@example.com', password: 'password123' });
+    await a('POST', '/api/signup', { name: 'Ann', email: 'ann@example.com', password: 'Care-plan-2026' });
+    await b('POST', '/api/signup', { name: 'Bo', email: 'bo@example.com', password: 'Care-plan-2026' });
     const jpg = 'data:image/jpeg;base64,' + fs.readFileSync(path.join(__dirname, 'fixtures/receipts/blurry.jpg')).toString('base64');
     assert.equal((await a('POST', '/api/files/proof', { data: 'data:text/plain;base64,aGk=' })).status, 400);
     const r = await a('POST', '/api/files/proof', { data: jpg });

@@ -42,4 +42,4 @@ document.addEventListener('submit',async e=>{const f=e.target;
   catch(err){btn.disabled=false;toast(err.message)}});
 /* Back from an invite link after signing in or creating an account: join, then this browser shows that family's plan (a
    caregiver already on other families switches back to them from Home). */
-(()=>{let t='';try{t=localStorage.getItem('adltrack-invite')||''}catch{}if(!t||!Account.user())return;try{localStorage.removeItem('adltrack-invite')}catch{}Account.api('POST','/api/invite/accept',{token:t}).then(r=>{if(r.patient)Account.pick(r.patient);location.reload()},err=>toast(err.message))})();
+(()=>{let t='';try{t=localStorage.getItem('adltrack-invite')||''}catch{}if(!t||!Account.user())return;try{localStorage.removeItem('adltrack-invite')}catch{}Account.api('POST','/api/invite/accept',{token:t,consent:true}).then(r=>{if(r.patient)Account.pick(r.patient);location.reload()},err=>toast(err.message))})();

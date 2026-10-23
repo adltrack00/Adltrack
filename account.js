@@ -23,12 +23,17 @@ const Account = (() => {
   const parse = (k, fallback) => { try { const s = get(k); return s ? JSON.parse(s) : fallback; } catch { return fallback; } };
 
   /* Every call to this app's API from the page (scans, photos and saves alike) says which family's plan it's for. */
+  /* They also say when someone used the app in the last minute (X-Active): only that keeps a shared phone signed in, not
+     the open app's own checks every few seconds. */
+  let usedAt = Date.now();
+  ['pointerdown', 'keydown', 'scroll', 'touchstart'].forEach(n => window.addEventListener(n, () => { usedAt = Date.now(); }, { passive: true, capture: true }));
   const pageFetch = window.fetch.bind(window);
   window.fetch = (input, init = {}) => {
     const url = typeof input === 'string' ? input : input && input.url || '';
-    if (!get(PATIENT_KEY) || !/^(\/|https?:\/\/[^/]*\/)api\//.test(url) || (/^https?:/.test(url) && !url.startsWith(location.origin + '/'))) return pageFetch(input, init);
+    if (!/^(\/|https?:\/\/[^/]*\/)api\//.test(url) || (/^https?:/.test(url) && !url.startsWith(location.origin + '/'))) return pageFetch(input, init);
     const headers = new Headers(init.headers || (typeof input === 'object' && input.headers) || {});
-    headers.set('X-Patient', get(PATIENT_KEY));
+    if (get(PATIENT_KEY)) headers.set('X-Patient', get(PATIENT_KEY));
+    if (Date.now() - usedAt < 60000) headers.set('X-Active', '1');
     return pageFetch(input, { ...init, headers });
   };
 
@@ -89,7 +94,7 @@ const Account = (() => {
     markSynced(data);
     del(DIRTY_KEY);
   }
-  function clearLocal() { [...Object.values(DATA_KEYS), 'back-last-nudge', 'returnly-push-endpoint', ACCOUNT_KEY, SYNCED_KEY, DIRTY_KEY, ITEMS_KEY, SETTINGS_KEY, SPACE_KEY, PATIENT_KEY, SEEN_KEY].forEach(del); }
+  function clearLocal() { [...Object.values(DATA_KEYS), 'back-last-nudge', 'returnly-push-endpoint', ACCOUNT_KEY, SYNCED_KEY, DIRTY_KEY, ITEMS_KEY, SETTINGS_KEY, SPACE_KEY, PATIENT_KEY, SEEN_KEY, 'adltrack-shared-phone'].forEach(del); }
   function remember(u, team = user()?.team) { set(ACCOUNT_KEY, JSON.stringify({ email: u.email, name: u.name, ...(u.admin ? { admin: true } : {}), ...(u.passwordless ? { passwordless: true } : {}), ...(team ? { team } : {}) })); }
 
   /* The account stores photos as files and sends back their private URLs; swap them into this browser's copy
@@ -246,6 +251,15 @@ const Account = (() => {
     clearLocal();
     location.href = 'index.html';
   }
+  /* Shared phone (Security and privacy): signed out after 15 minutes without use, here and on the server. */
+  const SHARED_KEY = 'adltrack-shared-phone', SHARED_IDLE_MS = 15 * 60 * 1000;
+  const shared = () => get(SHARED_KEY) === '1';
+  async function setShared(on) {
+    const r = await api('PUT', '/api/session', { shared: on });
+    if (r.shared) set(SHARED_KEY, '1'); else del(SHARED_KEY);
+    usedAt = Date.now();
+    return r.shared;
+  }
   async function deleteAccount(password) {
     await api('DELETE', '/api/account', { password });
     clearLocal();
@@ -259,6 +273,7 @@ const Account = (() => {
     try {
       const r = await api('GET', '/api/me'), was = user()?.team || null, before = JSON.stringify(was);
       remember(r.user, r.team);
+      if (r.shared) set(SHARED_KEY, '1'); else del(SHARED_KEY);
       // A family that took this person off their team isn't asked for again.
       if (get(PATIENT_KEY) && !picked()) del(PATIENT_KEY);
       document.dispatchEvent(new Event('adltrack:me'));
@@ -335,8 +350,12 @@ const Account = (() => {
       document.addEventListener('visibilitychange', () => { if (document.hidden && get(DIRTY_KEY)) flush(); if (!document.hidden) { refreshTeam(); pull(); } });
       setInterval(() => { if (!document.hidden) refreshTeam(); }, 30000);
       setInterval(() => { if (!document.hidden) pull(); }, LIVE_MS);
+      // A shared phone nobody has used for 15 minutes signs out (also when the app comes back from the background).
+      const idleCheck = () => { if (shared() && Date.now() - usedAt > SHARED_IDLE_MS) signOut(); };
+      setInterval(idleCheck, 30000);
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) idleCheck(); });
     }
   }
 
-  return { api, user, can, patients, patient, picked, pick, switchPatient, refresh: refreshTeam, queue, flush, pull, signUp, signIn, adopt, adoptSession, signOut, deleteAccount, clearLocal };
+  return { api, user, can, patients, patient, picked, pick, switchPatient, refresh: refreshTeam, queue, flush, pull, signUp, signIn, adopt, adoptSession, signOut, shared, setShared, deleteAccount, clearLocal };
 })();

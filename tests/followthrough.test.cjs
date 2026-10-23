@@ -46,7 +46,7 @@ async function boot({ withEmail = true, withPush = true, support = '' } = {}) {
       return { status: res.status, body: (res.headers.get('content-type') || '').startsWith('application/json') ? await res.json() : await res.text() };
     };
   };
-  const signUp = async name => { const c = client(); const r = await c('POST', '/api/signup', { name, email: `${name.toLowerCase()}@example.com`, password: 'password123' }); assert.equal(r.status, 201); return c; };
+  const signUp = async name => { const c = client(); const r = await c('POST', '/api/signup', { name, email: `${name.toLowerCase()}@example.com`, password: 'Care-plan-2026' }); assert.equal(r.status, 201); return c; };
   const userId = async name => (await store.findUserByEmail(`${name.toLowerCase()}@example.com`)).id;
   return { store, jobs, data, pushed, mails, texts, clock, reminders, email, base, client, signUp, userId, close: async () => { await jobs.stop(); await new Promise(r => server.close(r)); await store.close(); } };
 }
@@ -240,7 +240,7 @@ test('password reset: an emailed link works once, for an hour, and signs out eve
     assert.equal(r.body.user.email, 'ana@example.com');
     assert.equal((await stranger('GET', '/api/me')).status, 200);
     assert.equal((await c('GET', '/api/me')).status, 401);
-    assert.equal((await app.client()('POST', '/api/login', { email: 'ana@example.com', password: 'password123' })).status, 401);
+    assert.equal((await app.client()('POST', '/api/login', { email: 'ana@example.com', password: 'Care-plan-2026' })).status, 401);
     assert.equal((await app.client()('POST', '/api/login', { email: 'ana@example.com', password: 'newpassword1' })).status, 200);
     // Used once.
     assert.equal((await app.client()('POST', '/api/password/reset', { token, password: 'another-one' })).status, 400);

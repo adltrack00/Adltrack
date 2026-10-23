@@ -16,6 +16,7 @@ const { printedWindow } = require('./receipts');
 const { dischargeDraft, MAX_PAGES: MAX_DISCHARGE_PAGES } = require('./discharge');
 const { compare: compareLabel, MAX_PHOTOS: MAX_LABEL_PHOTOS } = require('./label');
 const { InboxError } = require('./inbox');
+const { passwordProblem, deviceName, idleExpired, SHARED_IDLE_MINUTES, TOUCH_MS } = require('./security');
 
 const ROOT = path.resolve(__dirname, '..');
 const COOKIE = 'rl_session';
@@ -51,7 +52,6 @@ const sha256 = s => crypto.createHash('sha256').update(s).digest('hex');
 const normEmail = e => String(e || '').trim().toLowerCase();
 const validEmail = e => e.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 const validName = n => typeof n === 'string' && n.trim().length >= 1 && n.trim().length <= 40;
-const validPassword = p => typeof p === 'string' && p.length >= 8 && p.length <= 200;
 
 /* Simple in-memory limiter: N attempts per key per window. */
 function limiter(limit, windowMs) {
@@ -137,7 +137,7 @@ function receiptDraft(receipt, policy) {
   };
 }
 
-function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, discharge = null, labels = null, places = null, review = null, push = null, reminders = null, email = null, supportEmail = '', inbox = null, oauth = null, publicUrl = '', inboundSecret = '', sms = null, team = null, billing = null }) {
+function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, discharge = null, labels = null, places = null, review = null, push = null, reminders = null, email = null, supportEmail = '', inbox = null, oauth = null, publicUrl = '', inboundSecret = '', sms = null, team = null, billing = null, health = null }) {
   billing = billing || createBilling({ store });
   team = team || createTeam({ store, email, sms, billing });
   const authLimit = limiter(20, 15 * 60 * 1000);
@@ -183,9 +183,15 @@ function createApp({ store, data, production = false, policies = null, classifie
     const tokenHash = sha256(token);
     const session = await store.findSession(tokenHash);
     if (!session) return null;
-    if (new Date(session.expiresAt) < new Date()) { await store.deleteSession(tokenHash); return null; }
+    // A shared phone nobody has used for 15 minutes is signed out.
+    if (new Date(session.expiresAt) < new Date() || idleExpired(session)) { await store.deleteSession(tokenHash); return null; }
+    req.session = { ...session, tokenHash };
+    // Only what someone does in the app counts as use (it sends X-Active), not the open app's own checks every few seconds.
+    if (req.headers['x-active'] === '1' && Date.now() - new Date(session.lastSeen).getTime() > TOUCH_MS) await store.touchSession(tokenHash);
     return store.findUserById(session.userId);
   }
+  /* Sign-in history: each sign-in (and wrong password) with the kind of device, shown in Security and privacy. */
+  const logSignIn = (req, userId, method, ok = true) => store.addSignIn({ userId, method, device: deviceName(req.headers['user-agent']), ok }).catch(err => console.error('Sign-in history failed:', err.message));
 
   async function startSession(req, res, user, status, extra = {}) {
     const token = crypto.randomBytes(32).toString('base64url');
@@ -239,6 +245,7 @@ function createApp({ store, data, production = false, policies = null, classifie
     }
     const token = crypto.randomBytes(32).toString('base64url');
     await store.createSession(user.id, sha256(token), new Date(Date.now() + SESSION_DAYS * 864e5));
+    await logSignIn(req, user.id, provider);
     redirect(res, '/signin.html?signed-in=' + provider, [cookie(req, token, SESSION_DAYS * 86400), oauthCookie(req, '', 0)]);
   }
   const authFailed = (res, err) => { if (!err.status || err.status >= 500) console.error('Sign-in failed:', err.message); redirect(res, '/signin.html?error=' + (['expired', 'cancelled', 'email'].includes(err.message) ? err.message : 'failed')); };
@@ -263,7 +270,8 @@ function createApp({ store, data, production = false, policies = null, classifie
 
   async function api(req, res, route) {
     const method = req.method;
-    if (route === '/api/health' && method === 'GET') return send(res, 200, { ok: true });
+    // Render's health check: 503 when reminders have stopped sending (server/health.js).
+    if (route === '/api/health' && method === 'GET') { const s = health ? health.status() : { ok: true }; return send(res, s.ok ? 200 : 503, s); }
 
     // Retailer return policies are public facts, so no sign-in is needed to read them.
     if (route === '/api/retailers' && method === 'GET') {
@@ -289,10 +297,12 @@ function createApp({ store, data, production = false, policies = null, classifie
       const email = normEmail(body.email), name = String(body.name || '').trim();
       if (!validName(name)) throw new HttpError(400, 'Enter your first name.');
       if (!validEmail(email)) throw new HttpError(400, 'Enter a valid email address.');
-      if (!validPassword(body.password)) throw new HttpError(400, 'Use a password with at least 8 characters.');
+      const weak = passwordProblem(body.password, { email, name });
+      if (weak) throw new HttpError(400, weak);
       let user;
       try { user = await store.createUser({ email, name, passwordHash: await hashPassword(body.password) }); }
       catch (err) { if (err.code === 'EXISTS') throw new HttpError(409, 'An account with this email already exists. Sign in instead.'); throw err; }
+      await logSignIn(req, user.id, 'signup');
       return startSession(req, res, user, 201, { data: null, space: spaceOf(user.id) });
     }
 
@@ -304,8 +314,9 @@ function createApp({ store, data, production = false, policies = null, classifie
       if (loginFailures.locked(email)) throw new HttpError(429, 'Too many attempts. Try again in a few minutes.');
       const user = validEmail(email) ? await store.findUserByEmail(email) : null;
       const ok = await verifyPassword(String(body.password || ''), user ? user.passwordHash : await DUMMY_HASH);
-      if (!user || !ok) { loginFailures.fail(email); throw new HttpError(401, 'Email or password is incorrect.'); }
+      if (!user || !ok) { loginFailures.fail(email); if (user) await logSignIn(req, user.id, 'password', false); throw new HttpError(401, 'Email or password is incorrect.'); }
       loginFailures.clear(email);
+      await logSignIn(req, user.id, 'password');
       return startSession(req, res, user, 200, await spaceData(user));
     }
 
@@ -334,13 +345,16 @@ function createApp({ store, data, production = false, policies = null, classifie
       checkWrite(req);
       if (!authLimit('ip:' + clientIp(req))) throw new HttpError(429, 'Too many attempts. Try again in a few minutes.');
       const body = await readBody(req, 10_000);
-      if (!validPassword(body.password)) throw new HttpError(400, 'Use a password with at least 8 characters.');
+      if (passwordProblem(body.password)) throw new HttpError(400, passwordProblem(body.password));
       const userId = typeof body.token === 'string' && body.token.length <= 100 ? await store.takePasswordReset(sha256(body.token)) : null;
       if (!userId) throw new HttpError(400, 'This link has expired or was already used. Ask for a new one.');
+      const user = await store.findUserById(userId);
+      const weak = passwordProblem(body.password, user);
+      if (weak) throw new HttpError(400, weak);
       await store.setPassword(userId, await hashPassword(body.password));
       // Every other device is signed out; this one is signed in with the new password.
       await store.deleteUserSessions(userId);
-      const user = await store.findUserById(userId);
+      await logSignIn(req, userId, 'reset');
       loginFailures.clear(user.email);
       return startSession(req, res, user, 200, await spaceData(user));
     }
@@ -445,7 +459,17 @@ function createApp({ store, data, production = false, policies = null, classifie
 
     if (route === '/api/me' && method === 'GET') {
       const full = await store.findUserByEmail(user.email);
-      return send(res, 200, { user: { ...publicUser(user), ...(full && full.passwordHash === NO_PASSWORD ? { passwordless: true } : {}) }, team: { role: access.role, perms: access.perms, owner: access.owner, ...(access.changedBy ? { changedBy: access.changedBy } : {}), patient: owner, patients: await team.patients(access) }, space: spaceOf(owner) });
+      return send(res, 200, { user: { ...publicUser(user), ...(full && full.passwordHash === NO_PASSWORD ? { passwordless: true } : {}) }, team: { role: access.role, perms: access.perms, owner: access.owner, ...(access.changedBy ? { changedBy: access.changedBy } : {}), patient: owner, patients: await team.patients(access) }, space: spaceOf(owner), shared: !!req.session.shared });
+    }
+
+    // Security and privacy: this phone's "shared phone" setting and the account's last sign-ins.
+    if (route === '/api/security' && method === 'GET') return send(res, 200, { shared: !!req.session.shared, idleMinutes: SHARED_IDLE_MINUTES, signIns: await store.listSignIns(user.id, 10) });
+    if (route === '/api/session' && method === 'PUT') {
+      checkWrite(req);
+      const body = await readBody(req, 1_000);
+      if (typeof body.shared !== 'boolean') throw new HttpError(400, 'Invalid request.');
+      await store.setSessionShared(req.session.tokenHash, body.shared);
+      return send(res, 200, { shared: body.shared, idleMinutes: SHARED_IDLE_MINUTES });
     }
 
     // Settings → People: the care team, adding people by email and phone with what each may do, and joining from an invite.
@@ -467,7 +491,10 @@ function createApp({ store, data, production = false, policies = null, classifie
     if (route === '/api/invite/accept' && method === 'POST') {
       checkWrite(req);
       if (!linkLimit('ip:' + clientIp(req))) throw new HttpError(429, 'Too many attempts. Try again in a few minutes.');
-      return send(res, 200, await team.accept(user, (await readBody(req, 2_000)).token));
+      const body = await readBody(req, 2_000);
+      // Joining shares the patient's health information with this person, so they agree to it first (join.html).
+      if (body.consent !== true) throw new HttpError(400, 'Tick the box to agree before joining the care team.');
+      return send(res, 200, await team.accept(user, body.token));
     }
 
     // Settings → Plan: this family's plan, paid by its admins. Caregivers and viewers never pay.

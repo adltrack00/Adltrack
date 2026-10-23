@@ -40,7 +40,7 @@ async function boot(databaseUrl, { storage: customStorage } = {}) {
     };
     return call;
   };
-  const signUp = async (name) => { const c = client(); assert.equal((await c('POST', '/api/signup', { name, email: `${name.toLowerCase()}@example.com`, password: 'password123' })).status, 201); return c; };
+  const signUp = async (name) => { const c = client(); assert.equal((await c('POST', '/api/signup', { name, email: `${name.toLowerCase()}@example.com`, password: 'Care-plan-2026' })).status, 201); return c; };
   const filesOnDisk = () => { const d = path.join(dir, 'files', 'files'); return fs.existsSync(d) ? fs.readdirSync(d).filter(f => !f.endsWith('.type')) : []; };
   return { store, storage, jobs, data, client, signUp, filesOnDisk, close: async () => { await jobs.stop(); await new Promise(r => server.close(r)); await store.close(); } };
 }
@@ -234,7 +234,7 @@ for (const [label, databaseUrl] of STORES) {
       await other('POST', '/api/items', { id: 'a', name: 'Not yours', photo: jpeg(10) });
       assert.equal(app.filesOnDisk().length, 4);
       const user = await app.store.findUserByEmail('gus@example.com');
-      assert.equal((await c('DELETE', '/api/account', { password: 'password123' })).status, 200);
+      assert.equal((await c('DELETE', '/api/account', { password: 'Care-plan-2026' })).status, 200);
       assert.equal(app.filesOnDisk().length, 1);
       assert.deepEqual(await app.store.listItems(user.id), []);
       assert.deepEqual(await app.store.listPurchases(user.id), []);
@@ -254,7 +254,7 @@ for (const [label, databaseUrl] of STORES) {
       const c = await app.signUp('Ivy');
       const photo = (await c('POST', '/api/items', { id: 'a', name: 'A', photo: jpeg(11) })).body.item.photo;
       const key = `files/${photo.split('/').pop()}`;
-      assert.equal((await c('DELETE', '/api/account', { password: 'password123' })).status, 200);
+      assert.equal((await c('DELETE', '/api/account', { password: 'Care-plan-2026' })).status, 200);
       assert.ok(await real.get(key), 'still stored while storage is down');
       down = false;
       // Due after its backoff; run it now.
