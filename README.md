@@ -1,6 +1,6 @@
 # Adltrack
 
-Track purchases, return deadlines and refunds. Scan a receipt, tap what you're returning, and Adltrack reminds you until the money is back.
+Bring them home. Keep them on track. Scan the discharge papers or the bottles, and Adltrack turns them into a daily checklist with reminders and refills, shared with the family and paid caregivers.
 
 Adltrack is becoming a post-discharge medication app built on this same design: scan the discharge papers, confirm each medication with a photo, and get reminders for doses and refills. The plan is in [docs/adltrack-plan.md](docs/adltrack-plan.md). Step 1 renamed the app and its menu. Step 2 made the scan read discharge papers: `server/discharge.js` sends the pages to Claude and `POST /api/discharge/read` returns one card per medication, with its instructions word for word, the doctor who prescribed it, the pharmacy, follow-up appointments and warning signs. Medications the papers say to stop are left out and named. Nothing the papers don't say is added. The cards after Scan still look like Returnly's until the next steps.
 

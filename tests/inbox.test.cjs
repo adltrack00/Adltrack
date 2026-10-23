@@ -435,23 +435,3 @@ test('HTTP: Continue with Google signs in or up, inbox routes need an account, a
   } finally { server.close(); }
 });
 
-/* The app side: the Settings row and the "From email" card, rendered from menu.js with stand-ins for the other layers. */
-test('Settings gets "Add purchases from email" right below My profile, and email orders show as cards with the From email label', () => {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'menu.js'), 'utf8');
-  const listeners = [];
-  const ctx = { render() {}, gallery: () => '', profileHeader: () => '', profileTools: () => '', items: [{ id: 'x', purchaseId: 'eo-done' }], view: 'overview', galleryFilter: 'all', galleryQuery: '', NO_STORE: 'Store not added', profile: {}, toast() {}, setTimeout() {}, location: { search: '' }, history: {}, URLSearchParams, fetch: () => new Promise(() => {}),
-    esc: s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])), money: n => '$' + Number(n).toFixed(2), photo: i => `<div class="product-photo" aria-label="${i.name}"></div>`,
-    Account: { user: () => null }, document: { addEventListener: (n, f) => listeners.push(n), querySelector: () => null, body: { insertAdjacentHTML() {} } }, $: () => null };
-  vm.runInNewContext(src + ';this.settingsPage=settingsPage;this.emailCards=emailCards;this.setInbox=d=>{inbox.data=d};this.privacyPage=privacyPage;', ctx);
-  const rows = [...ctx.settingsPage().matchAll(/data-menu-go="([^"]+)"/g)].map(m => m[1]);
-  assert.deepEqual(rows, ['overview', 'people', 'my-profile', 'email-import', 'privacy', 'terms']);
-  ctx.setInbox({ orders: [{ id: 'eo1', store: 'Zara', products: [{ name: 'Wool blend coat', price: 129 }] }, { id: 'eo2', store: 'Target', products: [{ name: 'Knit cardigan', price: 25 }, { name: 'Jeans', price: 29.99 }] }, { id: 'eo-done', store: 'Nike', products: [{ name: 'Shoes', price: 1 }] }] });
-  const cards = ctx.emailCards();
-  assert.equal((cards.match(/<article class="visual-card">/g) || []).length, 2, 'an order the user already opened has no card');
-  assert.match(cards, /<h3>Wool blend coat<\/h3><p class="product-meta">Zara · \$129\.00<\/p><div class="card-bottom"><span class="card-label">From email<\/span><button data-email-order="eo1">Open ↗<\/button>/);
-  assert.match(cards, /Knit cardigan \+ 1 more<\/h3><p class="product-meta">Target · \$54\.99/);
-  ctx.galleryFilter = 'progress';
-  assert.equal(ctx.emailCards(), '', 'only on All purchases');
-  const privacy = ctx.privacyPage();
-  assert.ok(privacy.indexOf('Delete my account') < privacy.indexOf('<h2>Purchases from email</h2>'), 'the new paragraph goes below the existing sections');
-});

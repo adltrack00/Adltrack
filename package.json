@@ -1,8 +1,8 @@
 {
-  "name": "returnly",
+  "name": "adltrack",
   "version": "0.2.0",
   "private": true,
-  "description": "Adltrack: purchase return deadlines, checklists, refunds and store credit tracking",
+  "description": "Adltrack: the care plan after a hospital stay, with medication reminders, refills and a shared daily care report",
   "scripts": {
     "dev": "node server.js",
     "start": "node server.js",

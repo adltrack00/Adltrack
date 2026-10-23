@@ -1,7 +1,7 @@
 {
   "name": "Adltrack",
   "short_name": "Adltrack",
-  "description": "A gentle nudge to return your purchases before their windows close.",
+  "description": "The discharge papers turned into a daily checklist with reminders and refills, shared with the care team.",
   "start_url": "/app.html",
   "scope": "/",
   "display": "standalone",
