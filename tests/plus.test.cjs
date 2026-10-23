@@ -78,10 +78,10 @@ async function boot() {
     };
     return call;
   };
-  const signUp = async (name, address) => { const c = client(); assert.equal((await c('POST', '/api/signup', { name, email: address, password: 'password123' })).status, 201); c.id = (await c('GET', '/api/me')).body.team.patient; return c; };
+  const signUp = async (name, address) => { const c = client(); assert.equal((await c('POST', '/api/signup', { name, email: address, password: 'Care-plan-2026' })).status, 201); c.id = (await c('GET', '/api/me')).body.team.patient; return c; };
   const join = async (admin, c, name, address, role, perms = {}) => {
     const link = (await admin('POST', '/api/team/members', { name, email: address, role, perms })).body.invite.link;
-    assert.equal((await c('POST', '/api/invite/accept', { token: link.split('#t=')[1] })).status, 200);
+    assert.equal((await c('POST', '/api/invite/accept', { consent: true, token: link.split('#t=')[1] })).status, 200);
   };
   return { signUp, join, close: () => new Promise(r => server.close(r)) };
 }

@@ -28,14 +28,14 @@ async function boot() {
       return { status: res.status, body: await res.json().catch(() => null) };
     };
   };
-  const signUp = async (name, address) => { const c = client(); assert.equal((await c('POST', '/api/signup', { name, email: address, password: 'password123' })).status, 201); return c; };
+  const signUp = async (name, address) => { const c = client(); assert.equal((await c('POST', '/api/signup', { name, email: address, password: 'Care-plan-2026' })).status, 201); return c; };
   const george = await signUp('George', 'george@example.com');
   assert.equal((await george('POST', '/api/items', MED)).status, 201);
   assert.equal((await george('PUT', '/api/settings', { settings: { quietStart: '22:00' }, profile: { name: 'Dad' } })).status, 200);
   const join = async (name, address, role, perms = {}) => {
     const add = await george('POST', '/api/team/members', { name, email: address, role, perms });
     const c = await signUp(name, address);
-    assert.equal((await c('POST', '/api/invite/accept', { token: add.body.invite.link.split('#t=')[1] })).status, 200);
+    assert.equal((await c('POST', '/api/invite/accept', { consent: true, token: add.body.invite.link.split('#t=')[1] })).status, 200);
     return c;
   };
   return {

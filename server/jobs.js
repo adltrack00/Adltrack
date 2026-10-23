@@ -4,7 +4,7 @@
 const HOUR = 60 * 60 * 1000;
 
 function createJobs({ store, intervalMs = 5000, staleMs = 10 * 60 * 1000, log = console }) {
-  const handlers = new Map(), recurring = new Map();
+  const handlers = new Map(), recurring = new Map(), finished = new Map();
   let timer = null, running = null, stopped = true;
 
   /* handler(payload, job) does the work; throwing retries it. */
@@ -29,6 +29,7 @@ function createJobs({ store, intervalMs = 5000, staleMs = 10 * 60 * 1000, log = 
       if (!handler) throw new Error(`Unknown job: ${job.name}`);
       await handler(job.payload, job);
       await store.completeJob(job.id);
+      finished.set(job.name, Date.now());
     } catch (err) {
       const message = String(err && err.message || err).slice(0, 500);
       if (job.attempts < job.maxAttempts && handler) await store.retryJob(job.id, message, new Date(Date.now() + backoff(job.attempts)));
@@ -56,7 +57,10 @@ function createJobs({ store, intervalMs = 5000, staleMs = 10 * 60 * 1000, log = 
   }
   async function stop() { stopped = true; clearTimeout(timer); if (running) await running.catch(() => {}); }
 
-  return { define, enqueue, runOnce, drain, start, stop };
+  // When a job last finished without an error on this server (for the health check), or null.
+  const lastRun = name => finished.get(name) || null;
+
+  return { define, enqueue, runOnce, drain, start, stop, lastRun };
 }
 
 /* The jobs this server runs. */
@@ -65,6 +69,7 @@ function defineJobs(jobs, { store, storage, data = null, reminders = null }) {
   jobs.define('maintenance.cleanup', async () => {
     await store.deleteExpiredSessions();
     await store.deleteExpiredPasswordResets();
+    await store.deleteOldSignIns(new Date(Date.now() - 90 * 24 * HOUR));
     await store.deleteFinishedJobs(new Date(Date.now() - 30 * 24 * HOUR));
     // Cached drop-off places (ids and coordinates) are kept for at most 30 days, as the places provider's terms require.
     await store.deleteOldPlaceCache(new Date(Date.now() - 30 * 24 * HOUR));

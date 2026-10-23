@@ -10,7 +10,7 @@ function menu({ items = [], can = true, saved = [] } = {}) {
   const ctx = { render() {}, gallery: () => '', profileHeader: () => '', profileTools: () => '', items, view: 'overview', profile: {}, toast(m) { ctx.toasted = m; }, setTimeout() {}, location: { search: '' }, history: {}, URLSearchParams, fetch: () => new Promise(() => {}),
     esc: s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])), mayDo: () => can, save: () => saved.push(1), whenToCall: () => [], call911: '<a href="tel:911">Call 911</a>', NO_SIGNS: 'Call your doctor or pharmacist with any concern. In an emergency, call 911.', telLink: (l, p) => p ? `<a href="tel:${p}">${l}</a>` : '',
     Account: { user: () => ({ email: 'george@example.com', admin: true }) }, document: { addEventListener: (n, f) => (listeners[n] = listeners[n] || []).push(f), querySelector: () => null, body: { insertAdjacentHTML() {} } }, $: () => null };
-  vm.runInNewContext(read('menu.js') + ';this.menuPages=menuPages;this.careContacts=careContacts;', ctx);
+  vm.runInNewContext(read('legal.js') + read('menu.js') + ';this.menuPages=menuPages;this.careContacts=careContacts;', ctx);
   return { ctx, listeners };
 }
 const strip = html => html.replace(/<[^>]+>/g, ' ');

@@ -57,7 +57,7 @@ async function boot(databaseUrl, { withPush = true, at = () => new Date() } = {}
       return { status: res.status, headers: res.headers, body: (res.headers.get('content-type') || '').startsWith('application/json') ? await res.json() : await res.text() };
     };
   };
-  const signUp = async name => { const c = client(); const r = await c('POST', '/api/signup', { name, email: `${name.toLowerCase()}@example.com`, password: 'password123' }); assert.equal(r.status, 201); return c; };
+  const signUp = async name => { const c = client(); const r = await c('POST', '/api/signup', { name, email: `${name.toLowerCase()}@example.com`, password: 'Care-plan-2026' }); assert.equal(r.status, 201); return c; };
   const userId = async email => (await store.findUserByEmail(email)).id;
   return { store, jobs, service, clock, reminders, base, client, signUp, userId, close: async () => { await jobs.stop(); await new Promise(r => server.close(r)); await store.close(); } };
 }
@@ -185,7 +185,7 @@ for (const [label, db] of STORES) {
       assert.equal((await app.store.listPushSubscriptions(benId)).length, 0);
       // Deleting the account deletes its subscriptions and reminder days.
       await app.store.claimReminderDay(anaId, today, 'app');
-      assert.equal((await ana('DELETE', '/api/account', { password: 'password123' })).status, 200);
+      assert.equal((await ana('DELETE', '/api/account', { password: 'Care-plan-2026' })).status, 200);
       assert.deepEqual(await app.store.listPushSubscriptions(anaId), []);
       assert.deepEqual((await app.store.reminderCandidates()).filter(c => c.userId === anaId), []);
     } finally { await app.close(); }

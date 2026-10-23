@@ -141,7 +141,7 @@ Prices decided by George on 2026-10-22, counting everyone on the team, the admin
 
 ## 9. Go live properly
 
-**Status:** To do.
+**Status:** In review. Code: `render.yaml` (Starter web service, paid Postgres), `server/health.js` (`/api/health` answers 503 and emails `ALERT_EMAIL` when reminders stop), `server/security.js` (strong passwords, shared phone sign-out, device names), the `sign_ins` table and Security and privacy in `menu.js`, `legal.js` and `legal.html` (privacy policy and terms), the consent box on `join.html` (`team_members.consented_at`). George's steps and the HIPAA list: [go-live.md](go-live.md). Still George's: switching the live site to the paid plans, `ALERT_EMAIL`, and approving the privacy policy and terms.
 **Needs:** steps 1–6 merged.
 **Build:**
 - Render Starter web service (so reminders never sleep) and a paid Postgres with daily backups. Photos stay in Cloudflare R2.

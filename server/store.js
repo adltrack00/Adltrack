@@ -20,6 +20,20 @@ create table if not exists sessions (
   expires_at timestamptz not null
 );
 create index if not exists sessions_user_idx on sessions(user_id);
+-- Sign out after inactivity: when the session was last used, and whether it's on a shared phone (signed out after 15 minutes).
+alter table sessions add column if not exists created_at timestamptz not null default now();
+alter table sessions add column if not exists last_seen timestamptz not null default now();
+alter table sessions add column if not exists shared boolean not null default false;
+-- Sign-in history (Security and privacy): each sign-in or wrong password, with the kind of device. Kept 90 days.
+create table if not exists sign_ins (
+  id bigserial primary key,
+  user_id uuid not null references users(id) on delete cascade,
+  at timestamptz not null default now(),
+  method text not null,
+  device text not null default '',
+  ok boolean not null default true
+);
+create index if not exists sign_ins_user_idx on sign_ins(user_id, at desc);
 create table if not exists user_data (
   user_id uuid primary key references users(id) on delete cascade,
   payload jsonb not null,
@@ -324,7 +338,9 @@ create table if not exists family_plans (
   stripe_customer text unique,
   plan jsonb not null default '{}',
   updated_at timestamptz not null default now()
-);`;
+);
+-- When the person agreed, on the invite page, to the terms and privacy policy and to sharing health information with this team.
+alter table team_members add column if not exists consented_at timestamptz;`;
 
 const PURCHASE_COLUMNS = 'id, store, channel, order_number as "orderNumber", purchased, delivered, source, retailer_id as "retailerId", receipt_file_id as "receiptFileId", receipt_pages as "receiptPages"';
 const JOB_COLUMNS = 'id, name, payload, unique_key as "uniqueKey", status, run_at as "runAt", attempts, max_attempts as "maxAttempts", last_error as "lastError"';
@@ -362,7 +378,12 @@ function pgStore(connectionString) {
     findUserByEmail: email => one('select id, email, name, password_hash as "passwordHash" from users where email=$1', [email]),
     findUserById: id => one('select id, email, name from users where id=$1', [id]),
     async createSession(userId, tokenHash, expiresAt) { await pool.query('insert into sessions (token_hash, user_id, expires_at) values ($1,$2,$3)', [tokenHash, userId, expiresAt]); },
-    findSession: tokenHash => one('select user_id as "userId", expires_at as "expiresAt" from sessions where token_hash=$1', [tokenHash]),
+    findSession: tokenHash => one('select user_id as "userId", expires_at as "expiresAt", last_seen as "lastSeen", shared from sessions where token_hash=$1', [tokenHash]),
+    async touchSession(tokenHash) { await pool.query('update sessions set last_seen=now() where token_hash=$1', [tokenHash]); },
+    async setSessionShared(tokenHash, shared) { await pool.query('update sessions set shared=$2, last_seen=now() where token_hash=$1', [tokenHash, !!shared]); },
+    async addSignIn({ userId, method, device, ok }) { await pool.query('insert into sign_ins (user_id, method, device, ok) values ($1,$2,$3,$4)', [userId, method, device, ok]); },
+    listSignIns: (userId, limit = 10) => all('select at, method, device, ok from sign_ins where user_id=$1 order by at desc, id desc limit $2', [userId, limit]),
+    async deleteOldSignIns(before) { return (await pool.query('delete from sign_ins where at < $1', [before])).rowCount; },
     async deleteSession(tokenHash) { await pool.query('delete from sessions where token_hash=$1', [tokenHash]); },
     async deleteExpiredSessions() { return (await pool.query('delete from sessions where expires_at < now()')).rowCount; },
     async deleteUser(userId) { await pool.query('delete from users where id=$1', [userId]); },
@@ -662,7 +683,7 @@ function pgStore(connectionString) {
     deleteMember: (ownerId, id) => one(`delete from team_members where owner_id=$1 and id=$2 returning ${MEMBER_COLUMNS}`, [ownerId, id]),
     findInvite: inviteHash => one(`select ${MEMBER_COLUMNS} from team_members where invite_hash=$1 and user_id is null`, [inviteHash]),
     async joinMember(id, userId) {
-      try { return await one(`update team_members set user_id=$2, joined_at=now(), invite_hash=null where id=$1 and user_id is null returning ${MEMBER_COLUMNS}`, [id, userId]); }
+      try { return await one(`update team_members set user_id=$2, joined_at=now(), consented_at=now(), invite_hash=null where id=$1 and user_id is null returning ${MEMBER_COLUMNS}`, [id, userId]); }
       catch (err) { if (err.code === '23505') throw Object.assign(new Error('exists'), { code: 'EXISTS' }); throw err; }
     },
     async close() { await pool.end(); }
@@ -675,7 +696,7 @@ function fileStore(file) {
     if (db) return db;
     try { db = JSON.parse(await fs.readFile(file, 'utf8')); } catch { db = {}; }
     // Files written before the data foundation only have users, sessions and data.
-    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, places: {}, lookups: {}, reports: {}, approved: [], snapshots: {}, flags: {}, notices: {}, push: {}, reminderDays: {}, doseReminders: {}, optouts: {}, alertPrefs: {}, resets: {}, inboxAddresses: {}, inboxConnections: {}, inboxMessages: {}, emailOrders: {}, oauthStates: {}, identities: {}, members: {}, plans: {}, ...db };
+    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, places: {}, lookups: {}, reports: {}, approved: [], snapshots: {}, flags: {}, notices: {}, push: {}, reminderDays: {}, doseReminders: {}, optouts: {}, alertPrefs: {}, resets: {}, inboxAddresses: {}, inboxConnections: {}, inboxMessages: {}, emailOrders: {}, oauthStates: {}, identities: {}, members: {}, plans: {}, signIns: [], ...db };
     return db;
   };
   // Serialise writes so concurrent requests can't interleave partial files.
@@ -704,8 +725,13 @@ function fileStore(file) {
     },
     async findUserByEmail(email) { await load(); return Object.values(db.users).find(u => u.email === email) || null; },
     async findUserById(id) { await load(); return publicUser(db.users[id]) || null; },
-    async createSession(userId, tokenHash, expiresAt) { await load(); db.sessions[tokenHash] = { userId, expiresAt: expiresAt.toISOString() }; await persist(); },
-    async findSession(tokenHash) { await load(); const s = db.sessions[tokenHash]; return s ? { userId: s.userId, expiresAt: new Date(s.expiresAt) } : null; },
+    async createSession(userId, tokenHash, expiresAt) { await load(); db.sessions[tokenHash] = { userId, expiresAt: expiresAt.toISOString(), lastSeen: now() }; await persist(); },
+    async findSession(tokenHash) { await load(); const s = db.sessions[tokenHash]; return s ? { userId: s.userId, expiresAt: new Date(s.expiresAt), lastSeen: new Date(s.lastSeen || Date.now()), shared: !!s.shared } : null; },
+    async touchSession(tokenHash) { await load(); const s = db.sessions[tokenHash]; if (s) { s.lastSeen = now(); await persist(); } },
+    async setSessionShared(tokenHash, shared) { await load(); const s = db.sessions[tokenHash]; if (s) { s.shared = !!shared; s.lastSeen = now(); await persist(); } },
+    async addSignIn({ userId, method, device, ok }) { await load(); db.signIns.push({ userId, at: now(), method, device, ok }); await persist(); },
+    async listSignIns(userId, limit = 10) { await load(); return db.signIns.filter(x => x.userId === userId).reverse().slice(0, limit).map(({ at, method, device, ok }) => ({ at, method, device, ok })); },
+    async deleteOldSignIns(before) { await load(); const n = db.signIns.length; db.signIns = db.signIns.filter(x => new Date(x.at) >= before); if (n !== db.signIns.length) await persist(); return n - db.signIns.length; },
     async deleteSession(tokenHash) { await load(); delete db.sessions[tokenHash]; await persist(); },
     async deleteExpiredSessions() {
       await load(); let n = 0;
@@ -729,6 +755,7 @@ function fileStore(file) {
       for (const [k, st] of Object.entries(db.oauthStates)) if (st.userId === userId) delete db.oauthStates[k];
       for (const [k, i] of Object.entries(db.identities)) if (i.userId === userId) delete db.identities[k];
       for (const [k, m] of Object.entries(db.members)) if (m.userId === userId || m.ownerId === userId) delete db.members[k];
+      db.signIns = db.signIns.filter(x => x.userId !== userId);
       await persist();
     },
     async syncPolicies(versions) {
@@ -1086,7 +1113,7 @@ function fileStore(file) {
       const m = db.members[id];
       if (!m || m.userId) return null;
       if (Object.values(db.members).some(x => x.userId === userId && x.ownerId === m.ownerId)) throw Object.assign(new Error('exists'), { code: 'EXISTS' });
-      Object.assign(m, { userId, joinedAt: now(), inviteHash: null }); await persist();
+      Object.assign(m, { userId, joinedAt: now(), consentedAt: now(), inviteHash: null }); await persist();
       return memberOut(m);
     },
     async close() { await queue; }

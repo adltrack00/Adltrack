@@ -128,7 +128,7 @@ async function boot(t, databaseUrl, { client = mockClient(), pages = {} } = {}) 
       const set = res.headers.get('set-cookie'); if (set) cookie = set.split(';')[0];
       return { status: res.status, json: await res.json().catch(() => null) };
     };
-    const r = await call('POST', '/api/signup', { name: email.split('@')[0], email, password: 'password123' });
+    const r = await call('POST', '/api/signup', { name: email.split('@')[0], email, password: 'Care-plan-2026' });
     assert.equal(r.status, 201);
     return Object.assign(call, { user: r.json.user });
   };
@@ -208,7 +208,7 @@ for (const [kind, databaseUrl] of STORES) test(`"Is this wrong?" reports are sav
   assert.equal(await createReview({ store: app.store, policies: fresh, admins: [] }).loadApproved(), 1);
   assert.equal(fresh.match('Maison Lune').id, 'maison-lune');
   // Deleting the account deletes its reports, notices and usage counts.
-  assert.equal((await ana('DELETE', '/api/account', { password: 'password123' })).status, 200);
+  assert.equal((await ana('DELETE', '/api/account', { password: 'Care-plan-2026' })).status, 200);
 });
 
 for (const [kind, databaseUrl] of STORES) test(`the weekly freshness check flags meaningful changes, and an approved earlier deadline updates items and tells their owners (${kind})`, async t => {
