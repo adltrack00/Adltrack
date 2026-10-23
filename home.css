@@ -192,9 +192,9 @@ body.not-home #main>.page-heading{margin-top:0}
 /* My Tasks: a finished task keeps its name as written, dark, with a line through it. The daily report has no lines, so it
    reads cleanly. */
 .tasks-sheet .home-today .today-row.is-done .today-what strong{color:#000;font-weight:500;text-decoration:line-through;text-decoration-thickness:1.5px}
-/* The + right after the My Tasks title (plus.js): the round white back button, with a plus the size of its arrow. Its forms use the Take card's grey
+/* The + at the top right of My Tasks, across from its title (plus.js): the round white back button, with a plus the size of its arrow. Its forms use the Take card's grey
    blocks, with white fields like its note. */
-.tasks-title{display:flex;align-items:center;gap:14px;margin:6px 0 0}
+.tasks-title{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:6px 0 0}
 .tasks-top .tasks-title h2{margin:0}
 .tasks-plus{flex:none;width:46px;height:46px;border:0;padding:0;display:grid;place-items:center;color:#111;background:#fff;border-radius:50%;box-shadow:0 6px 26px rgba(0,0,0,.09),0 1px 3px rgba(0,0,0,.05);cursor:pointer}
 .tasks-plus .menu-icon{width:24px;height:24px;stroke-width:2}
