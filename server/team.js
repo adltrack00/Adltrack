@@ -24,7 +24,7 @@ function permsFor(role, p = {}) {
   return { tasks: false, addTasks: false, meds: false };
 }
 
-function createTeam({ store, email = null, sms = null }) {
+function createTeam({ store, email = null, sms = null, billing = null }) {
   /* Whose care plan this account works on, and what it may do there. Someone on no team works on their own plan. Someone on
      several teams works on the one the app asked for (wanted, the plan's owner id), or their first; patients lists them all. */
   async function access(user, wanted = null) {
@@ -70,7 +70,8 @@ function createTeam({ store, email = null, sms = null }) {
       members = [{ id: 'owner', ownerId: a.ownerId, userId: a.ownerId, name: owner.name, email: owner.email, phone: '', role: 'admin', perms: ALL }];
     }
     const admin = a.role === 'admin';
-    return { me: { role: a.role, perms: a.perms, owner: a.owner }, members: members.map(m => out(m, user.id, admin)) };
+    // Whether this family's plan lets admins add people (a lapsed plan doesn't).
+    return { me: { role: a.role, perms: a.perms, owner: a.owner }, members: members.map(m => out(m, user.id, admin)), ...(admin && billing ? { plan: await billing.brief(a.ownerId) } : {}) };
   }
 
   /* The owner gets their own row when the first person is added, so they show on the list and can tick My Tasks. */
@@ -113,7 +114,7 @@ function createTeam({ store, email = null, sms = null }) {
       catch (err) { console.error('Invite email failed:', err.message); }
     }
     if (sms && sms.available() && member.phone) {
-      try { await sms.sendInvite(member.phone, { inviter, role, link }); texted = true; }
+      try { await sms.sendInvite(member.phone, { inviter, role, link }); texted = true; if (billing) await billing.countText(member.ownerId); }
       catch (err) { console.error('Invite text failed:', err.message); }
     }
     return { link, emailed, texted };
@@ -123,6 +124,7 @@ function createTeam({ store, email = null, sms = null }) {
   async function add(user, body, base, wanted = null) {
     const a = await requireAdmin(user, wanted);
     const fields = clean(body || {});
+    if (billing) await billing.requireRoom(a.ownerId);
     const address = normEmail(body.email);
     if (!validEmail(address)) throw new TeamError(400, 'Enter a valid email address.');
     await ensureOwner(a.ownerId);
@@ -155,6 +157,7 @@ function createTeam({ store, email = null, sms = null }) {
 
   async function resend(user, id, base, wanted = null) {
     const a = await requireAdmin(user, wanted);
+    if (billing) await billing.requireActive(a.ownerId);
     const { token, hash } = newToken();
     const member = await store.setMemberInvite(a.ownerId, id, hash);
     if (!member) throw new TeamError(404, 'That person has already joined.');

@@ -11,6 +11,7 @@ const { mergeMarks, mergeVitals } = require('./items');
 const { ACTIONS, KINDS } = require('./email');
 const { createTeam } = require('./team');
 const { createPermissions } = require('./permissions');
+const { createBilling } = require('./billing');
 const { printedWindow } = require('./receipts');
 const { dischargeDraft, MAX_PAGES: MAX_DISCHARGE_PAGES } = require('./discharge');
 const { compare: compareLabel, MAX_PHOTOS: MAX_LABEL_PHOTOS } = require('./label');
@@ -136,8 +137,9 @@ function receiptDraft(receipt, policy) {
   };
 }
 
-function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, discharge = null, labels = null, places = null, review = null, push = null, reminders = null, email = null, supportEmail = '', inbox = null, oauth = null, publicUrl = '', inboundSecret = '', sms = null, team = null }) {
-  team = team || createTeam({ store, email, sms });
+function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, discharge = null, labels = null, places = null, review = null, push = null, reminders = null, email = null, supportEmail = '', inbox = null, oauth = null, publicUrl = '', inboundSecret = '', sms = null, team = null, billing = null }) {
+  billing = billing || createBilling({ store });
+  team = team || createTeam({ store, email, sms, billing });
   const authLimit = limiter(20, 15 * 60 * 1000);
   // Each classification is an AI call, so it's limited per account.
   const classifyLimit = limiter(300, 60 * 60 * 1000);
@@ -416,6 +418,13 @@ function createApp({ store, data, production = false, policies = null, classifie
       let event; try { event = JSON.parse(raw.toString('utf8')); } catch { throw new HttpError(400, 'Invalid request.'); }
       return send(res, 200, await inbox.inbound(event));
     }
+    // Stripe: payments and subscription changes for a family's plan, signed with STRIPE_WEBHOOK_SECRET.
+    if (route === '/api/stripe/webhook' && method === 'POST') {
+      const raw = await readRaw(req, 1024 * 1024);
+      if (!billing.stripe || !billing.stripe.verify(req.headers['stripe-signature'], raw)) throw new HttpError(401, 'Unauthorized.');
+      let event; try { event = JSON.parse(raw.toString('utf8')); } catch { throw new HttpError(400, 'Invalid request.'); }
+      return send(res, 200, await billing.webhook(event));
+    }
     // Microsoft Graph: the subscription handshake echoes validationToken; notifications only say that mail arrived.
     if (route === '/api/inbox/outlook/notify' && method === 'POST') {
       const token = new URL(req.url, 'http://localhost').searchParams.get('validationToken');
@@ -460,6 +469,14 @@ function createApp({ store, data, production = false, policies = null, classifie
       if (!linkLimit('ip:' + clientIp(req))) throw new HttpError(429, 'Too many attempts. Try again in a few minutes.');
       return send(res, 200, await team.accept(user, (await readBody(req, 2_000)).token));
     }
+
+    // Settings → Plan: this family's plan, paid by its admins. Caregivers and viewers never pay.
+    if (route === '/api/plan' && method === 'GET') return send(res, 200, await billing.view(access));
+    if (route === '/api/plan/trial' && method === 'POST') { checkWrite(req); return send(res, 200, await billing.trial(access)); }
+    if (route === '/api/plan/checkout' && method === 'POST') { checkWrite(req); return send(res, 200, await billing.checkout(access, user, baseUrl(req), (await readBody(req, 2_000)).tier)); }
+    if (route === '/api/plan/change' && method === 'POST') { checkWrite(req); return send(res, 200, await billing.change(access, (await readBody(req, 2_000)).tier)); }
+    if (route === '/api/plan/confirm' && method === 'POST') { checkWrite(req); return send(res, 200, await billing.confirm(access, (await readBody(req, 2_000)).session)); }
+    if (route === '/api/plan/portal' && method === 'POST') { checkWrite(req); return send(res, 200, await billing.portal(access, baseUrl(req))); }
 
     // Purchases from email: the forwarding address, connected inboxes and the orders found that haven't been opened yet.
     if (route.startsWith('/api/inbox')) {
