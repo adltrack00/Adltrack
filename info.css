@@ -1,0 +1,53 @@
+/* Patient information (info.js): the patient's photo and name at the top, then the plus list's white rounded cards with a
+   soft shadow, one per subject, each with Edit for people who may change it. */
+#main>.profile-hero:not(.profile-hero-compact) div.profile-circle,#flow-profile{cursor:pointer}
+#main>.profile-hero div.profile-circle:focus-visible{outline:2px solid #111;outline-offset:3px}
+.info-top{text-align:center;margin:0 0 22px}
+.info-top .profile-circle{width:104px;height:104px;font-size:34px;margin:0 auto 14px;border-radius:50%;overflow:hidden;padding:0;display:grid;place-items:center;background:#efeeec}
+.info-top .profile-circle img{width:100%;height:100%;object-fit:cover;display:block}
+body.not-home #main>.info-page>.info-top .sub-title,.info-top .sub-title{margin:0 0 6px}
+.info-top p{margin:0;font-size:15px;color:#666}
+.info-card{background:#fff;border-radius:16px;box-shadow:0 0 0 1px rgba(0,0,0,.04),0 2px 10px rgba(0,0,0,.06);padding:20px 24px;margin:0 -12px 12px}
+.info-card h2{font-size:19px;margin:0;letter-spacing:-.01em}
+.info-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}
+.info-edit{border:0;background:none;padding:8px 0;font:inherit;font-size:14px;font-weight:600;color:#194cb5;cursor:pointer}
+.info-card dl{margin:0}
+.info-row{padding:11px 0;border-top:1px solid #f0f0f0}.info-row:first-child{border-top:0}
+.info-row dt{font-size:12.5px;color:#777;margin-bottom:3px}
+.info-row dd{margin:0;font-size:15.5px;line-height:1.45;color:#111;overflow-wrap:anywhere}
+.info-row dd.is-empty{color:#aaa}
+.info-row ul,.info-meds{margin:0;padding:0;list-style:none}.info-row li+li{margin-top:3px}
+.info-age{color:#777}
+.info-meds li{padding:10px 0;border-top:1px solid #f0f0f0}.info-meds li:first-child{border-top:0}
+.info-meds strong{display:block;font-size:15.5px;font-weight:600}.info-meds small{display:block;font-size:13px;color:#777;margin-top:2px}
+.info-none{margin:6px 0 4px;font-size:14px;color:#777;line-height:1.5}
+.info-ems{display:flex;align-items:center;justify-content:space-between;gap:18px}
+.info-ems p{margin:4px 0 0;font-size:14px;color:#666;line-height:1.45}
+.info-ems .primary{width:auto;flex:none;margin:0;font-size:13px}
+.info-card.is-editing .guided-form h2{margin-bottom:4px}
+.info-card .guided-form label{margin:16px 0}
+.info-card .guided-form textarea,.info-card .guided-form select{width:100%;border:1px solid #ddd;border-radius:8px;padding:13px;font-size:14px;margin-top:8px;font-family:inherit;color:#111;background:#fff;resize:vertical;line-height:1.45}
+.info-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}
+.info-actions .primary,.info-actions .outline-button{width:100%;margin:0;min-height:46px}
+@media(max-width:650px){.info-card{margin:0 -8px 10px;padding:18px 20px}.info-ems{flex-direction:column;align-items:stretch}.info-ems .primary{width:100%}}
+
+/* The EMS sheet: the same card, laid out as one printed page. Code status and allergies first, in boxes. */
+.ems-sheet{background:#fff;border-radius:16px;box-shadow:0 0 0 1px rgba(0,0,0,.04),0 2px 10px rgba(0,0,0,.06);padding:24px;margin:0 -12px 16px}
+.ems-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding-bottom:16px;border-bottom:2px solid #111}
+.ems-eyebrow{display:block;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#777}
+.ems-head h2{font-size:26px;margin:6px 0 4px}.ems-head p{margin:0;font-size:14px;color:#444}
+.ems-code{flex:none;width:210px;text-align:center}.ems-code svg{width:210px;height:210px;display:block}.ems-code small{display:block;font-size:11px;color:#777;margin-top:4px}
+.ems-alerts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0 6px}
+.ems-alert{border:2px solid #111;border-radius:12px;padding:12px 14px}
+.ems-alert span{display:block;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#777;margin-bottom:4px}
+.ems-alert strong{display:block;font-size:17px;line-height:1.35}.ems-alert small{display:block;font-size:12.5px;color:#555;margin-top:4px}
+.ems-list{margin:0}
+.ems-row{display:grid;grid-template-columns:150px minmax(0,1fr);gap:14px;padding:9px 0;border-bottom:1px solid #eee;font-size:14px;line-height:1.45}
+.ems-row dt{color:#777}.ems-row dd{margin:0;color:#111;overflow-wrap:anywhere}
+.ems-foot{margin:14px 0 0;font-size:12px;color:#777}
+.ems-page #ems-print{margin-top:0;width:100%}
+@media(max-width:650px){.ems-sheet{margin:0 -8px 14px;padding:18px}.ems-head{flex-direction:column-reverse;align-items:stretch}.ems-code{align-self:center;width:100%;max-width:300px}.ems-code svg{width:100%;height:auto}.ems-alerts{grid-template-columns:1fr}.ems-row{grid-template-columns:1fr;gap:2px}}
+@media print{body.ems-printing .global-header,body.ems-printing #ems-print,body.ems-printing .sub-top,body.ems-printing .sub-title,body.ems-printing #toast,body.ems-printing .app-footer{display:none!important}
+  body.ems-printing .ems-sheet{box-shadow:none;margin:0;padding:0}body.ems-printing .ems-page{padding:0;max-width:none}
+  body.ems-printing .ems-head{flex-direction:row}body.ems-printing .ems-alerts{grid-template-columns:1fr 1fr}body.ems-printing .ems-row{grid-template-columns:170px 1fr}
+  body.ems-printing .ems-row,body.ems-printing .ems-alert{break-inside:avoid}body.ems-printing a{color:#111;text-decoration:none}}
