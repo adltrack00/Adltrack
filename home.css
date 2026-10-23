@@ -127,25 +127,24 @@
 .tasks-body .home-today{margin:0}
 @media(max-width:650px){.tasks-top,.tasks-body{padding-left:20px;padding-right:20px}.tasks-top h2{font-size:30px}.tasks-sheet{height:70px}}
 /* Daily care report on Home (report.js): three tabs, then one page of a little note pad: cream paper with the pad's edges
-   under it. At the top, with no lines: "— Daily Care Report" in red, a little larger than the name, then the name, the date
-   under it in red, and Print on the right. From 01 down, blue lines and a red margin line, with each entry handwritten on the
+   under it. At the top, with no lines and in the lines' blue: "Daily Care Report", the name a little larger, and the
+   date under it the same size as the title, as tall as the old black banner; Print on the right. From 01 down, blue lines and a red margin line, with each entry handwritten on the
    lines: its number in the margin, the subhead with its time stamp on the right, the note, then the details in grey. */
 @font-face{font-family:'Caveat Adl';src:url(assets/caveat-var.woff2) format('woff2');font-weight:400 700;font-style:normal;font-display:swap}
 .report{margin:0 0 32px}
 .report-tabs{display:flex;justify-content:space-between;gap:12px;margin:0 0 20px;border-bottom:1px solid #eee}
 .report-tabs button{flex:1;font-size:14px;padding:12px 0;margin-bottom:-1px}
-.report-paper{--line:40px;--margin:52px;--gutter:16px;--ink:#1c1c1e;--pencil:#6d6f78;--red:#e2574f;position:relative;color:var(--ink);border-radius:3px;
+.report-paper{--line:40px;--margin:52px;--gutter:16px;--ink:#1c1c1e;--pencil:#6d6f78;--red:#e2574f;--blue:#a8c2ec;position:relative;color:var(--ink);border-radius:3px;
   background:#f8f6f1;
   box-shadow:0 1px 0 #e4e0d8,0 3px 0 #f3f0ea,0 4px 0 #ddd8ce,0 6px 0 #f1eee7,0 7px 0 #d8d2c7,0 18px 30px -12px rgba(0,0,0,.2)}
 /* The handwriting wins over the app-wide lettering in type.css. */
 .report-paper *{font-family:'Caveat Adl','Segoe Print','Bradley Hand',cursive!important}
-.report-banner{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:20px 16px 16px calc(var(--margin) + var(--gutter))}
-.report-banner span{display:flex;align-items:center;gap:10px;font-size:36px;font-weight:600;line-height:1.1;color:var(--red);white-space:nowrap}
-.report-banner span::before{content:'';width:22px;height:2.5px;background:var(--red)}
-.report-banner h2{font-size:32px;font-weight:700;line-height:1.15;margin:2px 0 0;letter-spacing:0;color:var(--ink)}
-.report-banner p{margin:-2px 0 0;font-size:28px;line-height:1.15;color:var(--red);white-space:nowrap}
-.report-banner button{flex:none;border:1.5px solid var(--ink);border-radius:20px;background:#f8f6f1;color:var(--ink);font-size:19px;line-height:28px;padding:0 14px}
-.report-grid{padding-bottom:calc(2*var(--line));background:linear-gradient(to right,transparent var(--margin),var(--red) var(--margin) calc(var(--margin) + 2px),transparent 0),repeating-linear-gradient(to bottom,#a8c2ec 0 2px,transparent 2px var(--line))}
+.report-banner{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:14px 16px 14px calc(var(--margin) + var(--gutter))}
+.report-banner span{display:block;font-size:20px;font-weight:600;line-height:1.1;color:var(--blue);white-space:nowrap}
+.report-banner h2{font-size:28px;font-weight:700;line-height:1.1;margin:1px 0;letter-spacing:0;color:var(--blue)}
+.report-banner p{margin:0;font-size:20px;font-weight:600;line-height:1.1;color:var(--blue);white-space:nowrap}
+.report-banner button{flex:none;align-self:center;border:1.5px solid var(--ink);border-radius:20px;background:#f8f6f1;color:var(--ink);font-size:19px;line-height:28px;padding:0 14px}
+.report-grid{padding-bottom:calc(2*var(--line));background:linear-gradient(to right,transparent var(--margin),var(--red) var(--margin) calc(var(--margin) + 2px),transparent 0),repeating-linear-gradient(to bottom,var(--blue) 0 2px,transparent 2px var(--line))}
 .report-section{position:relative;padding:0 16px 0 calc(var(--margin) + var(--gutter))}
 .report-section>*{position:relative;top:9px}
 .report-section h3{display:flex;align-items:flex-start;gap:10px;min-height:var(--line);line-height:var(--line);margin:0;font-size:24px;font-weight:700;letter-spacing:0}
@@ -175,7 +174,7 @@
 .photo-view .post-count{position:fixed;top:24px;left:16px;right:auto}
 .photo-view .post-dots{position:fixed;bottom:24px}
 .photo-view-x{position:fixed;z-index:1;top:16px;right:16px;width:40px;height:40px;border-radius:50%;background:#fff;color:#111;font-size:24px;line-height:1}
-@media(max-width:650px){.report-paper{--margin:40px;--gutter:12px}.report-banner{padding:16px 14px 14px 18px}.report-banner h2{font-size:30px}.report-banner span{font-size:33px}.report-banner p{font-size:25px}.report-section{padding-right:14px}.report-section h3{font-size:22px}.report-section p,.report-section li{font-size:21px}.report-photos{grid-template-columns:1fr 1fr;gap:12px}}
+@media(max-width:650px){.report-paper{--margin:40px;--gutter:12px}.report-banner{padding:12px 14px 12px 18px}.report-section{padding-right:14px}.report-section h3{font-size:22px}.report-section p,.report-section li{font-size:21px}.report-photos{grid-template-columns:1fr 1fr;gap:12px}}
 @media print{.global-header,.menu-open,.tasks-sheet,.report-tabs,#report-print,.profile-hero{display:none!important}#main{padding:0!important}.report-paper{box-shadow:none;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 /* Home: the profile picture sits a little higher and the report's tabs sit close under it. */
 #main>.profile-hero:not(.profile-hero-compact):has(+.report){margin-top:-58px;padding-bottom:14px}
