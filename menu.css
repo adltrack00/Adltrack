@@ -66,6 +66,9 @@ dialog.menu-drawer{width:min(72vw,280px)}
 .person-row span{text-align:left}.person-row small{display:block;font-size:13px;color:#888;margin-top:5px;line-height:1.4}
 div.person-row{cursor:default}div.person-row:hover{background:none}
 .people-add{margin-top:28px;width:100%}
+.people-list{border-bottom:1px solid #eee}
+.people-list .take-more{margin-top:0;border-bottom:0}
+.people-list .people-done{margin:4px 0 6px}
 .role-pick,.role-perms{border:0;padding:0;margin:26px 0 0}.role-pick legend,.role-perms legend{font-size:12px;padding:0;margin-bottom:4px}
 .guided-form .role-pick label,.guided-form .role-perms label{display:flex;gap:12px;align-items:flex-start;font-size:15px;color:#111;margin:16px 0;cursor:pointer}.guided-form .role-pick input,.guided-form .role-perms input{width:18px;height:18px;margin:2px 0 0;padding:0;flex:none;accent-color:#111}.guided-form .role-perms input:disabled+span{color:#888}
 .role-pick small{display:block;font-size:13px;color:#777;margin-top:4px;line-height:1.45;font-weight:400}
