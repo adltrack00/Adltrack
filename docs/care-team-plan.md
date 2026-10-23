@@ -132,7 +132,7 @@ Prices decided by George on 2026-10-22, counting everyone on the team, the admin
 
 ## 8. Clean up Settings, Support and the landing page
 
-**Status:** To do. Covers sections 14–17 of [adltrack-plan.md](adltrack-plan.md).
+**Status:** In review. Covers sections 14–17 of [adltrack-plan.md](adltrack-plan.md). Code: `menu.js` (Settings without email import or Policy review; My doctors and pharmacies; Support, Medications 101, Security and privacy and the terms rewritten), the guide in `app.html`, the landing page (`index.html`, `landing.html`), the sign-in pages' picture (`assets/care-editorial.jpg`), the hero (`campaign.png`, `assets/campaign-phone.jpg`) and the A icons. `tests/cleanup.test.cjs` checks the wording. The old purchase screens no one can reach any more still have Returnly words in their code; nothing shows them.
 **Needs:** nothing.
 **Build:** no return, refund, store, receipt or purchase words anywhere. Settings: remove Add purchases from email and Policy review, add My doctors and pharmacies. Support and the terms rewritten for Adltrack ("Adltrack doesn't give medical advice"). Landing page and sign up: "Bring them home. Keep them on track." with the care team in the story. Replace the clothing photos on the sign-in, sign-up and email pages.
 **Done when:** a search of every user-facing string finds no Returnly wording, and `npm test` passes.
