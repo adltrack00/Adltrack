@@ -72,7 +72,7 @@ menuItems.splice(menuItems.findIndex(([v])=>v==='history-log'),1);
    moves up to the top. */
 function paintMenuButton(){const b=$('#menu-open');if(!b)return;const back=view!=='overview';document.body.classList.toggle('not-home',back);
 if(b.classList.contains('is-back')===back)return;b.classList.toggle('is-back',back);b.setAttribute('aria-label',back?'Back':'Open menu');b.toggleAttribute('aria-haspopup',!back);if(!back)b.setAttribute('aria-haspopup','dialog');b.innerHTML=menuIcon(back?menuIcons.back:menuIcons.menu)}
-document.addEventListener('click',e=>{if(!e.target.closest('#menu-open.is-back'))return;e.stopPropagation();const own=$('#main .sub-back');go(own&&own.dataset.menuGo||'overview')},true);
+document.addEventListener('click',e=>{if(!e.target.closest('#menu-open.is-back'))return;e.stopPropagation();const flow=$('#flow-back');if(flow){flow.click();return}const own=$('#main .sub-back');go(own&&own.dataset.menuGo||'overview')},true);
 const renderBeforeBack=render;
 render=function(){const shown=[...document.querySelectorAll('.report-post .post-track')].map(t=>t.clientWidth?Math.round(t.scrollLeft/t.clientWidth):0);renderBeforeBack();paintMenuButton();
 /* A post stays on the photo it was swiped to when the page redraws. */

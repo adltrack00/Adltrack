@@ -90,6 +90,10 @@ button.flow-tab:focus-visible{outline:2px solid #111;outline-offset:2px}
 .flow-active .guided-top button{padding:10px 0}
 .flow-active .flow-tabs{margin:0 0 14px}
 }
+/* The scan pages use the app's round back button at the top left (report.js), so their own Back is hidden; it still does the
+   going back (out of the camera, or from Confirm to Scan). On phones its line keeps the steps under the header. */
+.flow-active #flow-back{visibility:hidden}.flow-active .guided-top{pointer-events:none}
+@media(min-width:601px){.flow-active .guided-top{display:none}}
 /* The camera box is narrower than its panel on phones (height-capped 3:4), so centre it. */
 .camera-window{margin-left:auto;margin-right:auto}
 

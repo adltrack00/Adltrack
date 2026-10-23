@@ -146,5 +146,7 @@ plusDraft=null;reportTab=d.date===today()?'today':d.date===C.shift(today(),-1)?'
 
 /* The forms aren't open to people who can't use them. */
 const renderBeforePlus=render;
-render=function(){if(view==='task-new'&&!mayAddTask()||view==='appt-new'&&!mayDo('meds')||view==='incident-new'&&!mayReport()||view==='plus'&&plusRows().length<2)view='overview';if(['task-new','appt-new','incident-new'].includes(view)&&!plusDraft)plusDraft=view==='task-new'?blankTaskDraft():view==='appt-new'?blankApptDraft():blankIncidentDraft();renderBeforePlus()};
+render=function(){if(view==='task-new'&&!mayAddTask()||view==='appt-new'&&!mayDo('meds')||view==='incident-new'&&!mayReport()||view==='plus'&&plusRows().length<2)view='overview';if(['task-new','appt-new','incident-new'].includes(view)&&!plusDraft)plusDraft=view==='task-new'?blankTaskDraft():view==='appt-new'?blankApptDraft():blankIncidentDraft();renderBeforePlus();
+/* The forms show the profile photo at the top right, where the scan pages have it. */
+syncFlowProfile()};
 render();
