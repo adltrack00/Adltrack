@@ -56,31 +56,52 @@ return out.sort((x,y)=>new Date(x.at)-new Date(y.at))};
 
 /* The + itself, at the top right across from the My Tasks title: the round white back button from the other pages, with a plus the size of
    its arrow. Someone who may do both picks one first; otherwise it opens the one they may do. */
-const plusButton=()=>mayAddTask()||mayReport()?`<button class="tasks-plus" id="tasks-plus" aria-label="Add a task or report an incident">${menuIcon('<path d="M12 5v14M5 12h14"/>')}</button>`:'';
+const plusButton=()=>mayAddTask()||mayReport()?`<button class="tasks-plus" id="tasks-plus" aria-label="Add to My Tasks">${menuIcon('<path d="M12 5v14M5 12h14"/>')}</button>`:'';
 /* Tapping an incident in My Tasks shows it in today's daily care report. */
 document.addEventListener('click',e=>{const b=e.target.closest('[data-today-start$="|incident"]');if(!b)return;e.stopImmediatePropagation();reportTab='today';setTasksOpen(false);view='overview';render();window.scrollTo(0,0)},true);
-document.addEventListener('click',e=>{if(!e.target.closest('#tasks-plus'))return;e.stopPropagation();go(mayAddTask()&&mayReport()?'plus':mayAddTask()?'task-new':'incident-new')});
+document.addEventListener('click',e=>{if(!e.target.closest('#tasks-plus'))return;e.stopPropagation();go(plusRows().length>1?'plus':mayAddTask()?'task-new':'incident-new')});
 
 /* What's being written, kept while a photo is added or the page redraws. */
 
 let plusDraft=null;
 const blankTaskDraft=()=>({what:'',note:'',date:today(),time:'',repeat:'once',days:[],until:C.shift(today(),YEAR_AHEAD),photos:[],busy:false});
+const blankApptDraft=()=>({with:'',place:'',date:'',time:'',phone:'',note:'',remind:[],busy:false});
+const APPT_REMINDS=[['week','A week before'],['two','2 days before'],['daily','Every day until then']];
 const blankIncidentDraft=()=>({kind:'',date:today(),time:hmNow(),note:'',witnesses:'',told:'',photos:[],busy:false});
 const plusPhotos=(d,id)=>`<section class="take-block"><div class="take-line"><h2>Photo <span>${d.photos.length} of ${PLUS_PHOTOS}</span></h2>${d.photos.length>=PLUS_PHOTOS?'':`<label class="take-add" for="${id}" aria-label="Add a photo">+</label>`}</div><input type="file" id="${id}" accept="image/*" multiple hidden>${proofRow(d.photos,true)}<p class="take-muted">Optional. Up to ${PLUS_PHOTOS} photos.</p></section>`;
 const plusField=(label,html)=>`<section class="take-block"><h2>${label}</h2>${html}</section>`;
 const plusRadios=(name,list,value)=>`<div class="plus-choice">${list.map(([v,l])=>`<label><input type="radio" name="${name}" value="${v}"${v===value?' checked':''}><span>${l}</span></label>`).join('')}</div>`;
 
-function plusPage(){return `<section class="sub-page settings-page">${subHeader('Add to My Tasks','overview')}<div class="settings-list">${settingsRow('task-new','New task')}${settingsRow('incident-new','Report an incident')}</div></section>`}
+/* The + list, in this order: a new task, the two scans (the discharge papers, or the medication bottles directly), an appointment
+   by hand, and an incident. The scans and the appointment open their usual screens through those screens' own buttons
+   (data-add, #flow-bottles), and only show for people allowed to add medications. An appointment is typed in by hand (who,
+   where, when, phone, note), for a visit booked over the phone; it shows in My Tasks on its day and on Your schedule ahead
+   of it, with the usual reminders plus any chosen (a week before, 2 days before, every day until then), which are only
+   messages (server/reminders.js), never My Tasks.
+   Appointments read from the papers are added on their own and show the same way once confirmed. */
+/* Each a white card with the My Tasks blue arrow, like the History list. */
+const plusRow=(attr,label)=>`<button class="plus-row" ${attr}><span>${label}</span>${TODAY_ARROW}</button>`;
+const plusRows=()=>[mayAddTask()&&plusRow('data-menu-go="task-new"','New task'),mayDo('meds')&&plusRow('data-add','Scan discharge papers'),mayDo('meds')&&plusRow('id="flow-bottles"','Scan medications'),mayDo('meds')&&plusRow('data-menu-go="appt-new"','Add appointment'),mayReport()&&plusRow('data-menu-go="incident-new"','Report an incident')].filter(Boolean);
+function plusPage(){return `<section class="sub-page settings-page">${subHeader('Add to My Tasks','overview')}<div class="plus-list">${plusRows().join('')}</div></section>`}
 function taskNewPage(){const d=plusDraft,last=C.shift(today(),YEAR_AHEAD);
-return `<section class="sub-page take-page plus-page">${subHeader('New task',mayReport()?'plus':'overview')}<form id="task-form" class="plus-form" novalidate>
+return `<section class="sub-page take-page plus-page">${subHeader('New task',plusRows().length>1?'plus':'overview')}<form id="task-form" class="plus-form" novalidate>
 ${plusField('What to do',`<input name="what" maxlength="100" required autocomplete="off" value="${esc(d.what)}" placeholder="Change the dressing on the left knee">`)}
 ${plusField('Note',`<textarea name="note" maxlength="500" placeholder="Anything to know (optional)">${esc(d.note)}</textarea>`)}
 ${plusPhotos(d,'plus-photo')}
 ${plusField('When',`<div class="plus-when"><input name="date" type="date" min="${today()}" max="${last}" value="${esc(d.date)}" aria-label="Date"><input name="time" type="time" value="${esc(d.time)}" aria-label="Time"></div>`)}
 ${plusField('Repeats',`${plusRadios('repeat',REPEATS,d.repeat)}${d.repeat==='days'?`<div class="plus-days">${TASK_DAYS.map((w,n)=>`<label><input type="checkbox" name="day" value="${n}"${d.days.includes(n)?' checked':''}><span>${w}</span></label>`).join('')}</div>`:''}${d.repeat!=='once'?`<label class="plus-until"><span>Until</span><input name="until" type="date" min="${esc(d.date||today())}" max="${last}" value="${esc(d.until)}"></label><p class="take-muted">Up to one year ahead.</p>`:''}`)}
 <button class="primary plus-save"${d.busy?' disabled':''}>Add the task</button></form></section>`}
+function apptNewPage(){const d=plusDraft;
+return `<section class="sub-page take-page plus-page">${subHeader('Add appointment',plusRows().length>1?'plus':'overview')}<form id="appt-new-form" class="plus-form" novalidate>
+${plusField('With',`<input name="with" maxlength="100" required autocomplete="off" value="${esc(d.with)}" placeholder="Dr. Patel">`)}
+${plusField('Where',`<input name="place" maxlength="200" autocomplete="off" value="${esc(d.place)}" placeholder="Clinic and address">`)}
+${plusField('When',`<div class="plus-when"><input name="date" type="date" min="${today()}" value="${esc(d.date)}" aria-label="Date"><input name="time" type="time" value="${esc(d.time)}" aria-label="Time"></div>`)}
+${plusField('Remind me',`<div class="plus-choice">${APPT_REMINDS.map(([v,l])=>`<label><input type="checkbox" name="remind" value="${v}"${d.remind.includes(v)?' checked':''}><span>${l}</span></label>`).join('')}</div><p class="take-muted">Always the day before and 2 hours before. Reminders come by notification, text and email. On the day, it’s in My Tasks.</p>`)}
+${plusField('Phone',`<input name="phone" type="tel" maxlength="40" autocomplete="off" value="${esc(d.phone)}" placeholder="To change or cancel it (optional)">`)}
+${plusField('Note',`<textarea name="note" maxlength="500" placeholder="What to bring, or anything to know (optional)">${esc(d.note)}</textarea>`)}
+<button class="primary plus-save"${d.busy?' disabled':''}>Add the appointment</button></form></section>`}
 function incidentNewPage(){const d=plusDraft;
-return `<section class="sub-page take-page plus-page">${subHeader('Report an incident',mayAddTask()?'plus':'overview')}<form id="incident-form" class="plus-form" novalidate>
+return `<section class="sub-page take-page plus-page">${subHeader('Report an incident',plusRows().length>1?'plus':'overview')}<form id="incident-form" class="plus-form" novalidate>
 <section class="take-block plus-911"><p>In an emergency, call 911 first.</p><p>${call911}</p></section>
 ${plusField('What happened',plusRadios('kind',INCIDENTS,d.kind))}
 ${plusField('When',`<div class="plus-when"><input name="date" type="date" max="${today()}" value="${esc(d.date)}" aria-label="Date"><input name="time" type="time" value="${esc(d.time)}" aria-label="Time"></div>`)}
@@ -89,12 +110,13 @@ ${plusPhotos(d,'plus-photo')}
 ${plusField('Witnesses',`<input name="witnesses" maxlength="200" autocomplete="off" value="${esc(d.witnesses)}" placeholder="Ann, Luis">`)}
 ${plusField('Who was told',`<input name="told" maxlength="200" autocomplete="off" value="${esc(d.told)}" placeholder="Dr. Patel, Ann">`)}
 <button class="primary plus-save"${d.busy?' disabled':''}>Report the incident</button></form></section>`}
-Object.assign(menuPages,{plus:plusPage,'task-new':taskNewPage,'incident-new':incidentNewPage});
-menuViews.push('plus','task-new','incident-new');
-const goBeforePlus=go;go=function(v){if(v==='task-new'&&(!plusDraft||!('what'in plusDraft)))plusDraft=blankTaskDraft();if(v==='incident-new'&&(!plusDraft||!('kind'in plusDraft)))plusDraft=blankIncidentDraft();if(v==='overview'||v==='plus')plusDraft=null;return goBeforePlus(v)};
+Object.assign(menuPages,{plus:plusPage,'task-new':taskNewPage,'appt-new':apptNewPage,'incident-new':incidentNewPage});
+menuViews.push('plus','task-new','appt-new','incident-new');
+const goBeforePlus=go;go=function(v){if(v==='task-new'&&(!plusDraft||!('what'in plusDraft)))plusDraft=blankTaskDraft();if(v==='appt-new'&&(!plusDraft||!('place'in plusDraft)))plusDraft=blankApptDraft();if(v==='incident-new'&&(!plusDraft||!('kind'in plusDraft)))plusDraft=blankIncidentDraft();if(v==='overview'||v==='plus')plusDraft=null;return goBeforePlus(v)};
 
 /* Typing keeps the draft; a new repeat choice shows its days or its last day. */
-function readPlusForm(f){const d=plusDraft;for(const k of ['what','note','date','time','until','witnesses','told','kind','repeat'])if(f.elements[k]){const el=f.elements[k];d[k]=el instanceof RadioNodeList?el.value:el.value}
+function readPlusForm(f){const d=plusDraft;for(const k of ['what','note','date','time','until','witnesses','told','kind','repeat','with','place','phone'])if(f.elements[k]){const el=f.elements[k];d[k]=el instanceof RadioNodeList?el.value:el.value}
+if(f.querySelector('[name="remind"]'))d.remind=[...f.querySelectorAll('[name="remind"]:checked')].map(c=>c.value);
 if(f.querySelector('[name="day"]'))d.days=[...f.querySelectorAll('[name="day"]:checked')].map(c=>Number(c.value))}
 document.addEventListener('input',e=>{const f=e.target.closest('.plus-form');if(f&&plusDraft)readPlusForm(f)});
 document.addEventListener('change',async e=>{const f=e.target.closest('.plus-form');if(!f||!plusDraft)return;
@@ -108,6 +130,10 @@ function taskProblem(d){const last=C.shift(today(),YEAR_AHEAD);
 if(!d.what.trim())return 'Add what to do.';if(!dayOk(d.date)||d.date<today()||d.date>last)return 'Pick a day from today up to one year ahead.';if(!clockOk(d.time))return 'Pick the time.';
 if(d.date===today()&&d.repeat==='once'&&d.time<hmNow())return 'That time has already passed today. Pick a later time.';
 if(d.repeat==='days'&&!d.days.length)return 'Pick the days it repeats.';if(d.repeat!=='once'&&(!dayOk(d.until)||d.until<d.date||d.until>last))return 'Pick when it stops, up to one year ahead.';return ''}
+function apptProblem(d){if(!d.with.trim())return 'Add who the appointment is with.';if(!dayOk(d.date)||d.date<today())return 'Pick the day of the appointment.';if(d.time&&!clockOk(d.time))return 'Check the time.';return ''}
+document.addEventListener('submit',e=>{const f=e.target;if(f.id!=='appt-new-form'||!plusDraft)return;e.preventDefault();readPlusForm(f);const d=plusDraft,problem=apptProblem(d);if(problem){toast(problem);return}
+const a={...newAppt({with:d.with.trim(),place:d.place.trim(),date:d.date,time:d.time,phone:d.phone.trim(),note:d.note.trim()}),...(d.remind.length?{remind:APPT_REMINDS.map(([v])=>v).filter(v=>d.remind.includes(v))}:{}),status:'deciding',confirmed:true};
+items.push(a);plusDraft=null;view='overview';tasksOpen=a.date===today();save();render();window.scrollTo(0,0);toast(`Appointment added for ${apptDay(a)}.`+apptReminds(a))});
 function incidentProblem(d){if(!d.kind)return 'Pick what happened.';if(!dayOk(d.date)||d.date>today()||!clockOk(d.time))return 'Check the date and time.';if(new Date(d.date+'T'+d.time)>new Date())return 'That time hasn’t happened yet.';return ''}
 document.addEventListener('submit',async e=>{const f=e.target;if(!['task-form','incident-form'].includes(f.id)||!plusDraft)return;e.preventDefault();if(plusDraft.busy)return;readPlusForm(f);const d=plusDraft,task=f.id==='task-form';
 const problem=task?taskProblem(d):incidentProblem(d);if(problem){toast(problem);return}
@@ -120,5 +146,5 @@ plusDraft=null;reportTab=d.date===today()?'today':d.date===C.shift(today(),-1)?'
 
 /* The forms aren't open to people who can't use them. */
 const renderBeforePlus=render;
-render=function(){if(view==='task-new'&&!mayAddTask()||view==='incident-new'&&!mayReport()||view==='plus'&&!(mayAddTask()&&mayReport()))view='overview';if(['task-new','incident-new'].includes(view)&&!plusDraft)plusDraft=view==='task-new'?blankTaskDraft():blankIncidentDraft();renderBeforePlus()};
+render=function(){if(view==='task-new'&&!mayAddTask()||view==='appt-new'&&!mayDo('meds')||view==='incident-new'&&!mayReport()||view==='plus'&&plusRows().length<2)view='overview';if(['task-new','appt-new','incident-new'].includes(view)&&!plusDraft)plusDraft=view==='task-new'?blankTaskDraft():view==='appt-new'?blankApptDraft():blankIncidentDraft();renderBeforePlus()};
 render();

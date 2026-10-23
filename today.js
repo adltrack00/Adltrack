@@ -3,9 +3,10 @@
    the medication cards with their tabs (All medications, Due today, Needs refill, Finished); Today is in the My Tasks sheet. */
 let takeRef='';const blankTake=()=>({photos:[],note:'',help:false,busy:false});let takeDraft=blankTake();
 const TAKE_PHOTOS=3;
-const takeTask=()=>{const [id,key]=takeRef.split('|');return todayTasks(items,today()).find(x=>x.item.id===id&&x.key===key&&(x.slot||x.key==='task'))};
+const isRefill=x=>x.key.startsWith('refill:');
+const takeTask=()=>{const [id,key]=takeRef.split('|');return todayTasks(items,today()).find(x=>x.item.id===id&&x.key===key&&(x.slot||x.key==='task'||isRefill(x)))};
 /* A dose, or a task added with the + (plus.js), once it's marked today: kind is taken (done) or skipped. */
-const takeDose=x=>x.key==='task'?(m=>m&&{...m,kind:m.kind==='done'?'taken':m.kind})(markOf(x.item,today(),'task')):(x.item.doses||[]).find(d=>dayOf(d)===today()&&d.slot===x.slot);
+const takeDose=x=>x.key==='task'||isRefill(x)?(m=>m&&{...m,kind:m.kind==='done'?'taken':m.kind})(markOf(x.item,today(),x.key)):(x.item.doses||[]).find(d=>dayOf(d)===today()&&d.slot===x.slot);
 const takeAt=t=>new Date(t).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
 const proofImg=src=>/^data:image\/jpeg;base64,/.test(src)||/^\/api\/files\/[0-9a-f-]{36}$/i.test(src)?`<img src="${esc(src)}" alt="Photo of the dose">`:'';
 const proofRow=(photos,remove)=>photos.length?`<div class="take-shots">${photos.map((p,n)=>`<div class="take-shot">${proofImg(p)}${remove?`<button class="take-shot-x" data-take-remove="${n}" aria-label="Remove photo ${n+1}">×</button>`:''}</div>`).join('')}</div>`:'';
@@ -15,11 +16,18 @@ const proofRow=(photos,remove)=>photos.length?`<div class="take-shots">${photos.
    line. Instructions (who to call, warning signs) fold away under the buttons. */
 function takePage(){const x=takeTask();if(!x)return '';const i=x.item,d=takeDose(x),full=takeDraft.photos.length>=TAKE_PHOTOS;
 if(x.key==='task')return taskTakePage(x,d,full);
+if(isRefill(x))return refillTakePage(x,d,full);
 const top=`<div class="take-hero">${medPhoto(i)}<h1>${esc(i.name)}</h1><p>${esc([i.dose,'Today at '+clockText(x.slot)].filter(Boolean).join(' · '))}${i.demo?' · Example':''}</p></div>`;
 const how=`<section class="take-block"><h2>How to take it</h2><p>${esc(howText(i)||'Add how to take it from the discharge papers.')}</p>${i.pillLooks?`<p class="take-sub"><b>Looks like</b> ${esc(i.pillLooks)}</p>`:''}${(i.warnings||[]).map(w=>`<p class="take-sub">${esc(w)}</p>`).join('')}${i.prescriber&&i.prescriber.name?`<p class="take-sub"><b>Prescribed by</b> ${esc(i.prescriber.name)}</p>`:''}</section>`;
 /* Instructions: who to call and the papers' warning signs, folded away; Need help opens it. */
 const details=`<details class="take-more" id="take-help"${takeDraft.help?' open':''}><summary>Instructions</summary>${helpNote(i)}</details>`;
 return `<section class="sub-page take-page"><div class="sub-top"><button class="sub-back" data-menu-go="overview" aria-label="Back">${menuIcon(menuIcons.back)}</button></div>${top}${how}${takeBody(d,full)}${details}</section>`}
+/* A refill in My Tasks: who to call (or where to pick it up) with their number, then the same photo, note and Done. Done on the
+   call waits for the pick-up, which shows next; Done on the pick-up counts the refill from today. */
+function refillTakePage(x,d,full){const i=x.item,call=x.key==='refill:call',who=call&&C.refillFrom(i,today())==='doctor'?i.prescriber:i.pharmacy,phone=who&&who.phone;
+const top=`<div class="take-hero">${medPhoto(i)}<h1>${esc(x.title)}</h1><p>${esc(x.sub||'')}${i.demo?' · Example':''}</p></div>`;
+const how=`<section class="take-block"><h2>${call?'Who to call':'Where to pick it up'}</h2><p>${esc(who&&who.name||(call?refillWho(i):'The pharmacy'))}</p>${phone?`<p class="take-sub"><a class="flow-text-link" href="tel:${esc(String(phone).replace(/[^\d+]/g,''))}">${esc(phone)}</a></p>`:''}${C.runsOut(i)?`<p class="take-sub">Runs out around ${esc(longDay(C.runsOut(i)))}.</p>`:''}</section>`;
+return `<section class="sub-page take-page"><div class="sub-top"><button class="sub-back" data-menu-go="overview" aria-label="Back">${menuIcon(menuIcons.back)}</button></div>${top}${how}${takeBody(d,full,true)}<details class="take-more" id="take-help"${takeDraft.help?' open':''}><summary>Instructions</summary>${helpNote(i)}</details></section>`}
 /* What was marked, or the photo, note and Done, Skipped, Need help to mark it. */
 function takeBody(d,full,task=false){const photos=d?(d.photos||[]):[],word=d&&d.kind==='taken'?task?'Done':'Taken':'Skipped';
 return d?`<section class="take-block"><h2>${word}</h2><p>${word} at ${esc(takeAt(d.at))}${d.by?' by '+esc(d.by):''}.</p>${proofRow(photos,false)}${d.note?`<p class="take-note-text">${esc(d.note)}</p>`:''}</section>`
@@ -34,7 +42,8 @@ const saveProof=async src=>{try{return (await Account.api('POST','/api/files/pro
 /* Done or Skipped: the dose goes into the same record as the reminder buttons and the Take tab, with its photos and note. */
 async function finishTake(kind){const x=takeTask();if(!x||takeDose(x)||takeDraft.busy)return;takeDraft.busy=true;render();
 const photos=(await Promise.all(takeDraft.photos.map(saveProof))).filter(Boolean),i=x.item,note=takeDraft.note.trim();
-if(x.key==='task'){i.marks=[...(i.marks||[]),{day:today(),key:'task',kind:kind==='done'?'done':'skipped',at:new Date().toISOString(),...(markedBy()?{by:markedBy()}:{}),...(note?{note}:{}),...(photos.length?{photos}:{})}].slice(-400);
+if(x.key==='task'||isRefill(x)){if(isRefill(x)&&kind==='done'){if(x.key==='refill:call'){i.refill={...(i.refill||{}),step:'called'};logCare(i,'refill-called')}else{pickedUp(i);logCare(i,'refilled')}}
+i.marks=[...(i.marks||[]),{day:today(),key:x.key,kind:kind==='done'?'done':'skipped',at:new Date().toISOString(),...(markedBy()?{by:markedBy()}:{}),...(note?{note}:{}),...(photos.length?{photos}:{})}].slice(-400);
 takeRef='';takeDraft=blankTake();view='overview';save();render();window.scrollTo(0,0);toast(kind==='skipped'?'Marked skipped.':'Marked done.');return}
 i.doses=[...(i.doses||[]),{at:new Date().toISOString(),day:today(),kind:kind==='done'?'taken':'skipped',slot:x.slot,...(markedBy()?{by:markedBy()}:{}),...(note?{note}:{}),...(photos.length?{photos}:{})}].slice(-200);
 takeRef='';takeDraft=blankTake();view='overview';save();render();window.scrollTo(0,0);

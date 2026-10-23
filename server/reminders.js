@@ -8,6 +8,7 @@
    quiet hours and which of these they get (alert_prefs), except incidents, which always arrive. */
 const C = require('../core.js');
 const N = require('../nudge.js');
+const { normPhone } = require('./sms');
 
 const DEFAULT_TIME = '09:00';
 // Push services that browsers subscribe with. The server only ever sends to these hosts.
@@ -101,20 +102,26 @@ function unmarked(items, date, time, ids) {
 }
 
 /* Follow-up appointment reminders: the day before (from the user's reminder time, outside quiet hours) and 2 hours before
-   (when the time is known), one push each. Only appointments the family confirmed, with a date, that they haven't marked
-   Went; never examples. Moving the date reminds again for the new date. */
+   (when the time is known), one each. Earlier ones the family chose on the appointment (`remind`): a week before, 2 days
+   before, and every day until then, also at the reminder time; these are only messages, never My Tasks. Only appointments
+   the family confirmed, with a date, that they haven't marked Went; never examples. Moving the date reminds again for the
+   new date. */
 const SOON_MIN = 120;
 function appointmentsDue(items, date, time, settings = {}) {
   const at = minutes(time), out = [];
   for (const i of items || []) {
     if (!i || !i.appt || i.demo || i.status !== 'deciding' || !C.parseDate(i.date) || (i.steps && i.steps.went)) continue;
-    if (C.days(i.date, date) === 1 && isDue(settings, time)) out.push({ item: i, kind: 'day' });
-    else if (i.date === date && validTime(i.time) && at >= minutes(i.time) - SOON_MIN && at < minutes(i.time)) out.push({ item: i, kind: 'soon' });
+    const days = C.days(i.date, date), remind = Array.isArray(i.remind) ? i.remind : [];
+    if (days === 1 && isDue(settings, time)) out.push({ item: i, kind: 'day', days });
+    else if (days >= 2 && isDue(settings, time)) {
+      const kind = days === 7 && remind.includes('week') ? 'week' : days === 2 && remind.includes('two') ? 'two' : remind.includes('daily') ? 'daily' : '';
+      if (kind) out.push({ item: i, kind, days });
+    } else if (i.date === date && validTime(i.time) && at >= minutes(i.time) - SOON_MIN && at < minutes(i.time)) out.push({ item: i, kind: 'soon', days });
   }
   return out;
 }
-function appointmentNotification({ item: i, kind }, patient = null) {
-  const when = kind === 'day' ? 'tomorrow' : 'today';
+function appointmentNotification({ item: i, kind, days }, patient = null) {
+  const when = kind === 'day' ? 'tomorrow' : kind === 'soon' ? 'today' : days === 7 ? 'in a week' : `in ${days} days`;
   const what = 'Follow-up visit' + (i.with ? ' with ' + i.with : '');
   const body = [[validTime(i.time) ? clock12(i.time) : '', i.place].filter(Boolean).join(' · '), i.phone ? 'Call ' + i.phone + ' to change it.' : ''].filter(Boolean).join('. ');
   return { title: `${about(patient) || 'Adltrack · '}${what} ${when}`.slice(0, 120), body: body.slice(0, 500), itemId: i.id, url: opens(patient, 'remind=' + encodeURIComponent(i.id)), actions: [], tag: 'appt ' + i.id };
@@ -174,7 +181,8 @@ function endOfDayNotification(s, date, patient = null) {
   if (s.incidents) parts.push(`${s.incidents} incident${s.incidents === 1 ? '' : 's'}`);
   return { title: `${about(patient)}Today’s care report`.slice(0, 200), body: `${parts.length ? parts.join(' · ') + '.' : 'Nothing was due today.'} Tap to see the daily care report.`.slice(0, 500), itemId: null, url: opens(patient), actions: [], tag: `day ${patient && patient.id || ''} ${date}` };
 }
-const appointmentSlot = (i, kind) => `${i.date} appt ${kind} ${String(i.id).slice(0, 100)}`;
+// Every day until the visit is one reminder a day, so its slot carries the day it's sent.
+const appointmentSlot = (i, kind, date) => `${i.date} appt ${kind}${kind === 'daily' ? ' ' + date : ''} ${String(i.id).slice(0, 100)}`;
 
 /* VAPID settings from the environment, or null when push isn't set up. */
 function vapidConfig(env) {
@@ -217,7 +225,7 @@ function cleanPrefs(body = {}) {
   return out;
 }
 
-function createReminders({ store, push, email = null, data = null, now = () => new Date(), log = console }) {
+function createReminders({ store, push, email = null, sms = null, data = null, now = () => new Date(), log = console }) {
   const { permsFor } = require('./team');
   const settingsOf = async userId => ((await store.getRawData(userId))?.payload?.settings) || {};
   const timeZoneOf = async (userId, settings) => {
@@ -238,7 +246,7 @@ function createReminders({ store, push, email = null, data = null, now = () => n
      its owner now only cares for other families, whose plans they see instead). */
   async function teamOf(ownerId) {
     const members = (await store.listMembers(ownerId)).filter(m => m.userId);
-    if (members.length) return members.map(m => ({ userId: m.userId, role: m.role, perms: permsFor(m.role, m.perms) }));
+    if (members.length) return members.map(m => ({ userId: m.userId, role: m.role, perms: permsFor(m.role, m.perms), phone: m.phone || '' }));
     if ((await store.membershipsOf(ownerId)).length) return [];
     return [{ userId: ownerId, role: 'admin', perms: { tasks: true, addTasks: true, meds: true } }];
   }
@@ -322,10 +330,10 @@ function createReminders({ store, push, email = null, data = null, now = () => n
      user's daily refill and visit reminder at their reminder time (outside their quiet hours), for those who can be reached:
      a device for push, or email when push isn't set up. */
   async function dispatch() {
-    const canPush = push.available(), canEmail = !!(email && email.available());
-    if (!canPush && !canEmail) return 0;
+    const canPush = push.available(), canEmail = !!(email && email.available()), canText = !!(sms && sms.available());
+    if (!canPush && !canEmail && !canText) return 0;
     let queued = 0;
-    if (canPush) for (const plan of await store.carePlans()) queued += await dispatchPlan(plan);
+    for (const plan of await store.carePlans()) queued += await dispatchPlan(plan, { canPush, canMessage: canEmail || canText });
     for (const c of await store.reminderCandidates()) {
       const settings = c.settings || {};
       if (settings.daily === false) continue;
@@ -341,12 +349,13 @@ function createReminders({ store, push, email = null, data = null, now = () => n
   }
 
   /* One family, each minute: whatever has come due is claimed once for the family (so each is sent once, however many people
-     are on the team) and queued. Only families with someone push can reach are read. */
-  async function dispatchPlan({ ownerId, settings }) {
+     are on the team) and queued. Only families with someone push can reach are read, or, for appointments, families whose
+     time zone is known when email or texts are set up. */
+  async function dispatchPlan({ ownerId, settings }, { canPush = true, canMessage = false } = {}) {
     settings = settings || {};
-    const people = [];
-    for (const p of await teamOf(ownerId)) { const subs = await store.listPushSubscriptions(p.userId); if (subs.length) people.push({ ...p, timeZone: subs[0].timeZone }); }
-    if (!people.length) return 0;
+    const team = await teamOf(ownerId), people = [];
+    if (canPush) for (const p of team) { const subs = await store.listPushSubscriptions(p.userId); if (subs.length) people.push({ ...p, timeZone: subs[0].timeZone }); }
+    if (!people.length && !(canMessage && validTimeZone(settings.timeZone) && team.some(withTasks))) return 0;
     const local = localParts(now(), planZone(settings, people)), { date, time } = local, items = await store.listItems(ownerId);
     let queued = 0;
     const queue = async (slot, name, payload, claimFor = ownerId) => {
@@ -354,13 +363,15 @@ function createReminders({ store, push, email = null, data = null, now = () => n
       queued++;
       await store.enqueueJob({ name, payload, runAt: new Date(), uniqueKey: `${name}:${claimFor}:${slot}`, maxAttempts: 4 });
     };
+    // Follow-up appointments, claimed the same way so each one is reminded once each time it's due, by push, email and text.
+    if (settings.daily !== false && team.some(withTasks))
+      for (const a of appointmentsDue(items, date, time, settings)) await queue(appointmentSlot(a.item, a.kind, date), 'reminders.appointment', { ownerId, id: a.item.id, kind: a.kind, slot: appointmentSlot(a.item, a.kind, date) });
+    if (!people.length) return queued;
     if (settings.daily !== false && people.some(withTasks)) {
       for (const d of dosesDue(items, date, time)) await queue(`${date} ${d.time}`, 'reminders.dose', { ownerId, date, time: d.time });
       // Still not marked an hour later: the people with My Tasks are reminded again.
       for (const d of dosesDue(items, date, time, MISSED_MIN)) await queue(`${date} ${d.time} again`, 'reminders.dose', { ownerId, date, time: d.time, again: true });
       for (const t of tasksDue(items, date, time)) await queue(`${date} task ${String(t.id).slice(0, 100)} ${t.time}`, 'reminders.task', { ownerId, date, id: t.id });
-      // Follow-up appointments, claimed the same way so each one is reminded once the day before and once 2 hours before.
-      for (const a of appointmentsDue(items, date, time, settings)) await queue(appointmentSlot(a.item, a.kind), 'reminders.appointment', { ownerId, id: a.item.id, kind: a.kind, slot: appointmentSlot(a.item, a.kind) });
     }
     // And 15 minutes after that, everyone on the team is told the dose was missed.
     for (const d of dosesDue(items, date, time, ALERT_MIN)) await queue(`${date} ${d.time} missed`, 'alerts.missed', { ownerId, date, time: d.time });
@@ -395,16 +406,24 @@ function createReminders({ store, push, email = null, data = null, now = () => n
     await deliver(people, taskNotification(t, date, await patientOf(ownerId)), { topic: 'task', ttl: DOSE_WINDOW_MIN * 60, urgency: 'high' }, { kind: 'doses' });
   }
 
-  /* One appointment's push, if it's still due (not marked Went or moved since it was queued). */
+  /* One appointment's reminder, if it's still due (not marked Went or moved since it was queued): a push to each device, an
+     email (unless they unsubscribed) and a text to the phone the admin entered, for everyone with My Tasks. */
   async function sendAppointment({ ownerId, userId, id, kind, slot }) {
     ownerId = ownerId || userId;
     const settings = await settingsOf(ownerId), team = await teamOf(ownerId), people = [];
     for (const p of team) { const subs = await store.listPushSubscriptions(p.userId); if (subs.length) people.push({ ...p, timeZone: subs[0].timeZone }); }
     const local = localParts(now(), planZone(settings, people));
-    const due = appointmentsDue(await store.listItems(ownerId), local.date, local.time, settings).find(a => a.item.id === id && a.kind === kind && appointmentSlot(a.item, kind) === slot);
-    if (!due || !people.length) return;
-    const { sent, failed } = await deliver(people.filter(withTasks), appointmentNotification(due, await patientOf(ownerId)), { topic: 'appointment', ttl: SOON_MIN * 60, urgency: 'high' }, { kind: 'doses' });
-    if (!sent && failed) { await store.releaseDoseReminder(ownerId, slot); throw new Error(`Appointment push failed for all ${failed} device${failed === 1 ? '' : 's'}.`); }
+    const due = appointmentsDue(await store.listItems(ownerId), local.date, local.time, settings).find(a => a.item.id === id && a.kind === kind && appointmentSlot(a.item, kind, local.date) === slot);
+    const doers = team.filter(withTasks);
+    if (!due || !doers.length) return;
+    const message = appointmentNotification(due, await patientOf(ownerId));
+    let { sent, failed } = await deliver(people.filter(withTasks), message, { topic: 'appointment', ttl: SOON_MIN * 60, urgency: 'high' }, { kind: 'doses' });
+    for (const p of doers) {
+      try { if (await emailOn(p.userId, 'daily') && await mail(p.userId, message, 'daily', local.date)) sent++; } catch (err) { failed++; log.error(err); }
+      const to = normPhone(p.phone);
+      try { if (to && sms && sms.available()) { await sms.sendText(to, `${message.title}. ${message.body}`.slice(0, 320)); sent++; } } catch (err) { failed++; log.error(err); }
+    }
+    if (!sent && failed) { await store.releaseDoseReminder(ownerId, slot); throw new Error(`Appointment reminder failed for all ${failed} way${failed === 1 ? '' : 's'} of reaching the team.`); }
   }
 
   /* A dose nobody marked an hour and a quarter after its time: everyone on the team is told. */

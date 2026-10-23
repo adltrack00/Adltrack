@@ -16,7 +16,7 @@ function todayTasks(list=items,day=today()){const tasks=[];
 for(const i of list.filter(activeMed)){const doses=(i.doses||[]).filter(d=>dayOf(d)===day);
 if(i.pickup||markOf(i,day,'pickup')){const m=markOf(i,day,'pickup');tasks.push({item:i,key:'pickup',time:'',title:'Pick up '+i.name,sub:i.pharmacy&&i.pharmacy.name?'From '+i.pharmacy.name:'From the pharmacy',state:m?m.kind:''})}
 else if(!i.asNeeded)for(const t of i.times||[]){const d=doses.find(x=>x.slot===t);tasks.push({item:i,key:'dose:'+t,slot:t,time:t,title:i.name,sub:howText(i),state:d?(d.kind==='taken'?'done':'skipped'):''})}
-for(const step of ['call','ready']){const m=markOf(i,day,'refill:'+step);if(!m&&!(i.refill&&i.refill.step===step))continue;tasks.push({item:i,key:'refill:'+step,time:'',title:step==='call'?`Call ${refillWho(i,day)} to refill ${i.name}`:`Pick up the refill of ${i.name}`,sub:step==='call'?(C.refillFrom(i,day)==='doctor'?'For a new prescription':i.refills>0?`${i.refills} refill${i.refills>1?'s':''} left on the label`:'Ask how many refills are left'):i.pharmacy&&i.pharmacy.name||'',state:m?m.kind:''})}}
+for(const step of ['call','ready']){const m=markOf(i,day,'refill:'+step);if(!m&&!(i.refill&&(i.refill.step===step||step==='ready'&&i.refill.step==='called')))continue;tasks.push({item:i,key:'refill:'+step,time:'',title:step==='call'?`Call ${refillWho(i,day)} to refill ${i.name}`:`Pick up the refill of ${i.name}`,sub:step==='call'?(C.refillFrom(i,day)==='doctor'?'For a new prescription':i.refills>0?`${i.refills} refill${i.refills>1?'s':''} left on the label`:'Ask how many refills are left'):i.pharmacy&&i.pharmacy.name||'',state:m?m.kind:''})}}
 for(const a of appointments(list))if(a.date===day){const m=markOf(a,day,'appt');tasks.push({item:a,key:'appt',time:a.time||'',title:a.name,sub:a.place||a.note||'',phone:a.phone,state:a.status==='received'?'done':m?m.kind:''})}
 return tasks.sort((a,b)=>(a.time||'99')<(b.time||'99')?-1:(a.time||'99')>(b.time||'99')?1:0)}
 
@@ -49,7 +49,9 @@ function todayThumb(x){if(x.item.appt)return apptPhoto(x.item);if(x.key==='task'
 const TODAY_ARROW='<svg class="today-arrow" viewBox="0 0 10 18" aria-hidden="true"><path d="m1.5 1.5 7 7.5-7 7.5"/></svg>';
 function todayRow(x){const mark=x.state==='done'?'✓ Done':x.state==='skipped'?'Skipped':'',line=[x.slot?x.item.dose:'',x.time?clockText(x.time):'',mark].filter(Boolean).join(' · ');
 return `<li class="today-row${x.state?' is-'+x.state:''}"><button class="today-card" data-today-start="${esc(x.item.id+'|'+x.key)}"><span class="today-thumb">${todayThumb(x)}</span><span class="today-what"><strong>${esc(x.title)}</strong>${line?`<small>${esc(line)}</small>`:''}</span>${TODAY_ARROW}</button></li>`}
-const homeTasks=(day=today())=>todayTasks(items,day).filter(x=>x.slot||['appt','task','incident'].includes(x.key));
+/* My Tasks: doses, visits, tasks, incidents, and a refill from the day it's time to call (7 days before it runs out), each day
+   until it's done: call, then pick it up. */
+const homeTasks=(day=today())=>todayTasks(items,day).filter(x=>x.slot||['appt','task','incident'].includes(x.key)||x.key.startsWith('refill:'));
 /* Vital signs on Home, in four colored tiles: blood pressure, heart rate, temperature and pain. Tapping one opens a small form
    under them; the last reading is kept with the reminder settings, so it follows the account. */
 let vitalsOpen=false;
@@ -83,7 +85,7 @@ function syncAppointments(){let changed=false;const have=new Set(items.filter(i=
 for(const m of items.filter(i=>i.med&&!i.apptMade&&i.discharge&&(i.discharge.appointments||[]).length)){for(const a of m.discharge.appointments){const k=apptKey(a);if(have.has(k))continue;have.add(k);items.push(newAppt(a,{printed:true,demo:m.demo,purchaseId:m.purchaseId,purchased:m.purchased,papers:m.papers}))}m.apptMade=true;changed=true}
 return changed}
 /* What the reminders will be: the day before, when that's still to come, and 2 hours before when the time is known. */
-const apptReminds=i=>{const n=C.days(i.date,today()),when=[n>=2&&'the day before',i.time&&'2 hours before'].filter(Boolean);return when.length?` We’ll remind you ${when.join(' and ')}.`:''};
+const apptReminds=i=>{const n=C.days(i.date,today()),r=i.remind||[],when=[r.includes('daily')&&n>=2&&'every day until then',r.includes('week')&&n>=7&&'a week before',r.includes('two')&&n>=2&&'2 days before',n>=2&&'the day before',i.time&&'2 hours before'].filter(Boolean);return when.length?` We’ll remind you ${when.length>1?when.slice(0,-1).join(', ')+' and '+when.at(-1):when[0]}.`:''};
 const apptDay=i=>{const d=C.parseDate(i.date);return d?d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})+(i.time?' · '+clockText(i.time):''):''};
 /* Its photo: a drawn calendar page with the visit's month and day, or "Book" when there's no date yet. */
 function apptPhoto(i){const d=C.parseDate(i.date);return `<div class="product-photo medication" role="img" aria-label="${esc((i.demo?'Illustrative example: ':'')+i.name)}"><svg viewBox="0 0 100 100" class="bottle-svg" aria-hidden="true"><rect x="12" y="18" width="76" height="70" rx="8" fill="#fff" stroke="#bbb"/><path d="M12 26a8 8 0 0 1 8-8h60a8 8 0 0 1 8 8v12H12Z" fill="#1c1c1c"/><rect x="29" y="10" width="7" height="16" rx="3.5" fill="#888"/><rect x="64" y="10" width="7" height="16" rx="3.5" fill="#888"/><text x="50" y="33" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">${d?d.toLocaleDateString('en-US',{month:'short'}).toUpperCase():'BOOK'}</text><text x="50" y="73" text-anchor="middle" font-size="30" font-weight="700" fill="#1c1c1c">${d?d.getDate():'?'}</text></svg></div>`}
