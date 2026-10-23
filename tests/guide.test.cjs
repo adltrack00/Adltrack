@@ -163,7 +163,7 @@ async function boot({ places = null } = {}) {
     const type = res.headers.get('content-type') || '';
     return { status: res.status, body: type.startsWith('application/json') ? await res.json() : Buffer.from(await res.arrayBuffer()) };
   };
-  assert.equal((await call('POST', '/api/signup', { name: 'Ava', email: 'ava@example.com', password: 'password123' })).status, 201);
+  assert.equal((await call('POST', '/api/signup', { name: 'Ava', email: 'ava@example.com', password: 'Care-plan-2026' })).status, 201);
   const filesOnDisk = () => { const d = path.join(dir, 'files', 'files'); return fs.existsSync(d) ? fs.readdirSync(d).filter(f => !f.endsWith('.type')) : []; };
   return { call, store, filesOnDisk, close: async () => { await jobs.stop(); await new Promise(r => server.close(r)); await store.close(); } };
 }

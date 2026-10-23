@@ -2,10 +2,12 @@ services:
   - type: web
     name: returnly
     runtime: node
-    plan: free
+    # Starter never sleeps, so the every-minute reminder check keeps running overnight (the free plan sleeps after 15 minutes).
+    plan: starter
     branch: main
     buildCommand: npm ci
     startCommand: npm start
+    # Answers 503 when reminders stop sending (server/health.js): Render then restarts the service and emails its owner.
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
@@ -69,6 +71,9 @@ services:
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
+      # Who gets an email when reminders stop sending, and again when they're back (defaults to SUPPORT_EMAIL).
+      - key: ALERT_EMAIL
+        sync: false
       # The contact address shown on Support, and the reply-to address of emails (for example support@yourdomain.com).
       - key: SUPPORT_EMAIL
         sync: false
@@ -111,7 +116,7 @@ services:
         sync: false
 
 databases:
-  # Render's free Postgres expires after 30 days. Switch to a paid plan before real users rely on it.
+  # A paid Postgres: it doesn't expire, and Render keeps backups of it (point-in-time recovery and daily exports).
   - name: returnly-db
-    plan: free
+    plan: basic-256mb
     databaseName: returnly

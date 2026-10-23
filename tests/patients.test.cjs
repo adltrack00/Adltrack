@@ -26,7 +26,7 @@ async function boot() {
     };
     return call;
   };
-  const signUp = async (name, address) => { const c = client(); assert.equal((await c('POST', '/api/signup', { name, email: address, password: 'password123' })).status, 201); return c; };
+  const signUp = async (name, address) => { const c = client(); assert.equal((await c('POST', '/api/signup', { name, email: address, password: 'Care-plan-2026' })).status, 201); return c; };
   /* A family: its admin, the patient's name (and photo) on the plan's profile, and one medication. */
   const family = async (admin, address, patient, med, photo) => {
     const c = await signUp(admin, address);
@@ -49,7 +49,7 @@ test('a caregiver signed up by three families switches between them and sees onl
     const maria = await app.signUp('Maria', 'maria@example.com');
     // Each family's admin signs her up, with their own ticks: only June's family lets her change medications.
     for (const [fam, perms] of [[rose, {}], [walter, {}], [june, { meds: true }]]) {
-      const r = await maria('POST', '/api/invite/accept', { token: await app.invite(fam, 'Maria', 'maria@example.com', 'caregiver', perms) });
+      const r = await maria('POST', '/api/invite/accept', { consent: true, token: await app.invite(fam, 'Maria', 'maria@example.com', 'caregiver', perms) });
       assert.equal(r.status, 200);
       assert.equal(r.body.patient, fam.id);
     }
@@ -100,7 +100,7 @@ test('a family viewer only ever sees their own relative, and a family that remov
     const rose = await app.family('Grace', 'grace@example.com', 'Rose', 'Lisinopril');
     const june = await app.family('Ivy', 'ivy@example.com', 'June', 'Warfarin');
     const ann = await app.signUp('Ann', 'ann@example.com');
-    await ann('POST', '/api/invite/accept', { token: await app.invite(june, 'Ann', 'ann@example.com', 'viewer') });
+    await ann('POST', '/api/invite/accept', { consent: true, token: await app.invite(june, 'Ann', 'ann@example.com', 'viewer') });
     for (const id of [null, rose.id, june.id]) {
       ann.patient = id;
       assert.deepEqual((await ann('GET', '/api/data')).body.data.purchases.map(i => i.name), ['Warfarin']);
@@ -108,7 +108,7 @@ test('a family viewer only ever sees their own relative, and a family that remov
     assert.deepEqual((await ann('GET', '/api/me')).body.team.patients.map(p => p.name), ['June']);
 
     const maria = await app.signUp('Maria', 'maria@example.com');
-    for (const fam of [rose, june]) await maria('POST', '/api/invite/accept', { token: await app.invite(fam, 'Maria', 'maria@example.com', 'caregiver') });
+    for (const fam of [rose, june]) await maria('POST', '/api/invite/accept', { consent: true, token: await app.invite(fam, 'Maria', 'maria@example.com', 'caregiver') });
     const id = (await rose('GET', '/api/team')).body.members.find(m => m.name === 'Maria').id;
     assert.equal((await rose('DELETE', `/api/team/members/${id}`, {})).status, 200);
     assert.deepEqual((await maria('GET', '/api/me')).body.team.patients.map(p => p.name), ['June']);

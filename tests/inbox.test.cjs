@@ -396,7 +396,7 @@ test('HTTP: Continue with Google signs in or up, inbox routes need an account, a
     claims = { sub: 'g-2', email: 'x@example.com', email_verified: false };
     ({ state, browser } = await signIn());
     assert.equal((await go(`/api/auth/google/callback?code=c&state=${state}`, { cookie: browser })).headers.get('location'), '/signin.html?error=email');
-    const pw = await store.createUser({ email: 'pat@example.com', name: 'Pat', passwordHash: await hashPassword('password123') });
+    const pw = await store.createUser({ email: 'pat@example.com', name: 'Pat', passwordHash: await hashPassword('Care-plan-2026') });
     claims = { sub: 'g-3', email: 'pat@example.com', email_verified: true };
     ({ state, browser } = await signIn());
     const linked = await go(`/api/auth/google/callback?code=c&state=${state}`, { cookie: browser });
