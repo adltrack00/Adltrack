@@ -316,7 +316,15 @@ create table if not exists team_members (
 drop index if exists team_members_user_idx;
 create unique index if not exists team_members_team_user_idx on team_members(owner_id, user_id) where user_id is not null;
 create index if not exists team_members_member_idx on team_members(user_id) where user_id is not null;
-create index if not exists team_members_owner_idx on team_members(owner_id);`;
+create index if not exists team_members_owner_idx on team_members(owner_id);
+-- Each family's plan (server/billing.js), paid by that family's admin: the free trial, the Stripe customer and subscription,
+-- receipts, and the texts sent this month. owner_id is the account whose care plan it is.
+create table if not exists family_plans (
+  owner_id uuid primary key references users(id) on delete cascade,
+  stripe_customer text unique,
+  plan jsonb not null default '{}',
+  updated_at timestamptz not null default now()
+);`;
 
 const PURCHASE_COLUMNS = 'id, store, channel, order_number as "orderNumber", purchased, delivered, source, retailer_id as "retailerId", receipt_file_id as "receiptFileId", receipt_pages as "receiptPages"';
 const JOB_COLUMNS = 'id, name, payload, unique_key as "uniqueKey", status, run_at as "runAt", attempts, max_attempts as "maxAttempts", last_error as "lastError"';
@@ -498,6 +506,9 @@ function pgStore(connectionString) {
     // When the plan last changed, so open apps can tell straight away that someone else saved something.
     async dataVersion(userId) { const row = await one('select updated_at as "updatedAt" from user_data where user_id=$1', [userId]); return row ? iso(row.updatedAt) : null; },
     async alertPrefs(userId) { const row = await one('select prefs from alert_prefs where user_id=$1', [userId]); return row ? row.prefs : null; },
+    async familyPlan(ownerId) { const row = await one('select plan from family_plans where owner_id=$1', [ownerId]); return row ? row.plan : null; },
+    async saveFamilyPlan(ownerId, plan) { await pool.query('insert into family_plans (owner_id, stripe_customer, plan) values ($1,$2,$3) on conflict (owner_id) do update set stripe_customer=excluded.stripe_customer, plan=excluded.plan, updated_at=now()', [ownerId, plan.customer || null, JSON.stringify(plan)]); },
+    familyPlanByCustomer: customer => one('select owner_id as "ownerId", plan from family_plans where stripe_customer=$1', [customer]),
     async setAlertPrefs(userId, prefs) { await pool.query('insert into alert_prefs (user_id, prefs) values ($1,$2) on conflict (user_id) do update set prefs=excluded.prefs, updated_at=now()', [userId, JSON.stringify(prefs)]); },
     async markReminderOpened(userId) { await pool.query('update reminder_days set opened_date=last_date where user_id=$1', [userId]); },
     async emailOptouts(userId) { return (await all('select kind from email_optouts where user_id=$1 order by kind', [userId])).map(r => r.kind); },
@@ -664,7 +675,7 @@ function fileStore(file) {
     if (db) return db;
     try { db = JSON.parse(await fs.readFile(file, 'utf8')); } catch { db = {}; }
     // Files written before the data foundation only have users, sessions and data.
-    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, places: {}, lookups: {}, reports: {}, approved: [], snapshots: {}, flags: {}, notices: {}, push: {}, reminderDays: {}, doseReminders: {}, optouts: {}, alertPrefs: {}, resets: {}, inboxAddresses: {}, inboxConnections: {}, inboxMessages: {}, emailOrders: {}, oauthStates: {}, identities: {}, members: {}, ...db };
+    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, places: {}, lookups: {}, reports: {}, approved: [], snapshots: {}, flags: {}, notices: {}, push: {}, reminderDays: {}, doseReminders: {}, optouts: {}, alertPrefs: {}, resets: {}, inboxAddresses: {}, inboxConnections: {}, inboxMessages: {}, emailOrders: {}, oauthStates: {}, identities: {}, members: {}, plans: {}, ...db };
     return db;
   };
   // Serialise writes so concurrent requests can't interleave partial files.
@@ -708,7 +719,7 @@ function fileStore(file) {
       for (const [k, s] of Object.entries(db.sessions)) if (s.userId === userId) delete db.sessions[k];
       for (const [k, f] of Object.entries(db.files)) if (f.userId === userId) delete db.files[k];
       for (const [k, p] of Object.entries(db.push)) if (p.userId === userId) delete db.push[k];
-      delete db.reminderDays[userId]; delete db.doseReminders[userId]; delete db.optouts[userId]; delete db.alertPrefs[userId];
+      delete db.reminderDays[userId]; delete db.doseReminders[userId]; delete db.optouts[userId]; delete db.alertPrefs[userId]; delete db.plans[userId];
       for (const [k, r] of Object.entries(db.resets)) if (r.userId === userId) delete db.resets[k];
       for (const [k, r] of Object.entries(db.reports)) if (r.userId === userId) delete db.reports[k];
       for (const [k, n] of Object.entries(db.notices)) if (n.userId === userId) delete db.notices[k];
@@ -872,6 +883,9 @@ function fileStore(file) {
     async carePlans() { await load(); return Object.entries(db.data).filter(([id]) => db.users[id]).map(([ownerId, d]) => ({ ownerId, settings: d && d.settings || null })); },
     async dataVersion(userId) { await load(); return db.data[userId]?.updatedAt || null; },
     async alertPrefs(userId) { await load(); return db.alertPrefs[userId] ? copy(db.alertPrefs[userId]) : null; },
+    async familyPlan(ownerId) { await load(); return db.plans[ownerId] ? copy(db.plans[ownerId]) : null; },
+    async saveFamilyPlan(ownerId, plan) { await load(); db.plans[ownerId] = copy(plan); await persist(); },
+    async familyPlanByCustomer(customer) { await load(); const e = Object.entries(db.plans).find(([, p]) => customer && p.customer === customer); return e ? { ownerId: e[0], plan: copy(e[1]) } : null; },
     async setAlertPrefs(userId, prefs) { await load(); db.alertPrefs[userId] = copy(prefs); await persist(); },
     async markReminderOpened(userId) { await load(); const r = db.reminderDays[userId]; if (r) { r.openedDate = r.lastDate; await persist(); } },
     async emailOptouts(userId) { await load(); return [...(db.optouts[userId] || [])].sort(); },

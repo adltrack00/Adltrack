@@ -62,6 +62,13 @@ services:
         sync: false
       - key: TWILIO_FROM
         sync: false
+      # Each family's plan, paid by card through Stripe: the secret key (sk_live_…) and the signing secret of the webhook
+      # pointed at https://<your site>/api/stripe/webhook (events: checkout.session.completed, customer.subscription.*,
+      # invoice.*). Without them free trials still run, and Settings → Plan says card payments aren't set up.
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
       # The contact address shown on Support, and the reply-to address of emails (for example support@yourdomain.com).
       - key: SUPPORT_EMAIL
         sync: false
