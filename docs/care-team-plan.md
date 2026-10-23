@@ -122,7 +122,7 @@ Decided while building it: an unmarked dose reminds the people with My Tasks aga
 
 ## 7. Subscriptions and payments
 
-**Status:** In review (PR #34). Code: `server/billing.js` (plans, trial, Stripe Checkout, webhook, texts counted per family), the `family_plans` table, `plan.js` (Settings → Plan, admins only), the People page's note when a plan is full or ended.
+**Status:** Done (PR #34). Code: `server/billing.js` (plans, trial, Stripe Checkout, webhook, texts counted per family), the `family_plans` table, `plan.js` (Settings → Plan, admins only), the People page's note when a plan is full or ended.
 Prices decided by George on 2026-10-22, counting everyone on the team, the admin too: **Solo $9 a month** (one person looking after their own or a loved one's health), **Family $19** (2 to 5 people) and **Care team $29** (6 to 10). Adding someone past the plan's size asks an admin to upgrade first. A 14-day free trial (up to 10 people) starts from Settings → Plan or when the admin first adds someone. Above 10 people: to decide with George.
 **Needs:** step 3.
 **Build:** a plan per family, paid by that family's admin (for example per month), a free trial, payment by card (Stripe), and the admin's plan and receipts in Settings. Caregivers and viewers never pay: a caregiver on several families is covered by each family's plan. Text invites and text alerts count towards the plan of the family that sends them. Agency plans come with step 11.
