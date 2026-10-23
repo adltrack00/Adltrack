@@ -22,7 +22,7 @@
 @media(max-width:600px){.pick-header{padding:14px}.pick-header strong{font-size:21px}.pick-grid{gap:10px}.pick-card{padding:6px 6px 8px}}
 .guided-form .pick-photo{margin:0}.guided-form .pick-price{display:flex;margin:0}.guided-form .pick-name{resize:none;overflow:hidden;line-height:1.25;font-family:inherit;color:#111;height:2.7em}
 .flow-profile{width:40px;height:40px;border-radius:50%;border:0;padding:0;background:#efeeec;color:#111;display:grid;place-items:center;font-size:15px;font-family:inherit;overflow:hidden;cursor:pointer}.flow-profile[hidden]{display:none}.flow-profile img{width:100%;height:100%;object-fit:cover;display:block}.flow-profile:focus-visible{outline:2px solid #111;outline-offset:2px}
-.flow-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:-8px 0 30px}
+.flow-tabs{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px;margin:-8px 0 30px}
 .flow-tab{display:block;border:0;border-bottom:2px solid #e8e8e6;background:none;padding:10px 2px;font:inherit;font-size:12px;color:#aaa;text-align:center;white-space:nowrap}
 .flow-tab.done{color:#111;border-bottom-color:#111}
 .flow-tab.current{color:#111;font-weight:600;border-bottom-color:#111}
