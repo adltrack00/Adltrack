@@ -56,10 +56,10 @@ return out.sort((x,y)=>new Date(x.at)-new Date(y.at))};
 
 /* The + itself, at the top right across from the My Tasks title: the round white back button from the other pages, with a plus the size of
    its arrow. Someone who may do both picks one first; otherwise it opens the one they may do. */
-const plusButton=()=>mayAddTask()||mayReport()?`<button class="tasks-plus" id="tasks-plus" aria-label="Add a task or report an incident">${menuIcon('<path d="M12 5v14M5 12h14"/>')}</button>`:'';
+const plusButton=()=>mayAddTask()||mayReport()?`<button class="tasks-plus" id="tasks-plus" aria-label="Add to My Tasks">${menuIcon('<path d="M12 5v14M5 12h14"/>')}</button>`:'';
 /* Tapping an incident in My Tasks shows it in today's daily care report. */
 document.addEventListener('click',e=>{const b=e.target.closest('[data-today-start$="|incident"]');if(!b)return;e.stopImmediatePropagation();reportTab='today';setTasksOpen(false);view='overview';render();window.scrollTo(0,0)},true);
-document.addEventListener('click',e=>{if(!e.target.closest('#tasks-plus'))return;e.stopPropagation();go(mayAddTask()&&mayReport()?'plus':mayAddTask()?'task-new':'incident-new')});
+document.addEventListener('click',e=>{if(!e.target.closest('#tasks-plus'))return;e.stopPropagation();go(plusRows().length>1?'plus':mayAddTask()?'task-new':'incident-new')});
 
 /* What's being written, kept while a photo is added or the page redraws. */
 
@@ -70,9 +70,15 @@ const plusPhotos=(d,id)=>`<section class="take-block"><div class="take-line"><h2
 const plusField=(label,html)=>`<section class="take-block"><h2>${label}</h2>${html}</section>`;
 const plusRadios=(name,list,value)=>`<div class="plus-choice">${list.map(([v,l])=>`<label><input type="radio" name="${name}" value="${v}"${v===value?' checked':''}><span>${l}</span></label>`).join('')}</div>`;
 
-function plusPage(){return `<section class="sub-page settings-page">${subHeader('Add to My Tasks','overview')}<div class="settings-list">${settingsRow('task-new','New task')}${settingsRow('incident-new','Report an incident')}</div></section>`}
+/* The + list, in this order: a new task, the two scans (the discharge papers, or the medication bottles directly), an appointment
+   by hand, and an incident. The scans and the appointment open their usual screens through those screens' own buttons
+   (data-add, #flow-bottles, #add-appointment), and only show for people allowed to add medications. Appointments read from
+   the papers are added on their own and show in My Tasks and the reminders once confirmed. */
+const plusRow=(attr,label)=>`<button class="settings-row" ${attr}><span>${label}</span>${menuIcon(menuIcons.chevron)}</button>`;
+const plusRows=()=>[mayAddTask()&&settingsRow('task-new','New task'),mayDo('meds')&&plusRow('data-add','Scan discharge papers'),mayDo('meds')&&plusRow('id="flow-bottles"','Scan medications'),mayDo('meds')&&plusRow('id="add-appointment"','Add appointment'),mayReport()&&settingsRow('incident-new','Report an incident')].filter(Boolean);
+function plusPage(){return `<section class="sub-page settings-page">${subHeader('Add to My Tasks','overview')}<div class="settings-list">${plusRows().join('')}</div></section>`}
 function taskNewPage(){const d=plusDraft,last=C.shift(today(),YEAR_AHEAD);
-return `<section class="sub-page take-page plus-page">${subHeader('New task',mayReport()?'plus':'overview')}<form id="task-form" class="plus-form" novalidate>
+return `<section class="sub-page take-page plus-page">${subHeader('New task',plusRows().length>1?'plus':'overview')}<form id="task-form" class="plus-form" novalidate>
 ${plusField('What to do',`<input name="what" maxlength="100" required autocomplete="off" value="${esc(d.what)}" placeholder="Change the dressing on the left knee">`)}
 ${plusField('Note',`<textarea name="note" maxlength="500" placeholder="Anything to know (optional)">${esc(d.note)}</textarea>`)}
 ${plusPhotos(d,'plus-photo')}
@@ -80,7 +86,7 @@ ${plusField('When',`<div class="plus-when"><input name="date" type="date" min="$
 ${plusField('Repeats',`${plusRadios('repeat',REPEATS,d.repeat)}${d.repeat==='days'?`<div class="plus-days">${TASK_DAYS.map((w,n)=>`<label><input type="checkbox" name="day" value="${n}"${d.days.includes(n)?' checked':''}><span>${w}</span></label>`).join('')}</div>`:''}${d.repeat!=='once'?`<label class="plus-until"><span>Until</span><input name="until" type="date" min="${esc(d.date||today())}" max="${last}" value="${esc(d.until)}"></label><p class="take-muted">Up to one year ahead.</p>`:''}`)}
 <button class="primary plus-save"${d.busy?' disabled':''}>Add the task</button></form></section>`}
 function incidentNewPage(){const d=plusDraft;
-return `<section class="sub-page take-page plus-page">${subHeader('Report an incident',mayAddTask()?'plus':'overview')}<form id="incident-form" class="plus-form" novalidate>
+return `<section class="sub-page take-page plus-page">${subHeader('Report an incident',plusRows().length>1?'plus':'overview')}<form id="incident-form" class="plus-form" novalidate>
 <section class="take-block plus-911"><p>In an emergency, call 911 first.</p><p>${call911}</p></section>
 ${plusField('What happened',plusRadios('kind',INCIDENTS,d.kind))}
 ${plusField('When',`<div class="plus-when"><input name="date" type="date" max="${today()}" value="${esc(d.date)}" aria-label="Date"><input name="time" type="time" value="${esc(d.time)}" aria-label="Time"></div>`)}
@@ -120,5 +126,5 @@ plusDraft=null;reportTab=d.date===today()?'today':d.date===C.shift(today(),-1)?'
 
 /* The forms aren't open to people who can't use them. */
 const renderBeforePlus=render;
-render=function(){if(view==='task-new'&&!mayAddTask()||view==='incident-new'&&!mayReport()||view==='plus'&&!(mayAddTask()&&mayReport()))view='overview';if(['task-new','incident-new'].includes(view)&&!plusDraft)plusDraft=view==='task-new'?blankTaskDraft():blankIncidentDraft();renderBeforePlus()};
+render=function(){if(view==='task-new'&&!mayAddTask()||view==='incident-new'&&!mayReport()||view==='plus'&&plusRows().length<2)view='overview';if(['task-new','incident-new'].includes(view)&&!plusDraft)plusDraft=view==='task-new'?blankTaskDraft():blankIncidentDraft();renderBeforePlus()};
 render();
