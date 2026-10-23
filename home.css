@@ -134,7 +134,7 @@
 .report{margin:0 0 32px}
 .report-tabs{display:flex;justify-content:space-between;gap:12px;margin:0 0 20px;border-bottom:1px solid #eee}
 .report-tabs button{flex:1;font-size:14px;padding:12px 0;margin-bottom:-1px}
-.report-paper{--line:40px;--margin:52px;--gutter:16px;--ink:#1c1c1e;--pencil:#6d6f78;--red:#e2574f;--blue:#a8c2ec;position:relative;color:var(--ink);border-radius:3px;
+.report-paper{--line:30px;--margin:46px;--gutter:16px;--ink:#1c1c1e;--pencil:#6d6f78;--red:#e2574f;--blue:#a8c2ec;position:relative;color:var(--ink);border-radius:3px;
   background:#f8f6f1;
   box-shadow:0 1px 0 #e4e0d8,0 3px 0 #f3f0ea,0 4px 0 #ddd8ce,0 6px 0 #f1eee7,0 7px 0 #d8d2c7,0 18px 30px -12px rgba(0,0,0,.2)}
 /* The handwriting wins over the app-wide lettering in type.css. */
@@ -146,11 +146,11 @@
 .report-banner button{flex:none;align-self:center;border:1.5px solid var(--ink);border-radius:20px;background:#f8f6f1;color:var(--ink);font-size:19px;line-height:28px;padding:0 14px}
 .report-grid{padding-bottom:calc(2*var(--line));background:linear-gradient(to right,transparent var(--margin),var(--red) var(--margin) calc(var(--margin) + 2px),transparent 0),repeating-linear-gradient(to bottom,var(--blue) 0 2px,transparent 2px var(--line))}
 .report-section{position:relative;padding:0 16px 0 calc(var(--margin) + var(--gutter))}
-.report-section>*{position:relative;top:9px}
-.report-section h3{display:flex;align-items:flex-start;gap:10px;min-height:var(--line);line-height:var(--line);margin:0;font-size:24px;font-weight:700;letter-spacing:0}
-.report-section h3 span{position:absolute;top:0;left:calc(-1*(var(--margin) + var(--gutter)));width:var(--margin);text-align:center;font-size:20px;font-weight:600;color:var(--pencil)}
-.report-section h3 time{flex:none;margin-left:auto;font-size:20px;font-weight:400;color:var(--pencil);white-space:nowrap}
-.report-section p,.report-section li{margin:0;font-size:22px;line-height:var(--line);color:var(--pencil)}
+.report-section>*{position:relative;top:6px}
+.report-section h3{display:flex;align-items:flex-start;gap:10px;min-height:var(--line);line-height:var(--line);margin:0;font-size:19px;font-weight:700;letter-spacing:0}
+.report-section h3 span{position:absolute;top:0;left:calc(-1*(var(--margin) + var(--gutter)));width:var(--margin);text-align:center;font-size:16px;font-weight:600;color:var(--pencil)}
+.report-section h3 time{flex:none;margin-left:auto;font-size:16px;font-weight:400;color:var(--pencil);white-space:nowrap}
+.report-section p,.report-section li{margin:0;font-size:18px;line-height:var(--line);color:var(--pencil)}
 .report-section ul{list-style:none;margin:0;padding:0}
 .report-section p.report-note-text{color:var(--ink)}
 .report-empty{text-align:center;padding:48px 20px;border:1px solid #e6e6e6;border-radius:18px}
@@ -174,7 +174,7 @@
 .photo-view .post-count{position:fixed;top:24px;left:16px;right:auto}
 .photo-view .post-dots{position:fixed;bottom:24px}
 .photo-view-x{position:fixed;z-index:1;top:16px;right:16px;width:40px;height:40px;border-radius:50%;background:#fff;color:#111;font-size:24px;line-height:1}
-@media(max-width:650px){.report-paper{--margin:40px;--gutter:12px}.report-banner{padding:12px 14px 12px 18px}.report-section{padding-right:14px}.report-section h3{font-size:22px}.report-section p,.report-section li{font-size:21px}.report-photos{grid-template-columns:1fr 1fr;gap:12px}}
+@media(max-width:650px){.report-paper{--margin:38px;--gutter:12px}.report-banner{padding:12px 14px 12px 18px}.report-section{padding-right:14px}.report-photos{grid-template-columns:1fr 1fr;gap:12px}}
 @media print{.global-header,.menu-open,.tasks-sheet,.report-tabs,#report-print,.profile-hero{display:none!important}#main{padding:0!important}.report-paper{box-shadow:none;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 /* Home: the profile picture sits a little higher and the report's tabs sit close under it. */
 #main>.profile-hero:not(.profile-hero-compact):has(+.report){margin-top:-58px;padding-bottom:14px}
