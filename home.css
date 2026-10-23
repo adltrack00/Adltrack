@@ -126,29 +126,34 @@
 .tasks-sheet:not(.open):not(.dragging) .tasks-body{visibility:hidden}
 .tasks-body .home-today{margin:0}
 @media(max-width:650px){.tasks-top,.tasks-body{padding-left:20px;padding-right:20px}.tasks-top h2{font-size:30px}.tasks-sheet{height:70px}}
-/* Daily care report on Home (report.js): three tabs, a small black banner with the name, date and Print, then numbered entries,
-   two to a row (an entry with a note takes the full row). Each: number, subhead, time stamp on the right, the note, then details
-   in grey. One column on phones. */
+/* Daily care report on Home (report.js): three tabs, then one page of a little note pad: cream paper with the pad's edges
+   under it. At the top, with no lines, in the same black as the entries: "— Daily Care Report", the name a little larger, and the
+   date under it the same size as the title, as tall as the old black banner; Print on the right. From 01 down, blue lines and a red margin line, with each entry handwritten on the
+   lines: its number in the margin, the subhead with its time stamp on the right, the note, then the details in grey. */
+@font-face{font-family:'Caveat Adl';src:url(assets/caveat-var.woff2) format('woff2');font-weight:400 700;font-style:normal;font-display:swap}
 .report{margin:0 0 32px}
 .report-tabs{display:flex;justify-content:space-between;gap:12px;margin:0 0 20px;border-bottom:1px solid #eee}
 .report-tabs button{flex:1;font-size:14px;padding:12px 0;margin-bottom:-1px}
-.report-banner{display:flex;justify-content:space-between;align-items:center;gap:16px;background:#111;color:#fff;border-radius:18px 18px 0 0;padding:16px 22px}
-.report-banner span{display:flex;align-items:center;gap:10px;font-size:10px;letter-spacing:.22em;color:#bbb}
-.report-banner span::before{content:'';width:18px;height:2px;background:#fff}
-.report-banner h2{color:#fff;font-size:20px;margin:6px 0 2px;letter-spacing:-.02em}
-.report-banner p{margin:0;color:#aaa;font-size:12px}
-.report-banner button{flex:none;border:1px solid #555;border-radius:20px;background:none;color:#fff;font-size:12px;padding:7px 14px}
-.report-grid{display:grid;grid-template-columns:1fr 1fr;border:1px solid #e6e6e6;border-top:0;border-radius:0 0 18px 18px;overflow:hidden}
-.report-section{padding:16px 20px 18px;border-top:1px solid #eee}
-.report-section:not(.wide):nth-child(odd of :not(.wide)){border-right:1px solid #eee}
-.report-section.wide{grid-column:1/-1}
-.report-section h3{display:flex;align-items:baseline;gap:10px;margin:0 0 8px;font-size:14px;font-weight:700;letter-spacing:-.02em}
-.report-section h3 span{flex:none;align-self:center;display:grid;place-items:center;width:24px;height:24px;border-radius:7px;background:#edeae5;font-size:10px;font-weight:600;color:#555;letter-spacing:0}
-.report-section p,.report-section li{margin:0;padding-left:34px;font-size:13px;color:#777;line-height:1.45}
-.report-section ul{list-style:none;margin:0;padding:0;display:grid;gap:5px}
-.report-section h3 time{margin-left:auto;font-size:12px;font-weight:400;color:#777;white-space:nowrap}
-.report-section p.report-note-text{color:#111;margin:0 0 6px}
-.report-section p.report-none{padding-left:0}
+.report-paper{--line:30px;--margin:46px;--gutter:16px;--ink:#1c1c1e;--pencil:#6d6f78;--red:#e2574f;--blue:#a8c2ec;position:relative;color:var(--ink);border-radius:3px;
+  background:#f8f6f1;
+  box-shadow:0 1px 0 #e4e0d8,0 3px 0 #f3f0ea,0 4px 0 #ddd8ce,0 6px 0 #f1eee7,0 7px 0 #d8d2c7,0 18px 30px -12px rgba(0,0,0,.2)}
+/* The handwriting wins over the app-wide lettering in type.css. */
+.report-paper *{font-family:'Caveat Adl','Segoe Print','Bradley Hand',cursive!important}
+.report-banner{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:14px 16px 14px calc(var(--margin) + var(--gutter))}
+.report-banner span{display:flex;align-items:center;gap:8px;font-size:20px;font-weight:600;line-height:1.1;color:var(--ink);white-space:nowrap}
+.report-banner span::before{content:'';width:18px;height:2px;background:var(--ink)}
+.report-banner h2{font-size:28px;font-weight:700;line-height:1.1;margin:1px 0;letter-spacing:0;color:var(--ink)}
+.report-banner p{margin:0;font-size:20px;font-weight:600;line-height:1.1;color:var(--ink);white-space:nowrap}
+.report-banner button{flex:none;align-self:center;border:1.5px solid var(--ink);border-radius:20px;background:#f8f6f1;color:var(--ink);font-size:19px;line-height:28px;padding:0 14px}
+.report-grid{padding-bottom:calc(2*var(--line));background:linear-gradient(to right,transparent var(--margin),var(--red) var(--margin) calc(var(--margin) + 2px),transparent 0),repeating-linear-gradient(to bottom,var(--blue) 0 2px,transparent 2px var(--line))}
+.report-section{position:relative;padding:0 16px 0 calc(var(--margin) + var(--gutter))}
+.report-section>*{position:relative;top:6px}
+.report-section h3{display:flex;align-items:flex-start;gap:10px;min-height:var(--line);line-height:var(--line);margin:0;font-size:19px;font-weight:700;letter-spacing:0}
+.report-section h3 span{position:absolute;top:0;left:calc(-1*(var(--margin) + var(--gutter)));width:var(--margin);text-align:center;font-size:16px;font-weight:600;color:var(--pencil)}
+.report-section h3 time{flex:none;margin-left:auto;font-size:16px;font-weight:400;color:var(--pencil);white-space:nowrap}
+.report-section p,.report-section li{margin:0;font-size:18px;line-height:var(--line);color:var(--pencil)}
+.report-section ul{list-style:none;margin:0;padding:0}
+.report-section p.report-note-text{color:var(--ink)}
 .report-empty{text-align:center;padding:48px 20px;border:1px solid #e6e6e6;border-radius:18px}
 .report-empty svg{width:30px;height:30px;fill:none;stroke:#111;stroke-width:1.5;stroke-linejoin:round}
 .report-empty h2{font-size:18px;margin:10px 0 6px}
@@ -170,8 +175,8 @@
 .photo-view .post-count{position:fixed;top:24px;left:16px;right:auto}
 .photo-view .post-dots{position:fixed;bottom:24px}
 .photo-view-x{position:fixed;z-index:1;top:16px;right:16px;width:40px;height:40px;border-radius:50%;background:#fff;color:#111;font-size:24px;line-height:1}
-@media(max-width:650px){.report-grid{grid-template-columns:1fr}.report-section:not(.wide):nth-child(odd of :not(.wide)){border-right:0}.report-section{padding:14px 16px 16px}.report-banner{padding:14px 16px}.report-photos{grid-template-columns:1fr 1fr;gap:12px}}
-@media print{.global-header,.menu-open,.tasks-sheet,.report-tabs,#report-print,.profile-hero{display:none!important}#main{padding:0!important}.report-banner{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+@media(max-width:650px){.report-paper{--margin:38px;--gutter:12px}.report-banner{padding:12px 14px 12px 18px}.report-section{padding-right:14px}.report-photos{grid-template-columns:1fr 1fr;gap:12px}}
+@media print{.global-header,.menu-open,.tasks-sheet,.report-tabs,#report-print,.profile-hero{display:none!important}#main{padding:0!important}.report-paper{box-shadow:none;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 /* Home: the profile picture sits a little higher and the report's tabs sit close under it. */
 #main>.profile-hero:not(.profile-hero-compact):has(+.report){margin-top:-58px;padding-bottom:14px}
 /* Every page but Home: a round white back button with a soft shadow where the menu lines are; the page's own back arrow is
