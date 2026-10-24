@@ -753,6 +753,15 @@ function createApp({ store, data, production = false, policies = null, classifie
       return send(res, 201, await data.saveProof(owner, body && body.data));
     }
 
+    // A page of a document for the Documents page: a photo or a PDF, kept privately and saved with the document by its URL.
+    // Adding documents needs the medications tick, like scanning the papers.
+    if (route === '/api/files/document' && method === 'POST') {
+      checkWrite(req);
+      may.need('meds');
+      const body = await readBody(req, 14 * 1024 * 1024);
+      return send(res, 201, await data.saveDocument(owner, body && body.data));
+    }
+
     // A file of a care plan this person is on, such as an item photo (or another family's patient photo, for the picker).
     // Anyone else gets the same 404 as a file that doesn't exist.
     const fileMatch = /^\/api\/files\/([0-9a-f-]{36})$/i.exec(route);

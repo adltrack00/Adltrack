@@ -20,8 +20,8 @@ const CARE_FIELDS = new Set(['refill', 'refilledOn', 'refills', 'pickup', 'disca
 const CARE_STATUS = new Set(['deciding', 'received']);
 // Saved apart from the item (the QR code or label has its own route), or the item's own id.
 const IGNORED = new Set(['id', 'label', 'labelFileId']);
-// What makes an item a medication, a visit, a task or an incident: changing it changes the plan.
-const KIND_FIELDS = new Set(['med', 'appt', 'task', 'incident']);
+// What makes an item a medication, a visit, a task, an incident or a document: changing it changes the plan.
+const KIND_FIELDS = new Set(['med', 'appt', 'task', 'incident', 'doc']);
 // Vital signs are recorded with the plan's settings; everything else in the settings belongs to the plan.
 const VITAL_KEYS = new Set(['vitals', 'vitalsLog']);
 // Turned on by anyone who allows notifications on their phone, viewers too, so alerts reach everyone.

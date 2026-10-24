@@ -72,8 +72,14 @@ function createData({ store, storage, jobs = null }) {
     if (!parsed) throw new DataError(400, 'Use a JPG, PNG or WebP photo.');
     return { url: fileUrl(await saveFile(userId, 'item', parsed)) };
   }
-  // A dose's photos, a task's or an incident's own photos, and those added when a task was done.
-  const proofFiles = item => [item, ...(Array.isArray(item.doses) ? item.doses : []), ...(Array.isArray(item.marks) ? item.marks : [])].flatMap(d => d && Array.isArray(d.photos) ? d.photos.map(fileIdFromUrl) : []).filter(Boolean);
+  /* A page of a document on the Documents page (a photo or a PDF): stored like a scanned page; the document keeps its URL. */
+  async function saveDocument(userId, value) {
+    const parsed = parseDataUrl(value, 'receipt');
+    if (!parsed) throw new DataError(400, 'Use a photo or a PDF.');
+    return { url: fileUrl(await saveFile(userId, 'receipt', parsed)), type: parsed.contentType };
+  }
+  // A dose's photos, a task's or an incident's own photos, those added when a task was done, and a document's pages.
+  const proofFiles = item => [item, ...(Array.isArray(item.doses) ? item.doses : []), ...(Array.isArray(item.marks) ? item.marks : [])].flatMap(d => d && Array.isArray(d.photos) ? d.photos.map(fileIdFromUrl) : []).concat(item.doc && Array.isArray(item.files) ? item.files.map(f => fileIdFromUrl(f && f.url)) : []).filter(Boolean);
 
   /* Items. */
   async function saveItem(userId, input, { position = null, touch = true, mustBeNew = false } = {}) {
@@ -242,7 +248,7 @@ function createData({ store, storage, jobs = null }) {
     await removeStorage(files.map(f => f.storageKey));
   }
 
-  return { getData, putData, saveItem, saveProof, deleteItem, setLabel, listItems: userId => store.listItems(userId), putSettings, listPurchases, attachReceipt, receiptPages, saveReceipt, describeReceiptPurchase, cleanupReceipts, readFile, deleteAccount, migrate, migrateAll, removeStorage };
+  return { getData, putData, saveItem, saveProof, saveDocument, deleteItem, setLabel, listItems: userId => store.listItems(userId), putSettings, listPurchases, attachReceipt, receiptPages, saveReceipt, describeReceiptPurchase, cleanupReceipts, readFile, deleteAccount, migrate, migrateAll, removeStorage };
 }
 
 module.exports = { createData, DataError };
