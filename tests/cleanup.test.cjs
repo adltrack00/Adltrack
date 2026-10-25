@@ -80,6 +80,7 @@ test('the landing page, sign in, sign up, email pages, guide, manifest and packa
   }
   assert.match(read('index.html'), /<h1 id="family-hero-title">One family\.<br>Together in care\.<\/h1>/);
   for (const f of ['index.html', 'landing.html', 'daily-meds.html', 'appointments.html', 'check-ins.html', 'your-circle.html', 'next-chapter.html']) assert.match(read(f), /<div class="header-account"><a class="header-login" href="signin\.html">Log in<\/a><a class="header-signup" href="signup\.html">Sign up<\/a><\/div>/, f + ': Log in and Sign up in the header');
+  for (const f of ['index.html', 'landing.html', 'daily-meds.html', 'appointments.html', 'check-ins.html', 'your-circle.html', 'next-chapter.html']) assert.doesNotMatch(read(f), /header-explore/, f + ': no Explore Adltrack button in the header');
   const app = read('app.html');
   assert.doesNotMatch(app.match(/<title>[^<]*<\/title>/)[0], BANNED);
   assert.doesNotMatch(strip(app.match(/<dialog id="guide-dialog">[\s\S]*?<\/dialog>/)[0]), BANNED);
