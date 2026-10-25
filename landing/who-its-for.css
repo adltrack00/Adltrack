@@ -1,0 +1,9 @@
+/* "Built for everyone who helps.": the photo card and the people Adltrack is for, in the hero's lettering. */
+.people-care-card figcaption h2{font-family:Arial,Inter,sans-serif;font-weight:400}
+.people-care-replacement .people-eyebrow{font-family:Inter,sans-serif;font-size:10px;font-weight:600;letter-spacing:.12em;color:#514c57;margin:0 0 20px;text-align:left;width:100%}
+.people-care-replacement .people-care-labels ul{gap:14px}
+.people-care-replacement .people-care-labels li{display:flex;flex-direction:column;gap:6px;font-size:clamp(22px,2.4vw,34px);padding:16px 22px}
+.people-care-replacement .people-care-labels li strong{font-family:Arial,Inter,sans-serif;font-weight:400;letter-spacing:-.04em;line-height:1.05}
+.people-care-replacement .people-care-labels li span{font-family:Inter,sans-serif;font-size:14px;line-height:1.4;letter-spacing:0;color:#514c57}
+.people-care-replacement .people-care-labels li.people-highlight span{color:#420d83}
+@media(max-width:800px){.people-care-replacement .people-eyebrow{text-align:center}.people-care-replacement .people-care-labels ul{flex-direction:column;align-items:stretch;gap:10px}.people-care-replacement .people-care-labels li{font-size:22px;padding:14px 18px}.people-care-replacement .people-care-labels li span{font-size:13px}}
