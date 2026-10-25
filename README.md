@@ -186,7 +186,7 @@ Photos need a bucket. With Cloudflare R2: create a bucket (keep it private), cre
 
 ## Project layout
 
-- `index.html`, `landing.css`: home page with Sign in / Sign up.
+- `index.html` (`landing.html` is a copy), `daily-meds.html`, `appointments.html`, `check-ins.html`, `your-circle.html`, `next-chapter.html` and `landing/` (their styles, fonts and pictures): the public site, with Log in / Sign up in its header.
 - `signin.html`, `signup.html`, `forgot.html`, `reset.html`, `email.html` (links from reminder emails), `auth.js`: account pages, with Continue with Google / Apple when set up.
 - `account.js`: sign-in gate for the app and background sync.
 - `push.js`, `sw.js`, `manifest.webmanifest`: installable app, Web Push subscription, notification taps and buttons.
