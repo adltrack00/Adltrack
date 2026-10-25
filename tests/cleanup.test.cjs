@@ -78,7 +78,7 @@ test('the landing page, sign in, sign up, email pages, guide, manifest and packa
     for (const m of html.matchAll(/(?:alt|aria-label|content)="([^"]*)"/g)) assert.doesNotMatch(m[1], BANNED, f);
     assert.doesNotMatch(html, /cardigan|font-family='Arial'%3ER%3C/, f + ': clothing photo or the R icon');
   }
-  assert.match(read('index.html'), /<h1>Bring them home\.<br>Keep them on track\.<\/h1>/);
+  assert.match(read('index.html'), /<h1>Getting better shouldn’t feel like another job\.<\/h1>/);
   const app = read('app.html');
   assert.doesNotMatch(app.match(/<title>[^<]*<\/title>/)[0], BANNED);
   assert.doesNotMatch(strip(app.match(/<dialog id="guide-dialog">[\s\S]*?<\/dialog>/)[0]), BANNED);
