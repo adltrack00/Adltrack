@@ -1,0 +1,8 @@
+/* Log in and Sign up at the right of the header, in the header's own link style, on the same line at every width. */
+.compact-care-header .header-account{display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:auto}
+.compact-care-header .header-account a{font-size:16px;font-weight:500;line-height:1.3;white-space:nowrap;padding:12px 8px;color:inherit;text-decoration:none}
+.compact-care-header .header-account .header-signup{text-decoration:underline;text-underline-offset:4px}
+body .navigation.uber-header.compact-care-header .direct-care-nav{flex:0 1 auto}
+@media(max-width:900px){.compact-care-header .header-account{gap:2px}}
+@media(max-width:480px){.compact-care-header .header-account{gap:0}.compact-care-header .header-account a{font-size:13px;padding:12px 4px}body .compact-care-header .direct-care-nav{justify-content:flex-start}.compact-care-header .header-menu.care-nav-menu:last-child .header-dropdown{left:0;right:auto}}
+@media(max-width:360px){body .navigation.uber-header.compact-care-header{gap:8px;padding:0 10px}.compact-care-header .brand{font-size:17px}body .navigation.compact-care-header .direct-care-nav>a,body .compact-care-header .header-menu>summary,.compact-care-header .header-account a{font-size:12px!important}.compact-care-header .header-account a{padding:12px 3px}}

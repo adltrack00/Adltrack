@@ -1,0 +1,21 @@
+/* Reference lock: supplied WhatsApp screenshots, without account panel. */
+.landing-sky .navigation.uber-header{background:#fcf5eb;border-bottom:0;box-shadow:none;height:90px}
+.landing-sky .shared-sky-canvas{padding-top:32px;background:linear-gradient(#fcf5eb 0 850px,transparent 1000px)}
+.shared-sky-canvas .whatsapp-care-hero{margin:0 32px 32px;border-radius:25px;min-height:700px;height:calc(100svh - 145px);max-height:900px;background:#566d86;color:white}
+.whatsapp-care-hero .family-sky-photo{width:100%;height:100%;inset:0;object-position:64% 40%;z-index:-3}
+.whatsapp-care-hero .family-sky-wash{background:linear-gradient(90deg,rgba(10,23,31,.72),rgba(10,23,31,.45) 33%,rgba(10,23,31,.08) 65%,transparent);z-index:-2}
+.whatsapp-care-hero:after{display:none}
+.whatsapp-care-hero .family-sky-copy{width:55%;max-width:760px;padding:0;position:absolute;left:12.5%;top:50%;transform:translateY(-50%)}
+.whatsapp-care-hero .family-sky-copy h1{font-family:Arial,Inter,sans-serif;font-size:clamp(62px,5.7vw,96px);font-weight:400;line-height:1.02;letter-spacing:-.045em;color:#fff;margin:0 0 24px;max-width:650px}
+.whatsapp-care-hero .family-sky-copy p{font-size:18px;line-height:1.4;letter-spacing:-.25px;max-width:430px;margin:0;color:white}
+.care-hero-messages{display:flex;flex-direction:column;align-items:flex-start;gap:16px;width:430px;max-width:100%;margin:25px 0 32px;padding-bottom:15px}
+.care-message{font-family:Inter,sans-serif;font-size:16px;line-height:1.35;padding:12px 17px;border-radius:12px;position:relative;box-shadow:0 2px 5px #00000012;color:#15211a}
+.care-message-sent{background:#d9fdd3;align-self:flex-end;border-top-right-radius:0;display:flex;gap:18px;align-items:center}
+.care-message-sent>span{color:#497d43;font-size:20px}
+.care-message-reply{background:#fff;border-top-left-radius:0;margin-left:20px;padding-right:24px}
+.care-message-label{display:block;color:#7954b2;font-size:10px;letter-spacing:.3px;font-weight:600;margin-bottom:5px}
+.care-message-reaction{position:absolute;left:8px;bottom:-18px;background:white;border-radius:20px;padding:3px 10px;font-size:15px}
+.whatsapp-care-hero .family-sky-cta{background:#b6fa72;padding:16px 25px;font-size:14px;color:#101316;box-shadow:none}
+.whatsapp-care-hero a:focus-visible{outline:3px solid white;outline-offset:5px}
+@media(max-width:1100px){.whatsapp-care-hero .family-sky-copy{left:8%;width:60%}.whatsapp-care-hero .family-sky-copy h1{font-size:68px}.whatsapp-care-hero .family-sky-photo{object-position:62% center}}
+@media(max-width:800px){.landing-sky .navigation.uber-header{height:auto;min-height:96px}.landing-sky .shared-sky-canvas{padding-top:16px}.shared-sky-canvas .whatsapp-care-hero{margin:0 16px 24px;min-height:760px;height:calc(100svh - 130px);max-height:none;border-radius:24px}.whatsapp-care-hero .family-sky-photo{height:100%;width:100%;inset:0;object-position:58% center}.whatsapp-care-hero .family-sky-wash{background:linear-gradient(90deg,#0b1d2bc4,#0b1d2b36),linear-gradient(0deg,#0b1d2b77,transparent 80%)}.whatsapp-care-hero .family-sky-copy{left:7%;top:auto;bottom:45px;transform:none;width:86%;padding:0;max-width:480px}.whatsapp-care-hero .family-sky-copy h1{font-size:clamp(49px,9vw,72px);line-height:1.03;margin-bottom:22px}.whatsapp-care-hero .family-sky-copy p{font-size:16px;max-width:360px;line-height:1.45}.care-hero-messages{max-width:360px;margin:25px 0 30px;gap:17px}.care-message{font-size:14px}.care-message-label{font-size:9px}.whatsapp-care-hero .family-sky-cta{padding:15px 21px;font-size:12px}}
