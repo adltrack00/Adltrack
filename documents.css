@@ -1,0 +1,25 @@
+/* Documents (documents.js): Patient information's white rounded cards, one per category, with History-style rows; the add form
+   uses the + forms' grey blocks. A page's picture sits over a paper icon, which shows for a PDF. */
+.doc-page,.plus-page{--doc-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 20z'/%3E%3Cpath d='M14 3.5V8h4'/%3E%3Cpath d='M9.5 12.5h5M9.5 15.5h5'/%3E%3C/svg%3E")}
+.doc-thumb{display:block;background:#f1f0ee var(--doc-icon) center/32px no-repeat;background-size:cover,32px;background-position:center,center;background-repeat:no-repeat}
+.doc-page .doc-add{width:100%;margin:4px 0 18px}
+.doc-chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}
+.doc-chips button{border:1px solid #e2e1de;background:#fff;border-radius:999px;padding:8px 14px;font:inherit;font-size:14px;color:#111;cursor:pointer}
+.doc-chips button span{color:#888;margin-left:2px}
+.doc-chips button.active{background:#111;border-color:#111;color:#fff}.doc-chips button.active span{color:#bbb}
+.doc-count{font-size:14px;color:#888}
+.doc-list{list-style:none;margin:0;padding:0}
+.doc-list li+li{border-top:1px solid #f0f0f0}
+.doc-list button{display:grid;grid-template-columns:48px minmax(0,1fr) 18px;gap:14px;align-items:center;width:100%;padding:12px 0;border:0;background:none;text-align:left;cursor:pointer;font-family:inherit;color:#111}
+.doc-list .doc-thumb{width:48px;height:60px;border-radius:8px;box-shadow:0 0 0 1px rgba(0,0,0,.05)}
+.doc-list strong{display:block;font-size:15.5px;font-weight:600;overflow-wrap:anywhere}.doc-list small{display:block;font-size:13px;color:#777;margin-top:2px}
+.doc-list .menu-icon{width:18px;height:18px;color:#aaa}
+.doc-pages{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 -12px 12px}
+.doc-pages figure{margin:0}.doc-pages .doc-thumb{aspect-ratio:3/4;border-radius:12px;box-shadow:0 0 0 1px rgba(0,0,0,.04),0 2px 10px rgba(0,0,0,.06)}
+.doc-pages figcaption{font-size:13px;color:#555;margin-top:6px;text-align:center}
+.doc-pages .info-none{grid-column:1/-1}
+.doc-page .info-card .guided-form label{margin:4px 0}
+.doc-page .danger-button{margin-top:8px}
+.take-shot .doc-thumb{width:100%;height:100%}
+.doc-hint{display:block;font-size:12.5px;color:#888;margin-top:1px}
+@media(max-width:650px){.doc-pages{grid-template-columns:repeat(2,minmax(0,1fr));margin:0 -8px 10px}}
