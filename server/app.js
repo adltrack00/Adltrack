@@ -21,11 +21,11 @@ const ROOT = path.resolve(__dirname, '..');
 const COOKIE = 'rl_session';
 const SESSION_DAYS = 30;
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
-// Only top-level app files and assets/ are public; server/, tests/, scripts/, data/ and package files never are.
-const STATIC_DIRS = new Set(['', 'assets']);
+// Only top-level app files, assets/ and the landing page's landing/ are public; server/, tests/, scripts/, data/ and package files never are.
+const STATIC_DIRS = new Set(['', 'assets', 'landing']);
 const SERVER_ONLY = new Set(['server.js']);
 const FILE_CSP = "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox";
-const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; font-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
+const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://images.unsplash.com; media-src 'self' blob:; connect-src 'self'; font-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
 
 /* Passwords: scrypt with a per-user salt. */
 const SCRYPT = { N: 16384, r: 8, p: 1 };

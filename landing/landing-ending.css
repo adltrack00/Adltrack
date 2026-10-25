@@ -1,0 +1,13 @@
+/* Match the cream hero surround from the manifesto through the footer. */
+.landing-sky{--hero-surround:#fcf5eb}
+.landing-sky .landing-ending{display:flow-root;padding-top:160px;padding-bottom:60px;background:linear-gradient(180deg,transparent 0,var(--hero-surround) 160px)}
+.landing-sky .landing-ending>.og-scope,.landing-sky .landing-ending>.og-scope>section,.landing-sky .landing-ending .people-care-replacement{background:transparent}
+.landing-sky .rally-footer{background:var(--hero-surround);margin:0;width:100%;max-width:none;box-sizing:border-box;border-radius:0}
+@media(max-width:800px){.landing-sky .landing-ending{padding-top:100px;padding-bottom:40px;background:linear-gradient(180deg,transparent 0,var(--hero-surround) 100px)}}
+
+/* Larger, easier-to-read FAQ questions and expanded answers. */
+.landing-sky #questions details{padding:28px 0}
+.landing-sky #questions summary{font-size:24px;line-height:1.4;align-items:center;gap:24px}
+.landing-sky #questions summary span{font-size:34px;line-height:1;flex-shrink:0}
+.landing-sky #questions details p{font-size:18px;line-height:1.65;max-width:580px}
+@media(max-width:800px){.landing-sky #questions details{padding:24px 0}.landing-sky #questions summary{font-size:20px;gap:18px}.landing-sky #questions summary span{font-size:30px}.landing-sky #questions details p{font-size:17px}}
