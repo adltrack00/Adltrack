@@ -78,7 +78,7 @@ test('the landing page, sign in, sign up, email pages, guide, manifest and packa
     for (const m of html.matchAll(/(?:alt|aria-label|content)="([^"]*)"/g)) assert.doesNotMatch(m[1], BANNED, f);
     assert.doesNotMatch(html, /cardigan|font-family='Arial'%3ER%3C/, f + ': clothing photo or the R icon');
   }
-  assert.match(read('index.html'), /<h1 id="family-hero-title">One family\.<br>Together in care\.<\/h1>/);
+  assert.match(read('index.html'), /<h1 id="hero-title">Care for them,<br>together\.<\/h1>/);
   for (const f of ['index.html', 'landing.html', 'daily-meds.html', 'appointments.html', 'check-ins.html', 'your-circle.html', 'next-chapter.html']) assert.match(read(f), /<div class="header-account"><a class="header-login" href="signin\.html">Log in<\/a><a class="header-signup" href="signup\.html">Sign up<\/a><\/div>/, f + ': Log in and Sign up in the header');
   for (const f of ['index.html', 'landing.html', 'daily-meds.html', 'appointments.html', 'check-ins.html', 'your-circle.html', 'next-chapter.html']) assert.doesNotMatch(read(f), /header-explore/, f + ': no Explore Adltrack button in the header');
   const app = read('app.html');
