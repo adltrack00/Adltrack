@@ -9,7 +9,7 @@ body.care-auth{background:#fcf5eb;color:#101316;min-height:100vh}
 .care-auth .auth-editorial{position:relative;border-radius:25px;overflow:hidden;background:#e9dccb}
 .care-auth .care-auth-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .care-auth[data-mode=signin] .care-auth-photo{object-position:50% 58%}
-.care-auth[data-mode=signup] .care-auth-photo{object-position:68% 50%}
+.care-auth[data-mode=signup] .care-auth-photo{object-position:50% 45%}
 .care-auth .auth-editorial>p{position:absolute;left:24px;top:24px;margin:0;max-width:calc(100% - 48px);padding:10px 16px;border-radius:100px;background:#ffffffd9;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:#101316;font-size:14px;font-weight:500;line-height:1.3;letter-spacing:-.2px}
 .care-auth .photo-auth .auth-card{align-self:center;justify-self:center;max-width:430px;min-height:0;padding:48px 0;background:transparent}
 .care-auth .photo-auth .auth-card h1{font-family:Arial,Inter,sans-serif!important;font-size:clamp(40px,3.6vw,56px);font-weight:400;line-height:1.04;letter-spacing:-.045em;margin:0 0 16px;max-width:430px}
