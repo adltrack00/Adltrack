@@ -1,0 +1,90 @@
+/* The rest of the landing page in the hero's style: Arial headlines, Inter words, small Inter eyebrows, the lime button. */
+html body .og-scope .eyebrow,html body .manifesto .eyebrow,html body .closing .eyebrow,html body #circle .eyebrow{font-family:Inter,sans-serif;font-size:10px;font-weight:600;letter-spacing:.12em;color:#514c57}
+html body #why-Adltrack h2,html body #previous-opening-copy h2,html body #circle h2,html body .manifesto h2,html body #questions h2,html body .closing h2{font-family:Arial,Inter,sans-serif;font-weight:400;letter-spacing:-.045em;line-height:1.02}
+html body #why-Adltrack h2,html body #previous-opening-copy h2{font-size:clamp(44px,5vw,76px)}
+html body #circle h2{font-size:clamp(42px,4.4vw,64px)}
+html body .manifesto h2{font-size:clamp(36px,4.2vw,60px);line-height:1.06}
+html body .manifesto h2 span{color:#6b4fa3}
+html body #questions h2,html body .closing h2{font-size:clamp(40px,4.6vw,68px)}
+html body #why-Adltrack p,html body #previous-opening-copy p,html body #circle p,html body .manifesto p{font-family:Inter,sans-serif;font-size:17px;line-height:1.5;letter-spacing:-.25px;color:#3a3540}
+/* One button everywhere: the hero's lime pill with a dark arrow. */
+html body .tedy-primary,html body #circle .button,html body .closing .button,html body .og-scope .closing .button,html body .og-scope .community .button{display:inline-flex;align-items:center;gap:20px;padding:16px 25px;border-radius:100px;background:#b6fa72;color:#101316;font-family:Inter,sans-serif;font-size:14px;font-weight:500;letter-spacing:-.2px;text-decoration:none;box-shadow:none}
+html body .tedy-primary span,html body #circle .button span,html body .closing .button span,html body .og-scope .closing .button span,html body .og-scope .community .button span{font-size:20px;line-height:1;color:#101316;background:none}
+html body .tedy-primary:hover,html body #circle .button:hover,html body .closing .button:hover,html body .og-scope .closing .button:hover,html body .og-scope .community .button:hover{background:#caff98}
+html body .tedy-secondary{font-family:Inter,sans-serif;font-size:14px;font-weight:500;color:#101316}
+/* Questions: hero type for the heading, Inter for the questions and answers. */
+html body #questions summary{font-family:Inter,sans-serif;font-size:20px;font-weight:500;letter-spacing:-.3px;color:#101316}
+html body #questions details p{font-family:Inter,sans-serif;font-size:16px;line-height:1.6;color:#514c57;max-width:560px}
+html body #questions details{border-color:#e6dccd}
+/* Footer: the same Inter lettering, the wordmark like the header. */
+html body .rally-footer .footer-links span,html body .rally-footer .footer-fine{font-family:Inter,sans-serif;letter-spacing:.02em}
+html body .rally-footer .footer-links span{font-size:10px;font-weight:600;letter-spacing:.12em;color:#514c57}
+html body .rally-footer .footer-links a{font-family:Inter,sans-serif;font-size:15px;color:#171717}
+html body .rally-footer .footer-last p{font-family:Inter,sans-serif;font-size:15px;color:#514c57}
+html body .rally-footer .footer-fine p{max-width:520px}
+@media(max-width:800px){
+  html body #why-Adltrack p,html body #previous-opening-copy p,html body #circle p,html body .manifesto p{font-size:16px}
+  html body #questions summary{font-size:17px}
+  html body .manifesto h2{font-size:32px}
+  html body .manifesto h2 br{display:none}
+  html body #questions details p{font-size:15px}
+  html body .tedy-primary,html body #circle .button,html body .closing .button,html body .og-scope .closing .button,html body .og-scope .community .button{padding:15px 22px}
+}
+
+/* Everyday care pages: the hero's card, lettering and lime button. */
+body:has(.care-page),html body .care-page{background:#fcf5eb}
+html body .care-page .eyebrow{font-family:Inter,sans-serif;font-size:10px;font-weight:600;letter-spacing:.12em;line-height:1.6;color:#514c57}
+html body .care-page .page-intro{max-width:none;margin:0 32px;padding:0;gap:0;border-radius:25px;overflow:hidden}
+html body .care-page .page-intro-copy{border-radius:0;min-height:clamp(560px,calc(100svh - 160px),720px);padding:80px 12% 56px}
+html body .care-page .page-intro-copy h1{font-family:Arial,Inter,sans-serif;font-weight:400;font-size:clamp(48px,5vw,80px);line-height:1.02;letter-spacing:-.045em;margin:20px 0 24px;color:#101316}
+html body .care-page .page-intro-copy>p{font-family:Inter,sans-serif;font-size:18px;line-height:1.45;letter-spacing:-.25px;max-width:420px;color:#2d2833}
+html body .care-page .page-intro-actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;margin-top:32px}
+html body .care-page .page-start{display:inline-flex;align-items:center;gap:20px;padding:16px 25px;border-radius:100px;background:#b6fa72;color:#101316;font-family:Inter,sans-serif;font-size:14px;font-weight:500;text-decoration:none}
+html body .care-page .page-start span{font-size:20px;line-height:1}
+html body .care-page .page-start:hover{background:#caff98}
+html body .care-page .page-read{margin:0;padding:0;border:0;font-family:Inter,sans-serif;font-size:14px;font-weight:500;color:#101316;display:inline-flex;gap:10px}
+html body .care-page .page-back{top:24px;left:56px;font-family:Inter,sans-serif;font-size:13px;font-weight:500;color:#101316}
+html body .care-page .page-intro-photo{border-radius:0;min-height:0}
+html body .care-page .page-intro-photo>span{left:24px;right:auto;bottom:24px;max-width:calc(100% - 48px);padding:10px 16px;border-radius:100px;background:#ffffffd9;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);font-family:Inter,sans-serif;font-size:13px;font-weight:500;letter-spacing:.02em;color:#101316;text-align:left}
+html body .care-page .page-story h2,html body .care-page .page-deep h2{font-family:Arial,Inter,sans-serif;font-weight:400;font-size:clamp(40px,4.2vw,62px);line-height:1.04;letter-spacing:-.045em;color:#101316}
+html body .care-page .page-story-copy p,html body .care-page .page-deep-copy>p{font-family:Inter,sans-serif;font-size:17px;line-height:1.55;letter-spacing:-.2px;color:#3a3540;max-width:440px}
+html body .care-page .page-deep-photo{border-radius:25px}
+html body .care-page .page-steps{border-top:0;padding-top:24px}
+html body .care-page .page-steps>div{gap:20px}
+html body .care-page .chapter-step{flex-direction:column;gap:18px;padding:26px;border-radius:24px;background:#fff1cd}
+html body .care-page .chapter-step:nth-child(2){background:#eaddfa}
+html body .care-page .chapter-step:nth-child(3){background:#ddf5fb}
+html body .care-page .chapter-step>span{font-family:'Fragment Mono',monospace;font-size:11px;color:#514c57;margin:0}
+html body .care-page .chapter-step h3{font-family:Arial,Inter,sans-serif;font-weight:400;font-size:28px;letter-spacing:-.04em;line-height:1.1;margin:0 0 10px;color:#101316}
+html body .care-page .chapter-step p{font-family:Inter,sans-serif;font-size:15px;line-height:1.5;color:#3a3540}
+html body .care-page .page-next{margin-top:24px;margin-bottom:56px;padding:32px 40px 36px;border-radius:25px;background:#eee6f8}
+html body .care-page .page-next>a{align-items:center;border:0;padding:16px 0 0;font-family:Arial,Inter,sans-serif;font-weight:400;font-size:clamp(30px,3.4vw,48px);letter-spacing:-.04em;color:#101316}
+html body .care-page .page-next>a>span{flex-shrink:0;display:grid;place-items:center;width:56px;height:56px;border-radius:50%;background:#b6fa72;font-size:22px;letter-spacing:0}
+html body .care-page .page-next>a:hover{color:#101316}html body .care-page .page-next>a:hover>span{background:#caff98}
+/* next-chapter: the same headline and button. */
+html body #our-story h1{font-family:Arial,Inter,sans-serif;font-weight:400;letter-spacing:-.045em}
+html body .og-scope #our-story .button{background:#b6fa72;color:#101316;box-shadow:none;font-size:14px;font-weight:500;padding:16px 25px}
+html body .og-scope #our-story .button:hover{background:#caff98}
+@media(max-width:700px){
+  html body .care-page .page-intro{margin:0 16px;grid-template-columns:1fr;border-radius:24px}
+  html body .care-page .page-intro-photo{order:-1;aspect-ratio:4/3;max-height:340px;min-height:0}
+  html body .care-page .page-intro-copy{min-height:0;padding:28px 24px 32px}
+  html body .care-page .page-back{position:static;order:-2;display:none}
+  html body .care-page .page-intro-copy h1{font-size:clamp(40px,11vw,56px);margin:14px 0 16px}
+  html body .care-page .page-intro-copy>p{font-size:16px}
+  html body .care-page .page-intro-actions{margin-top:24px}
+  html body .care-page .page-intro-photo>span{left:14px;bottom:14px;font-size:11px;padding:8px 12px}
+  html body .care-page .page-story h2,html body .care-page .page-deep h2{font-size:clamp(36px,10vw,46px)}
+  html body .care-page .page-story-copy p,html body .care-page .page-deep-copy>p{font-size:16px}
+  html body .care-page .page-deep-photo{height:auto;aspect-ratio:4/3}
+  html body .care-page .page-steps>div{gap:12px}
+  html body .care-page .chapter-step{padding:20px;gap:10px}
+  html body .care-page .chapter-step h3{font-size:24px}
+  html body .care-page .page-next{margin:16px 16px 40px;padding:24px}
+  html body .care-page .page-next>a{font-size:28px;gap:16px}
+  html body .care-page .page-next>a>span{width:48px;height:48px}
+}
+body:has(.care-page) .navigation.uber-header{background:#fcf5eb}
+body:has(.chapter-page),body:has(.chapter-page) .navigation.uber-header{background:#fcf5eb}
+html body #our-story h1{color:#101316}
+@media(max-width:800px){html body #our-story .hero-photo>img{object-position:72% 30%}html body .og-scope #our-story .circle-sticker{left:18px;right:auto;top:64px}}
