@@ -14,3 +14,19 @@
 #everyday-care .report-mini ol{list-style:none;margin:0;padding:0}
 #everyday-care .report-mini li{display:flex;flex-direction:column;justify-content:center;height:46px;border-bottom:1px solid #9db8e6;font-family:Geist,Inter,sans-serif;font-size:17px;letter-spacing:-.02em;line-height:1.1;color:#29242e}
 #everyday-care .report-mini li span{font-family:Inter,sans-serif;font-size:10px;color:#6b6570;letter-spacing:0;margin-bottom:2px}
+/* Phones: the same three cards, shorter, so each one fits on the screen. */
+@media(max-width:700px){
+  .landing-sky .og-scope #everyday-care .feature{padding:20px 20px 16px}
+  .landing-sky .og-scope #everyday-care .feature .number{min-height:0;margin-bottom:0}
+  .landing-sky .og-scope #everyday-care .feature .mini{height:auto;margin:14px 0 18px}
+  .landing-sky .og-scope #everyday-care .med{min-height:0;padding:16px 18px}
+  .landing-sky .og-scope #everyday-care .med h4{font-size:21px;margin:6px 0 6px}
+  .landing-sky .og-scope #everyday-care .mini-row{padding-top:10px}
+  .landing-sky .og-scope #everyday-care .mini.appointment{height:auto;min-height:0;padding:6px 0}
+  .landing-sky .og-scope #everyday-care .report-mini{padding:14px 18px 12px 40px}
+  .landing-sky .og-scope #everyday-care .report-mini:before{left:28px}
+  .landing-sky .og-scope #everyday-care .report-mini li{height:36px;font-size:15px}
+  .landing-sky .og-scope #everyday-care .feature h3{font-size:22px;line-height:1.15;margin:0 0 8px}
+  .landing-sky .og-scope #everyday-care .feature p{font-size:15px;line-height:1.45;margin:0 0 14px}
+  .landing-sky .og-scope #everyday-care .feature>a{min-height:0;padding-top:12px}
+}
