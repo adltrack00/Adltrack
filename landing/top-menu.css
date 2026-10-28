@@ -19,3 +19,5 @@ body .compact-care-header .header-account{margin-left:0}
   body .compact-care-header .brand{flex:0 0 auto}
   body .compact-care-header .header-account{flex:1 1 0;justify-content:flex-end}
 }
+/* The menu with the sections sits on the same off-white as the page. */
+html body .compact-care-header .header-dropdown{background:#fcf5eb;border-color:#e6ddd0}html body .compact-care-header .header-dropdown a:hover{background:#f3eadc}

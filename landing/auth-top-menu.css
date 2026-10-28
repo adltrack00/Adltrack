@@ -21,3 +21,5 @@
   .care-auth-menu .header-dropdown{left:-8px}
   .care-auth .global-header>nav.care-auth-switch{flex:1 1 0;justify-content:flex-end}
 }
+/* The menu with the sections sits on the same off-white as the page. */
+.care-auth .care-auth-menu .header-dropdown{background:#fcf5eb;border-color:#e6ddd0}.care-auth .care-auth-menu .header-dropdown a:hover{background:#f3eadc}
