@@ -1,0 +1,266 @@
+/* The dashboard's look, loaded last in app.html (after type.css). Same pages, positions and flow; only the finish changes:
+   a light serif (Newsreader) for big headings, Fragment Mono for small capital labels, the landing page's cream behind
+   soft white cards, pill tabs, round floating buttons, and one sky card per page for the thing that matters most.
+   Newsreader and Fragment Mono are OFL fonts, bundled because the CSP allows fonts from 'self' only. */
+@font-face{font-family:'Newsreader Adl';src:url(assets/newsreader-var.woff2) format('woff2-variations'),url(assets/newsreader-var.woff2) format('woff2');font-weight:200 800;font-style:normal;font-display:swap}
+@font-face{font-family:'Fragment Mono Adl';src:url(assets/fragment-mono.woff2) format('woff2');font-weight:400;font-style:normal;font-display:swap}
+:root{
+  --cream:#fcf8f1;--cream-2:#f5efe5;--card:#fff;--ink:#151412;--muted:#7b766d;--faint:#a9a399;
+  --hair:rgba(21,20,18,.07);--lift:0 1px 2px rgba(40,30,10,.04),0 10px 28px -8px rgba(40,30,10,.10);
+  --lift-strong:0 2px 6px rgba(40,30,10,.06),0 18px 40px -12px rgba(40,30,10,.18);
+  --serif:'Newsreader Adl',Georgia,serif;--mono:'Fragment Mono Adl',ui-monospace,Menlo,monospace;
+  --sky:linear-gradient(150deg,#41597f 0%,#6f88ad 55%,#a9bdd6 100%);--lime:#b6fa72;
+}
+html,body{background:var(--cream)!important}
+.workspace,#main{background:transparent!important}
+
+/* ---------- Type system ---------- */
+.sub-title,.page-heading h1,.tasks-top h2,.menu-head h2,.section-heading h2,.calendar-toolbar h2,
+.info-card h2,.info-head h2,.prose h2,.take-hero h1,.menu-home,.vital-tile strong,.account-stats strong,.patient-name,
+.info-top .sub-title,.report-photos figcaption strong{font-family:var(--serif)!important;font-optical-sizing:auto}
+.sub-title,.page-heading h1{font-weight:340!important;letter-spacing:-.02em!important;line-height:1.04!important;color:var(--ink)}
+.sub-title{font-size:44px!important;margin:10px 0 26px!important}
+.page-heading h1{font-size:44px!important;margin:6px 0 10px!important}
+.page-heading p,.sub-intro{font-size:15px!important;color:var(--muted)!important;line-height:1.55!important}
+.eyebrow,.wallet-stats small,.item-meta,.date-label,.preview-brand,
+.post-num,.post-count,.today-progress span,.vital-tile small,.calendar-week span,.role-pick legend,.role-perms legend{font-family:var(--mono)!important;letter-spacing:.06em!important;text-transform:uppercase}
+.section-heading h2{font-size:28px!important;font-weight:360!important;letter-spacing:-.015em!important}
+
+/* ---------- Header: back + menu buttons as soft floating circles ---------- */
+.global-header{background:transparent!important;border:0!important}
+.global-header .menu-open{width:46px;height:46px;border-radius:50%;background:#fff;box-shadow:var(--lift)}
+.global-header .menu-open.is-back{box-shadow:var(--lift)!important}
+/* On Home the menu lines sit straight on the page, with no circle behind them. */
+.global-header .menu-open:not(.is-back){background:none;box-shadow:none}
+.global-header .menu-open:focus,.global-header .menu-open:focus-visible{outline:none}
+
+/* ---------- Home: profile photo, report tabs ---------- */
+#main>.profile-hero .profile-circle{box-shadow:0 0 0 4px #fff,var(--lift-strong)!important;background:var(--cream-2)!important}
+.report-tabs{display:flex!important;gap:4px!important;background:#efe8dc!important;border:0!important;border-radius:999px!important;padding:4px!important;margin:4px 0 22px!important}
+.report-tabs button{flex:1;border:0!important;border-radius:999px!important;padding:10px 0!important;margin:0!important;font-size:14px!important;font-weight:500!important;color:#6d675e!important;background:none!important;box-shadow:none!important;text-decoration:none!important}
+.report-tabs button::after{display:none!important}
+.report-tabs button.active{background:#fff!important;color:var(--ink)!important;box-shadow:0 1px 2px rgba(0,0,0,.06),0 4px 12px -4px rgba(0,0,0,.12)!important}
+/* The note pad stays exactly as George chose it; it just sits on a deeper shadow so it lifts off the cream. */
+.report-paper{border-radius:6px!important}
+
+/* Photos tab: Instagram-like posts with rounder corners, mono number chips, serif captions. */
+.post-track{border-radius:22px!important}
+.report-photos{gap:18px 12px!important}
+.post-num{border-radius:999px!important;width:auto!important;padding:0 9px;height:24px!important;background:rgba(255,255,255,.9)!important;backdrop-filter:blur(8px);font-size:10.5px!important}
+.post-count{backdrop-filter:blur(8px);background:rgba(20,20,20,.45)!important;font-size:10.5px!important}
+.report-photos figcaption{margin-top:10px!important;color:var(--muted)!important}
+.report-photos figcaption strong{font-size:19px!important;font-weight:400!important;letter-spacing:-.01em!important;margin-bottom:2px}
+
+/* ---------- My Tasks sheet (same place, same size; new finish) ---------- */
+.tasks-sheet{background:rgba(255,255,255,.86)!important;backdrop-filter:blur(22px) saturate(1.4);-webkit-backdrop-filter:blur(22px) saturate(1.4);border-radius:30px 30px 0 0!important;box-shadow:0 -1px 0 rgba(0,0,0,.04),0 -14px 40px -10px rgba(40,30,10,.16)!important}
+.tasks-sheet.open{background:var(--cream)!important}
+.tasks-handle svg{stroke:#d6d0c6!important}
+.tasks-top h2{font-size:36px!important;font-weight:360!important;letter-spacing:-.02em!important}
+.tasks-plus,.take-add{background:var(--ink)!important;color:#fff!important;box-shadow:0 8px 20px -6px rgba(0,0,0,.35)!important}
+.tasks-plus .menu-icon{stroke:#fff}
+/* Vitals: white tiles, round icon chips, serif numbers, mono labels */
+.vitals{gap:8px!important}
+.vital-tile{background:#fff!important;border-radius:22px!important;box-shadow:var(--lift)!important;padding:14px 4px 12px!important}
+.vital-icon{width:40px!important;height:40px!important;border-radius:50%!important;margin-bottom:6px!important}
+.vital-icon svg{width:20px!important;height:20px!important}
+.vital-tile strong{font-size:22px!important;font-weight:420!important;letter-spacing:-.01em!important}
+.vital-tile small{font-size:10px!important;color:var(--muted)!important}
+/* Progress: thin track, black fill with a dot at its end, like the reference's progress lines */
+.today-progress{display:flex;flex-direction:column;gap:0;margin:18px 2px 20px!important}
+.today-progress span{font-size:11px!important;color:var(--muted)!important;text-align:left!important;margin:0 0 10px!important}
+.today-progress span::after{content:' done today'}
+.progress-bar{height:4px!important;background:#e9e2d6!important;overflow:visible!important;position:relative}
+.progress-bar i{background:var(--ink)!important;position:relative}
+.progress-bar i::after{content:'';position:absolute;right:-5px;top:50%;width:12px;height:12px;margin-top:-6px;border-radius:50%;background:var(--ink);box-shadow:0 0 0 3px #fff}
+/* Task cards */
+.home-today .today-list{gap:10px!important}
+.home-today .today-card,.today-card{background:#fff!important;border-radius:24px!important;box-shadow:var(--lift)!important;min-height:88px!important;padding:12px 18px 12px 12px!important}
+.home-today .today-card .today-what strong{font-size:17px!important;font-weight:500!important}
+.today-what small{font-size:12.5px!important;color:var(--muted)!important;margin-top:4px!important}
+.today-arrow{width:34px!important;height:34px!important;padding:9px 11px 9px 12px;border-radius:50%;background:var(--cream-2);stroke:var(--ink)!important;stroke-width:2.2!important;box-sizing:border-box}
+.today-row.is-done .today-thumb{position:relative}
+.today-row.is-done .today-thumb::after{content:'';position:absolute;right:-5px;bottom:-5px;width:22px;height:22px;border-radius:50%;background:var(--lime) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23151412' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 12.5 4 4 8-9'/%3E%3C/svg%3E") center/13px no-repeat;box-shadow:0 0 0 3px #fff}
+
+/* ---------- "Photo not added yet" placeholders: a soft tile with a pill bottle instead of grey boxes ---------- */
+.product-photo:not(:has(img)){background:var(--cream-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48' fill='none' stroke='%23b3a996' stroke-width='2' stroke-linejoin='round'%3E%3Crect x='13' y='7' width='22' height='7' rx='2'/%3E%3Cpath d='M15 14h18v24a4 4 0 0 1-4 4H19a4 4 0 0 1-4-4z'/%3E%3Cpath d='M15 22h18v10H15z' fill='%23ece4d6'/%3E%3C/svg%3E") center/46% no-repeat!important;border-radius:18px!important}
+.product-photo:not(:has(img))>span{opacity:0!important}
+.today-thumb .product-photo,.today-card .today-thumb .product-photo{border-radius:18px!important}
+
+/* ---------- Side menu ---------- */
+dialog.menu-drawer{background:var(--cream)!important;border-radius:0 28px 28px 0!important}
+dialog.menu-drawer::backdrop{background:rgba(20,18,14,.28)!important;backdrop-filter:blur(3px)}
+.menu-head{border:0!important;padding-top:58px!important}
+.menu-head h2{font-size:32px!important;font-weight:340!important;line-height:1.08!important}
+.menu-email{font-size:12px!important;color:var(--faint)!important}
+.menu-list{gap:2px;padding:6px 10px!important}
+.menu-list button{border-radius:16px!important;padding:9px 12px!important;gap:14px!important;font-size:15.5px!important;font-weight:500}
+.menu-list button .menu-icon{box-sizing:content-box;width:18px!important;height:18px!important;padding:9px;border-radius:50%;background:#fff;box-shadow:var(--lift)}
+.menu-list button:hover,.menu-list button.active{background:#fff!important}
+.menu-home{font-size:26px!important;font-weight:400!important}
+.menu-foot span{font-family:var(--mono)!important;font-size:11px!important}
+
+/* ---------- Sub pages: inset, grouped white cards like the reference's settings ---------- */
+.settings-list{margin:0!important;border:0!important;background:#fff;border-radius:24px;box-shadow:var(--lift);overflow:hidden}
+.settings-row{border:0!important;border-bottom:1px solid var(--hair)!important;padding:18px 18px!important;font-size:16.5px!important;font-weight:500;gap:14px;justify-content:flex-start!important}
+.settings-row:last-child{border-bottom:0!important}
+.settings-row>span{flex:1}
+.settings-row:hover{background:#fbf9f5!important}
+.settings-row .menu-icon{color:#c4bdb1!important;width:18px!important;height:18px!important}
+.settings-row[data-menu-go]::before,#menu-guide::before{content:'';flex:none;width:36px;height:36px;border-radius:12px;background:var(--cream-2) center/18px no-repeat}
+.settings-row[data-menu-go="people"]::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23151412' stroke-width='1.7' stroke-linecap='round'%3E%3Ccircle cx='9' cy='8' r='3.2'/%3E%3Cpath d='M3 20c.6-3.4 3-5.4 6-5.4s5.4 2 6 5.4'/%3E%3Cpath d='M16 5.2a3 3 0 0 1 0 5.6M18 14.8c1.6.6 2.7 2.4 3 5.2'/%3E%3C/svg%3E")}
+.settings-row[data-menu-go="subscription"]::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23151412' stroke-width='1.7' stroke-linecap='round'%3E%3Crect x='3' y='5.5' width='18' height='13' rx='3'/%3E%3Cpath d='M3 10h18M7 15h3'/%3E%3C/svg%3E")}
+.settings-row[data-menu-go="my-profile"]::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23151412' stroke-width='1.7' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Ccircle cx='12' cy='10' r='3'/%3E%3Cpath d='M6.5 18.2c1.2-2 3.1-3 5.5-3s4.3 1 5.5 3'/%3E%3C/svg%3E")}
+.settings-row[data-menu-go="care-contacts"]::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23151412' stroke-width='1.7' stroke-linecap='round'%3E%3Cpath d='M12 6v12M6 12h12'/%3E%3C/svg%3E")}
+.settings-row[data-menu-go="privacy"]::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23151412' stroke-width='1.7' stroke-linejoin='round'%3E%3Cpath d='M12 3 5 6v5c0 4.6 3 8.4 7 10 4-1.6 7-5.4 7-10V6z'/%3E%3Cpath d='m9 12 2 2 4-4' stroke-linecap='round'/%3E%3C/svg%3E")}
+.settings-row[data-menu-go="terms"]::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23151412' stroke-width='1.7' stroke-linecap='round'%3E%3Cpath d='M7 3h7l5 5v13H7z'/%3E%3Cpath d='M14 3v5h5M10 13h6M10 17h6'/%3E%3C/svg%3E")}
+#menu-guide::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23151412' stroke-width='1.7' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M9.5 9.5a2.5 2.5 0 1 1 3.3 2.4c-.5.2-.8.7-.8 1.2v.4M12 16.8h.01'/%3E%3C/svg%3E")}
+.settings-row[data-menu-go="medications-101"]::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23151412' stroke-width='1.7' stroke-linecap='round'%3E%3Crect x='3.5' y='8.5' width='17' height='7' rx='3.5' transform='rotate(-35 12 12)'/%3E%3Cpath d='m9.2 8 5.6 8' /%3E%3C/svg%3E")}
+.sign-out{border:0!important;background:#efe8dc!important;color:var(--ink)!important;font-weight:500;max-width:none!important;margin-top:28px!important}
+.sub-note{font-family:var(--mono)!important;font-size:10.5px!important;letter-spacing:.04em;color:var(--faint)!important}
+/* Support: rows and questions as cards */
+.prose>.settings-row{margin:0!important;background:#fff;box-shadow:var(--lift)}
+.prose>.settings-row:first-of-type{border-radius:24px 24px 0 0}
+.prose>.settings-row+.settings-row{border-radius:0 0 24px 24px}
+.prose h2{font-size:26px!important;font-weight:360!important;margin:34px 0 10px!important;letter-spacing:-.01em}
+.prose details{background:#fff;border:0!important;border-radius:18px;padding:16px 18px!important;margin:0 0 8px;box-shadow:var(--lift)}
+.prose summary{list-style:none;display:flex;justify-content:space-between;gap:14px;font-weight:500;font-size:15.5px!important}
+.prose summary::-webkit-details-marker{display:none}
+.prose summary::after{content:'+';font-size:20px;line-height:1;color:var(--muted)}
+.prose details[open] summary::after{content:'−'}
+.call-links .flow-text-link{display:inline-block;background:var(--ink);color:#fff!important;text-decoration:none!important;border-radius:999px;padding:10px 20px;font-weight:500}
+
+/* Fold-outs (How this works, doctors, people) */
+.take-more{background:#fff;border:0!important;border-radius:20px;padding:0 18px;margin:0 0 10px!important;box-shadow:var(--lift)}
+.take-more+.take-more{margin-top:0}
+.take-more summary{font-size:16px!important;font-weight:500!important;padding:18px 0!important}
+.take-more summary::after{color:var(--muted)}
+.prose>h2:first-of-type{margin-top:26px!important}
+.care-contacts .prose h2,.settings-page h2{font-family:var(--serif)!important}
+.settings-page>h2{font-size:26px!important;font-weight:360!important;letter-spacing:-.01em;margin:30px 0 10px!important}
+
+/* Buttons: black pills (primary), cream pills (secondary) */
+.primary,.today-pill:not(.is-marked){background:var(--ink)!important;color:#fff!important;border-radius:999px!important;border:0!important;font-weight:500!important;box-shadow:0 8px 18px -8px rgba(0,0,0,.45)}
+.outline-button{background:#fff!important;border:0!important;border-radius:999px!important;box-shadow:var(--lift)!important;color:var(--ink)!important;font-weight:500}
+
+/* ---------- All medications ---------- */
+.gallery-controls{border:0!important}
+.gallery-controls .gallery-filters{justify-content:flex-start!important;gap:8px!important;overflow-x:auto;scrollbar-width:none;border:0!important;padding:2px 0 6px}
+.gallery-filters:not(.report-tabs) button{flex:none;border:0!important;border-radius:999px!important;padding:9px 15px!important;background:#efe8dc!important;color:var(--ink)!important;font-size:13.5px!important;font-weight:500;text-decoration:none!important;box-shadow:none!important}
+.gallery-filters:not(.report-tabs) button::after{display:none!important}
+.gallery-filters:not(.report-tabs) button.active{background:var(--ink)!important;color:#fff!important}
+.visual-card{background:#fff;border-radius:24px;padding:8px 8px 14px;box-shadow:var(--lift)}
+.visual-card .product-photo{border-radius:18px!important}
+.visual-card .product-meta{padding:0 6px}
+.visual-card h3,.visual-card .product-meta strong,.visual-card .product-meta>a{font-family:var(--serif)!important;font-size:19px!important;font-weight:420!important;letter-spacing:-.01em!important;line-height:1.15!important}
+.visual-card p,.visual-card small{color:var(--muted)!important}
+.card-bottom{padding:0 6px}
+.demo-strip{background:none!important;border:0!important;font-family:var(--mono)!important;font-size:10.5px!important;letter-spacing:.04em;color:var(--faint)!important;text-align:center;justify-content:center!important}
+.home-today h2.call-head{font-family:var(--serif)!important;font-size:26px!important;font-weight:360!important;border:0!important;letter-spacing:-.01em!important}
+.call-list{background:#fff;border-radius:22px;padding:6px 18px!important;box-shadow:var(--lift)}
+.call-list li{border-color:var(--hair)!important}
+
+/* ---------- Documents ---------- */
+.doc-add{width:100%;margin:6px 0 18px}
+.info-none,.doc-card:has(.info-none){border-radius:24px!important}
+.doc-card:has(.info-none){background:transparent!important;box-shadow:none!important;border:1.5px dashed #d9d0c1!important;text-align:center;padding:34px 22px!important;color:var(--muted)}
+
+/* ---------- Schedule (calendar) ---------- */
+.calendar-toolbar h2{white-space:nowrap;font-size:25px!important;font-weight:380!important;letter-spacing:-.015em!important}
+.calendar-toolbar .outline-button{min-width:44px;height:44px;padding:0 14px!important}
+.calendar-toolbar .outline-button[data-month]{width:44px;padding:0!important}
+.calendar-toolbar>div{display:flex;gap:6px}
+.calendar-week span{font-size:10px!important;color:var(--faint)!important;text-align:center}
+.calendar-grid{border:0!important;gap:5px!important;background:none!important}
+.calendar-cell,.calendar-blank{border:0!important;border-radius:14px!important;background:#fff!important;box-shadow:0 1px 2px rgba(40,30,10,.05)!important;min-height:64px!important}
+.calendar-blank{background:transparent!important;box-shadow:none!important}
+.calendar-cell>span:first-child{font-size:13px!important;font-weight:500}
+.calendar-cell.today>span:first-child{background:var(--ink)!important;color:#fff!important}
+.calendar-cell small,.calendar-cell em,.calendar-cell i,.calendar-cell b{border-radius:6px!important;background:#f3ede3!important;color:#5f594f!important}
+.calendar-note{color:var(--muted)!important}
+.today-list:not(.home-today .today-list){background:transparent!important;padding:0!important;gap:10px!important}
+.today-row{border-radius:22px!important;background:#fff!important;box-shadow:var(--lift)!important}
+.today-pill.is-marked{background:#eef7e3!important;color:#3d6b13!important;font-weight:500!important}
+
+/* ---------- Refills ---------- */
+.wallet-stats{display:grid!important;grid-template-columns:1fr 1fr!important;gap:10px!important;border:0!important;background:none!important;box-shadow:none!important}
+.wallet-stats>div{background:#fff!important;border:0!important;border-radius:22px!important;box-shadow:var(--lift)!important;padding:16px!important}
+.wallet-stats>div:first-child{background:var(--sky)!important;color:#fff!important}
+.wallet-stats>div:first-child small,.wallet-stats>div:first-child span{color:rgba(255,255,255,.82)!important}
+.wallet-stats>div:last-child{grid-column:1/-1}
+.wallet-stats small{font-size:9.5px!important;color:var(--muted)!important}
+.wallet-stats strong{font-size:44px!important;font-weight:330!important;line-height:1.1!important}
+.item-card{background:#fff!important;border:0!important;border-radius:24px!important;padding:14px 14px 62px!important;box-shadow:var(--lift)!important;gap:14px!important}
+.item-card .item-end{left:88px!important;right:14px!important;bottom:14px!important;align-items:center}
+.item-card .product-photo{border-radius:18px!important}
+.item-name{font-family:var(--serif)!important;font-size:21px!important;font-weight:420!important;letter-spacing:-.01em!important}
+.item-meta{font-size:10px!important;color:var(--muted)!important}
+.badge.urgent{background:#fdecea!important;color:#b3261e!important;border-radius:999px!important;padding:4px 10px!important;border:0!important}
+.item-end button{border-radius:999px;background:var(--ink)!important;color:#fff!important;padding:8px 14px!important}
+.empty{background:transparent!important;border:1.5px dashed #d9d0c1!important;border-radius:24px!important;color:var(--muted)!important}
+.wallet-note{color:var(--muted)!important}
+
+/* ---------- Reminders ---------- */
+.settings-card{background:#fff!important;border:0!important;border-radius:26px!important;box-shadow:var(--lift)!important}
+.settings-card h2,.reminder-feed h2,.two-panel h2{font-family:var(--serif)!important;font-weight:380!important;letter-spacing:-.015em!important}
+.honesty-note{background:var(--cream)!important;border:0!important;border-radius:16px!important}
+.settings-card input[type=time],.settings-card input:not([type=checkbox]){background:var(--cream)!important;border:0!important;border-radius:14px!important}
+.check-label input,.settings-card input[type=checkbox]{accent-color:var(--ink)}
+.notification-preview{background:rgba(255,255,255,.75)!important;backdrop-filter:blur(14px);border:0!important;border-radius:22px!important;box-shadow:var(--lift-strong)!important}
+.preview-actions button{border-radius:999px!important;background:var(--cream-2)!important;border:0!important}
+
+/* ---------- Patient information ---------- */
+.info-top .profile-circle{box-shadow:0 0 0 4px #fff,var(--lift-strong)!important}
+.info-top .sub-title{font-size:40px!important;margin:16px 0 4px!important}
+.info-top p{font-family:var(--mono)!important;text-transform:uppercase;letter-spacing:.08em;font-size:11px!important;color:var(--muted)!important}
+.info-card{background:#fff!important;border:0!important;border-radius:26px!important;box-shadow:var(--lift)!important;padding:20px!important}
+.info-card h2,.info-head h2{font-size:26px!important;font-weight:380!important;letter-spacing:-.015em!important}
+.info-ems{background:var(--sky)!important;color:#fff!important;position:relative;overflow:hidden;padding:22px 20px!important}
+.info-ems::before{content:'FOR PARAMEDICS';display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;color:rgba(255,255,255,.75);margin-bottom:6px}
+.info-ems h2{color:#fff!important;font-size:32px!important;font-weight:340!important}
+.info-ems p{color:rgba(255,255,255,.85)!important}
+.info-ems .primary{background:#fff!important;color:var(--ink)!important;box-shadow:none}
+.info-edit{background:var(--cream-2);border-radius:999px;padding:6px 14px!important;color:var(--ink)!important;font-size:13px!important;text-decoration:none!important}
+.info-row{border-color:var(--hair)!important}
+.info-row small,.info-row>span:first-child{font-size:10px!important;color:var(--faint)!important}
+.info-row.is-empty>*:last-child,.is-empty{color:#c2bbb0!important}
+
+/* ---------- Add to My Tasks (+) ---------- */
+.plus-row{border-radius:24px!important;box-shadow:var(--lift)!important;min-height:84px!important;justify-content:flex-start!important;gap:16px!important;padding:0 20px!important}
+.plus-row>span{flex:1}
+.plus-row::before{content:'';flex:none;width:44px;height:44px;border-radius:50%;background:var(--cream-2) center/20px no-repeat}
+.plus-row[data-menu-go="task-new"]::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23151412' stroke-width='1.8' stroke-linecap='round'%3E%3Crect x='4' y='4' width='16' height='16' rx='5'/%3E%3Cpath d='m8.5 12 2.5 2.5 4.5-5'/%3E%3C/svg%3E")}
+.plus-row[data-add]::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23151412' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M7 3h7l5 5v13H7z'/%3E%3Cpath d='M14 3v5h5M10 13h6M10 17h4'/%3E%3C/svg%3E")}
+.plus-row#flow-bottles::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23151412' stroke-width='1.8' stroke-linejoin='round'%3E%3Crect x='7' y='3' width='10' height='4' rx='1'/%3E%3Cpath d='M8 7h8v12a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2z'/%3E%3Cpath d='M8 11h8v5H8z'/%3E%3C/svg%3E")}
+.plus-row[data-menu-go="appt-new"]::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23151412' stroke-width='1.8' stroke-linecap='round'%3E%3Crect x='3.5' y='5' width='17' height='15' rx='3'/%3E%3Cpath d='M3.5 10h17M8 3v4M16 3v4'/%3E%3C/svg%3E")}
+.plus-row[data-menu-go="incident-new"]::before{background-color:#fdecea;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b3261e' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 4 2.8 19.5h18.4z'/%3E%3Cpath d='M12 10v4.5M12 17.2h.01'/%3E%3C/svg%3E")}
+.plus-row .today-arrow,.plus-row>svg{width:34px!important;height:34px!important;padding:9px 11px 9px 12px;border-radius:50%;background:var(--cream-2);stroke:var(--ink)!important;box-sizing:border-box}
+
+/* Fields and forms */
+.guided-form input:not([type=checkbox]):not([type=radio]),.guided-form select,.guided-form textarea,.profile-edit~label input,.sub-page input[type=text],.sub-page input:not([type]),.sub-page input[type=email],.sub-page input[type=tel]{border:0!important;background:#fff!important;border-radius:16px!important;box-shadow:var(--lift)!important}
+.profile-edit .profile-circle{box-shadow:0 0 0 4px #fff,var(--lift-strong)!important}
+
+.card-label{font-size:11.5px!important;color:var(--muted)!important}
+/* Plan: the current plan as the sky card */
+.settings-page .sub-intro+.settings-list .person-row:first-child{background:var(--sky)!important;color:#fff!important;padding:22px 18px!important}
+.settings-page .sub-intro+.settings-list .person-row:first-child small{color:rgba(255,255,255,.8)!important}
+.settings-page .sub-intro+.settings-list .person-row:first-child strong{display:block;font-family:var(--serif)!important;font-size:30px!important;font-weight:360!important;letter-spacing:-.015em;margin-bottom:4px}
+.settings-page .sub-intro+.settings-list .person-row:first-child::before{content:none;display:block;position:absolute;top:18px;left:18px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:rgba(255,255,255,.7)}
+.settings-page .sub-intro+.settings-list .person-row:first-child{position:relative;padding-top:22px!important;border-bottom:0!important}
+.person-row strong{font-weight:600}
+.settings-page .sub-intro{margin-bottom:18px!important}
+
+.empty{padding:30px 20px!important;min-height:0!important}
+
+/* ---------- Forms (New task, appointment, incident, Take page): white cards, cream fields, mono labels ---------- */
+.take-block{background:#fff!important;border-radius:24px!important;box-shadow:var(--lift)!important;padding:18px!important}
+.take-block h2{font-family:var(--mono)!important;font-size:10.5px!important;font-weight:400!important;letter-spacing:.08em!important;text-transform:uppercase;color:var(--muted)!important;margin-bottom:12px!important}
+.take-block h2 span{font-family:var(--mono)!important}
+.take-block input:not([type=radio]):not([type=checkbox]),.take-block textarea,.plus-form input:not([type=radio]):not([type=checkbox]){background:var(--cream)!important;box-shadow:none!important;border:0!important;border-radius:14px!important}
+.take-block input:focus,.take-block textarea:focus{outline:2px solid var(--ink);outline-offset:0}
+.plus-choice{display:flex;flex-wrap:wrap;gap:8px}
+.plus-choice label{padding:0!important}
+.plus-choice input{position:absolute;opacity:0;pointer-events:none}
+.plus-choice label span,.plus-choice label{border-radius:999px}
+.plus-choice label{background:var(--cream-2);padding:10px 16px!important;font-weight:500;font-size:14.5px!important}
+.plus-choice label:has(input:checked){background:var(--ink);color:#fff!important}
+.take-shot{border-radius:16px!important}
