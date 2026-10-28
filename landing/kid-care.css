@@ -1,0 +1,30 @@
+/* Kids need care too: a tall rounded photo on the left with a few Adltrack stickers on it, like whatsapp.com's
+   "Say what you feel", and the words on the right. */
+.kid-care{display:grid;grid-template-columns:56% 44%;align-items:center;max-width:1400px;min-height:clamp(620px,50vw,760px);margin:40px auto;box-sizing:border-box}
+.kid-art{position:relative;justify-self:start;margin:0 0 0 37%;padding:40px 0;width:clamp(250px,18.5vw,300px)}
+.kid-photo{border-radius:28px;overflow:hidden;box-shadow:0 2px 6px #1d243312,0 24px 60px #1d24332e}
+html body .kid-photo img{display:block;width:100%;height:auto;max-height:none;aspect-ratio:500/892;object-fit:cover}
+.kid-heart{position:absolute;right:-30px;top:44%;width:88px;transform:rotate(12deg)}
+.kid-sticker{position:absolute;font-family:Inter,sans-serif;font-weight:600;line-height:1.2;color:#101316;box-shadow:0 8px 20px #1d24332b}
+.kid-note{left:-34px;top:30%;max-width:150px;padding:12px 16px;border-radius:16px;background:#fff1cd;font-size:16px;letter-spacing:-.3px;transform:rotate(-6deg)}
+.kid-done{right:-14px;bottom:24px;display:flex;align-items:center;gap:8px;padding:9px 14px 9px 9px;border-radius:100px;background:#fff;font-size:13px;font-weight:500;transform:rotate(-5deg);white-space:nowrap}
+.kid-done b{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#b6fa72;font-size:12px}
+html body .kid-care .kid-copy{background:transparent;padding:0 10% 0 0}
+html body .kid-copy .eyebrow{font-family:Inter,sans-serif;font-size:10px;font-weight:600;letter-spacing:.12em;color:#514c57}
+html body .kid-copy h2{margin:22px 0 0;font-family:Arial,Inter,sans-serif;font-weight:400;font-size:clamp(44px,5vw,76px);line-height:1.02;letter-spacing:-.045em;color:#101316}
+html body .kid-copy p{margin:24px 0 0;max-width:450px;font-family:Inter,sans-serif;font-size:19px;line-height:1.45;letter-spacing:-.25px;color:#2d2833}
+html body .kid-copy .tedy-intro-actions{margin-top:40px}
+@media(max-width:1100px){.kid-art{margin-left:22%}}
+/* Phones and small tablets: the words first, then the photo in the middle. */
+@media(max-width:800px){
+  .kid-care{grid-template-columns:1fr;min-height:0;margin:24px auto 40px;padding:0 16px}
+  .kid-care .kid-copy{order:-1}
+  html body .kid-care .kid-copy{padding:16px 6px 0}
+  html body .kid-copy h2{font-size:clamp(40px,11vw,56px);margin-top:16px}
+  html body .kid-copy p{margin-top:18px;font-size:16px}
+  html body .kid-copy .tedy-intro-actions{margin-top:28px}
+  .kid-art{justify-self:center;margin:0;padding:84px 0 16px;width:min(62vw,260px)}
+  .kid-heart{right:-26px;width:70px}
+  .kid-note{left:-26px;font-size:14px;max-width:130px;padding:10px 13px}
+  .kid-done{right:-18px;font-size:12px}
+}

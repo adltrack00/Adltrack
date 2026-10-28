@@ -1,0 +1,42 @@
+/* Photo updates, under the hero: Adltrack on a computer, two windows like whatsapp.com's web section (the previous day's
+   report behind, today's Photos in front), and the words on the right. */
+.desk-updates{display:grid;grid-template-columns:52% 48%;align-items:center;max-width:1400px;min-height:clamp(560px,48vw,720px);margin:40px auto;box-sizing:border-box}
+.desk-art{position:relative;margin:0 0 0 12%;aspect-ratio:1.42}
+.desk-window{position:absolute;overflow:hidden;border-radius:10px;background:#fff;box-shadow:0 2px 6px #1d243314,0 24px 60px #1d243333}
+.desk-window img{display:block;width:100%;height:auto}
+.desk-back{left:0;top:0;width:74%}
+.desk-front{right:0;bottom:0;width:66%}
+.desk-bar{display:flex;align-items:center;gap:5px;height:22px;padding:0 10px;background:#eef0f3;border-bottom:1px solid #e1e4e8}
+.desk-bar i{width:7px;height:7px;border-radius:50%;background:#c9ced6}
+.desk-bar span{margin-left:10px;padding:2px 12px;border-radius:100px;background:#fff;font-family:Inter,sans-serif;font-size:9px;color:#6b6f76}
+html body .desk-updates .desk-copy{background:transparent;padding:0 10% 0 19%}
+html body .desk-copy .eyebrow{font-family:Inter,sans-serif;font-size:10px;font-weight:600;letter-spacing:.12em;color:#514c57}
+html body .desk-copy h2{margin:22px 0 0;font-family:Arial,Inter,sans-serif;font-weight:400;font-size:clamp(44px,5vw,76px);line-height:1.02;letter-spacing:-.045em;color:#101316}
+html body .desk-copy p{margin:24px 0 0;max-width:450px;font-family:Inter,sans-serif;font-size:19px;line-height:1.45;letter-spacing:-.25px;color:#2d2833}
+html body .desk-copy .tedy-intro-actions{margin-top:40px}
+
+/* Why we built it: the words spread wide across the page, like one big sentence. */
+html body .og-scope .manifesto{max-width:1240px;margin:0 auto;padding:110px 40px 120px;background:transparent;border-radius:0}
+html body .og-scope .manifesto h2{max-width:none;margin:28px auto 30px;font-family:Arial,Inter,sans-serif;font-size:clamp(38px,4.4vw,66px);line-height:1.1;letter-spacing:-.04em;color:#101316}
+html body .og-scope .manifesto h2 br{display:none}
+html body .og-scope .manifesto h2>span{color:#6b4fa3}
+html body .og-scope .manifesto p{font-size:19px;color:#3a3540}
+
+@media(max-width:1100px){.desk-art{margin-left:6%}html body .desk-updates .desk-copy{padding:0 6% 0 8%}}
+/* Phones and small tablets: the words first, then the two windows. */
+@media(max-width:800px){
+  .desk-updates{grid-template-columns:1fr;min-height:0;margin:24px auto 16px;padding:0 16px}
+  .desk-updates .desk-copy{order:-1}
+  html body .desk-updates .desk-copy{padding:16px 6px 0}
+  html body .desk-copy h2{font-size:clamp(40px,11vw,56px);margin-top:16px}
+  html body .desk-copy p{margin-top:18px;font-size:16px}
+  html body .desk-copy .tedy-intro-actions{margin-top:28px}
+  .desk-art{margin:84px 0 8px}
+  .desk-window{border-radius:8px}
+  .desk-bar{height:14px;gap:3px;padding:0 6px}
+  .desk-bar i{width:4px;height:4px}
+  .desk-bar span{display:none}
+  html body .og-scope .manifesto{margin:0;padding:64px 10px 72px}
+  html body .og-scope .manifesto h2{font-size:clamp(30px,8.6vw,40px);line-height:1.14;margin:20px 0 22px}
+  html body .og-scope .manifesto p{font-size:16px}
+}

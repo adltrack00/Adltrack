@@ -1,0 +1,17 @@
+/* The FAQ on Your circle, as it was on the landing page: the heading on the left, the questions on the right. */
+.care-page .og-scope .faq{display:grid;grid-template-columns:1fr 1.3fr;gap:10%;max-width:1200px;margin:0 auto;padding:90px 4%}
+.care-page #questions h2{margin:0;font-family:Arial,Inter,sans-serif;font-weight:400;font-size:clamp(40px,4.6vw,68px);line-height:1.02;letter-spacing:-.045em;color:#101316}
+.care-page #questions details{padding:28px 0;border-bottom:1px solid #e6dccd}
+.care-page #questions details:first-child{padding-top:8px}
+.care-page #questions summary{display:flex;justify-content:space-between;align-items:center;gap:24px;list-style:none;cursor:pointer;font-family:Inter,sans-serif;font-size:24px;font-weight:500;line-height:1.4;letter-spacing:-.3px;color:#101316}
+.care-page #questions summary::-webkit-details-marker{display:none}
+.care-page #questions summary span{font-size:34px;line-height:1;flex-shrink:0;transition:transform .2s}
+.care-page #questions details[open] summary span{transform:rotate(45deg)}
+.care-page #questions details p{margin:16px 0 0;max-width:580px;font-family:Inter,sans-serif;font-size:18px;line-height:1.65;color:#514c57}
+@media(max-width:800px){
+  .care-page .og-scope .faq{grid-template-columns:1fr;gap:25px;padding:56px 16px}
+  .care-page #questions details{padding:24px 0}
+  .care-page #questions summary{font-size:20px;gap:18px}
+  .care-page #questions summary span{font-size:30px}
+  .care-page #questions details p{font-size:17px}
+}
