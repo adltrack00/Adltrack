@@ -1,43 +1,18 @@
-/* Our elders need care too: the words on the left, a tall rounded photo on the right, and the kids section's layout
-   turned around. Its own look: a soft lilac panel, numbered lines under the paragraph, and clean frosted notifications
-   from the app resting on the photo's edges instead of stickers. */
-.elder-care{display:grid;grid-template-columns:52% 48%;align-items:center;max-width:1376px;min-height:clamp(620px,50vw,760px);margin:40px auto 56px;border-radius:32px;background:radial-gradient(120% 90% at 85% 20%,#f6f0ff 0,transparent 60%),linear-gradient(160deg,#ece3fa,#e2d6f5);box-sizing:border-box;overflow:hidden}
-html body .elder-care .elder-copy{background:transparent;padding:72px 6% 72px 16%}
-html body .elder-copy .eyebrow{font-family:Inter,sans-serif;font-size:10px;font-weight:600;letter-spacing:.12em;color:#5d4b7a}
-html body .elder-copy h2{margin:22px 0 0;font-family:Arial,Inter,sans-serif;font-weight:400;font-size:clamp(44px,5vw,76px);line-height:1.02;letter-spacing:-.045em;color:#1d1530}
-html body .elder-copy p{margin:24px 0 0;max-width:450px;font-family:Inter,sans-serif;font-size:19px;line-height:1.45;letter-spacing:-.25px;color:#3b3150}
-.elder-points{list-style:none;margin:30px 0 0;padding:0;max-width:450px}
-.elder-points li{display:flex;align-items:baseline;gap:18px;padding:14px 0;border-top:1px solid #1d153026;font-family:Inter,sans-serif;font-size:16px;font-weight:500;letter-spacing:-.2px;color:#1d1530}
-.elder-points li:last-child{border-bottom:1px solid #1d153026}
-.elder-points span{font-family:'Fragment Mono',monospace;font-size:11px;font-weight:400;color:#6b5a8a}
-html body .elder-copy .tedy-intro-actions{margin-top:36px}
-.elder-art{position:relative;justify-self:start;margin:0 0 0 16%;padding:56px 0;width:clamp(260px,21vw,320px)}
-.elder-photo{border-radius:28px;overflow:hidden;box-shadow:0 2px 6px #2a1d4414,0 28px 60px #2a1d4433}
-html body .elder-photo img{display:block;width:100%;height:auto;max-height:none;aspect-ratio:425/670;object-fit:cover}
-.elder-note{position:absolute;display:flex;align-items:center;gap:10px;width:250px;padding:10px 12px;border-radius:18px;background:#ffffffd1;backdrop-filter:blur(14px) saturate(1.4);-webkit-backdrop-filter:blur(14px) saturate(1.4);box-shadow:0 10px 30px #2a1d4429;font-family:Inter,-apple-system,sans-serif;color:#1d1530;box-sizing:border-box}
-.elder-note div{display:flex;flex-direction:column;flex:1;min-width:0}
-.elder-note b{font-size:13px;font-weight:600}
-.elder-note span{font-size:12px;color:#4a4060;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.elder-note time{align-self:flex-start;font-size:11px;color:#7b7190}
-html body .elder-care .elder-app{display:grid;place-items:center;flex-shrink:0;width:32px;height:32px;border-radius:9px;background:#1d1530;color:#fff;font-family:Arial,sans-serif;font-size:17px}
-.elder-note-top{top:18%;left:-96px}
-.elder-note-mid{top:46%;right:-110px}
-.elder-chip{position:absolute;left:24px;bottom:84px;display:flex;align-items:center;gap:8px;padding:9px 14px;border-radius:100px;background:#1d1530;color:#fff;font-family:Inter,sans-serif;font-size:13px;font-weight:500;box-shadow:0 10px 24px #1d153040}
-.elder-chip i{width:8px;height:8px;border-radius:50%;background:#b6fa72;box-shadow:0 0 0 3px #b6fa7240}
-@media(max-width:1100px){html body .elder-care .elder-copy{padding-left:8%}.elder-art{margin-left:12%}}
-/* Phones and small tablets: the words first, then the photo in the middle, all inside the panel. */
+/* Our elders need care too: the kids section turned around, the words on the left and the tall rounded photo with its
+   stickers on the right. */
+.kid-care.elder-care{grid-template-columns:44% 56%}
+html body .kid-care.elder-care .kid-copy{padding:0 4% 0 26%}
+.elder-care .kid-art{margin:0 0 0 24%}
+.elder-care .kid-heart{right:auto;left:-34px;top:9%;transform:rotate(-12deg) scaleX(-1)}
+.elder-care .kid-note{left:auto;right:-38px;top:60%;transform:rotate(6deg)}
+.elder-care .kid-done{right:auto;left:-18px;transform:rotate(4deg)}
+@media(max-width:1100px){html body .kid-care.elder-care .kid-copy{padding-left:12%}.elder-care .kid-art{margin-left:14%}}
 @media(max-width:800px){
-  .elder-care{grid-template-columns:1fr;min-height:0;margin:24px 16px 40px;border-radius:24px}
-  html body .elder-care .elder-copy{padding:36px 22px 0}
-  html body .elder-copy h2{font-size:clamp(40px,11vw,56px);margin-top:16px}
-  html body .elder-copy p{margin-top:18px;font-size:16px}
-  .elder-points li{font-size:15px}
-  html body .elder-copy .tedy-intro-actions{margin-top:28px}
-  .elder-art{justify-self:center;margin:0;padding:84px 0 48px;width:min(58vw,240px)}
-  .elder-note{width:200px;padding:8px 10px;gap:8px;border-radius:15px}
-  .elder-note b{font-size:12px}.elder-note span{font-size:11px;white-space:normal}
-  html body .elder-care .elder-app{width:26px;height:26px;border-radius:7px;font-size:14px}
-  .elder-note-top{left:-40px}
-  .elder-note-mid{right:-44px}
-  .elder-chip{left:14px;bottom:72px;font-size:12px}
+  .kid-care.elder-care{grid-template-columns:1fr}
+  html body .kid-care.elder-care .kid-copy{padding:16px 6px 0}
+  .elder-care .kid-art{margin:0}
+  .elder-care .kid-heart{left:-26px}
+  .elder-care .kid-note{right:-26px}
+  .elder-care .kid-done{left:-18px}
 }
+html body .elder-care .kid-photo img{aspect-ratio:405/630}
