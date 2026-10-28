@@ -40,22 +40,26 @@ html body #current-opening{grid-template-columns:50% 50%}
 .duo-art .duo-front{right:0;top:0;width:47%;z-index:1}
 .duo-art .app-status{height:5.6cqw;padding:0 9% 0 12%;font-size:2.4cqw}
 .duo-art .app-status svg{width:11cqw;height:2.4cqw}
-.duo-card{position:absolute;left:0;top:15%;z-index:2;width:38%;padding:3cqw 3cqw 2.6cqw;border-radius:4.4cqw;background:#fff;box-shadow:0 2px 6px #1d243314,0 22px 50px #1d24332e;font-family:Inter,-apple-system,sans-serif;box-sizing:border-box}
-.duo-card-top{display:flex;align-items:center;gap:2.2cqw;margin-bottom:2.6cqw}
-.duo-card-icon{display:grid;place-items:center;flex-shrink:0;width:7.4cqw;height:7.4cqw;border-radius:50%;background:#b6fa72}
-.duo-card-icon svg{width:4cqw;height:4cqw;fill:none;stroke:#101316;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.duo-card{position:absolute;left:0;top:15%;z-index:2;width:30%;padding:2.4cqw 2.4cqw 2cqw;border-radius:3.6cqw;background:#fff;box-shadow:0 2px 6px #1d243314,0 22px 50px #1d24332e;font-family:Inter,-apple-system,sans-serif;box-sizing:border-box}
+.duo-card-top{display:flex;align-items:center;gap:1.72cqw;margin-bottom:2.03cqw}
+.duo-card-icon{display:grid;place-items:center;flex-shrink:0;width:5.77cqw;height:5.77cqw;border-radius:50%;background:#b6fa72}
+.duo-card-icon svg{width:3.12cqw;height:3.12cqw;fill:none;stroke:#101316;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .duo-card-top div{display:flex;flex-direction:column}
-.duo-card-top b{font-size:3cqw;font-weight:600;color:#101316}
-.duo-card-top span{font-size:2.3cqw;color:#6b6573}
-.duo-card-photo{position:relative;border-radius:2.6cqw;overflow:hidden}
+.duo-card-top b{font-size:2.34cqw;font-weight:600;color:#101316}
+.duo-card-top span{font-size:1.79cqw;color:#6b6573}
+.duo-card-photo{position:relative;border-radius:2.03cqw;overflow:hidden}
 html body .duo-card-photo img{display:block;width:100%;height:auto;max-height:none;aspect-ratio:1;object-fit:cover}
-.duo-card-photo span,.duo-card-photo i{position:absolute;top:1.6cqw;padding:.5cqw 1.6cqw;border-radius:100px;font-size:2cqw;font-style:normal;font-weight:600;line-height:1.3}
-.duo-card-photo span{left:1.6cqw;background:#fff;color:#101316}
-.duo-card-photo i{right:1.6cqw;background:#101316b3;color:#fff}
-.duo-card p{margin:2.2cqw 0 0;font-size:2.4cqw;line-height:1.4;color:#514c57}
-.duo-card p b{display:block;font-size:2.7cqw;font-weight:600;color:#101316}
-.duo-card time{display:block;margin-top:1.4cqw;text-align:right;font-size:2cqw;color:#8a8492}
+.duo-card-photo span,.duo-card-photo i{position:absolute;top:1.25cqw;padding:0.39cqw 1.25cqw;border-radius:100px;font-size:1.56cqw;font-style:normal;font-weight:600;line-height:1.3}
+.duo-card-photo span{left:1.25cqw;background:#fff;color:#101316}
+.duo-card-photo i{right:1.25cqw;background:#101316b3;color:#fff}
+.duo-card p{margin:1.72cqw 0 0;font-size:1.87cqw;line-height:1.4;color:#514c57}
+.duo-card p b{display:block;font-size:2.11cqw;font-weight:600;color:#101316}
+.duo-card time{display:block;margin-top:1.09cqw;text-align:right;font-size:1.56cqw;color:#8a8492}
 @media(max-width:800px){
   html body #current-opening{grid-template-columns:1fr}
   .duo-art{justify-self:stretch;width:100%;margin:84px 0 8px;padding:0}
 }
+/* A little smaller words beside the two screens. */
+html body #why-Adltrack h2{font-size:clamp(38px,4.2vw,62px)}
+html body #why-Adltrack .intro-bottom p{font-size:17px}
+@media(max-width:800px){html body #why-Adltrack h2{font-size:clamp(34px,9.4vw,46px)}html body #why-Adltrack .intro-bottom p{font-size:15px}}
