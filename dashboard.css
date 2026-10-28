@@ -30,6 +30,8 @@ html,body{background:var(--cream)!important}
 .global-header{background:transparent!important;border:0!important}
 .global-header .menu-open{width:46px;height:46px;border-radius:50%;background:#fff;box-shadow:var(--lift)}
 .global-header .menu-open.is-back{box-shadow:var(--lift)!important}
+/* On Home the menu lines sit straight on the page, with no circle behind them. */
+.global-header .menu-open:not(.is-back){background:none;box-shadow:none}
 .global-header .menu-open:focus,.global-header .menu-open:focus-visible{outline:none}
 
 /* ---------- Home: profile photo, report tabs ---------- */
