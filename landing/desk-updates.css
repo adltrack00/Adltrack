@@ -40,3 +40,5 @@ html body .og-scope .manifesto p{font-size:19px;color:#3a3540}
   html body .og-scope .manifesto h2{font-size:clamp(30px,8.6vw,40px);line-height:1.14;margin:20px 0 22px}
   html body .og-scope .manifesto p{font-size:16px}
 }
+/* Photo updates, Why we built it and Everyone on the same page sit on the hero's cream, fading into the sky below. */
+html body.landing-sky .shared-sky-canvas{background:linear-gradient(#fcf5eb calc(100% - 200px),transparent)}
