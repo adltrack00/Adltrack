@@ -1,46 +1,33 @@
-/* "Everyone on the same page" and "Every reminder, in one place": the words on the left, the headline with its paragraph
-   right under it, and a real Adltrack screen on its own to the right, with rounded corners and a soft shadow and no phone around it. */
-html body #current-opening,html body #small-things{display:grid;grid-template-columns:59% 41%;align-items:center;gap:0;max-width:1400px;min-height:clamp(640px,62vw,820px);margin:40px auto;padding:0;box-sizing:border-box}
-html body #current-opening>.og-scope,html body #small-things>.og-scope{display:flex;align-items:center;min-width:0}
-html body #why-Adltrack.intro.section,html body #previous-opening-copy.intro.section{display:block;min-height:0;margin:0;padding:0 24px 0 21.2%;background:transparent;border-radius:0;width:100%;box-sizing:border-box}
-html body #why-Adltrack h2,html body #previous-opening-copy h2{margin:22px 0 0;max-width:560px}
-html body #why-Adltrack .intro-bottom,html body #previous-opening-copy .intro-bottom{display:block;margin:24px 0 0;padding:0}
-html body #why-Adltrack .intro-bottom .flower,html body #previous-opening-copy .intro-bottom .flower{display:none}
-html body #why-Adltrack .intro-bottom p,html body #previous-opening-copy .intro-bottom p{max-width:450px;font-size:19px;line-height:1.45;color:#2d2833}
-html body #why-Adltrack .tedy-intro-actions,html body #previous-opening-copy .tedy-intro-actions{margin-top:40px}
+/* "Everyone on the same page": the words on the left, the headline with its paragraph
+   right under it, and the real My Tasks screen on its own to the right, with rounded corners and a soft shadow and no phone around it. */
+html body #current-opening{display:grid;grid-template-columns:59% 41%;align-items:center;gap:0;max-width:1400px;min-height:clamp(640px,62vw,820px);margin:40px auto;padding:0;box-sizing:border-box}
+html body #current-opening>.og-scope{display:flex;align-items:center;min-width:0}
+html body #why-Adltrack.intro.section{display:block;min-height:0;margin:0;padding:0 24px 0 21.2%;background:transparent;border-radius:0;width:100%;box-sizing:border-box}
+html body #why-Adltrack h2{margin:22px 0 0;max-width:560px}
+html body #why-Adltrack .intro-bottom{display:block;margin:24px 0 0;padding:0}
+html body #why-Adltrack .intro-bottom .flower{display:none}
+html body #why-Adltrack .intro-bottom p{max-width:450px;font-size:19px;line-height:1.45;color:#2d2833}
+html body #why-Adltrack .tedy-intro-actions{margin-top:40px}
 
 .app-screen-art{position:relative;justify-self:start;margin:0;padding:40px 0}
 .app-screen{position:relative;width:clamp(250px,19vw,292px);border-radius:32px;overflow:hidden;background:#fff;box-shadow:0 2px 6px #1d243312,0 24px 60px #1d24332e}
 .app-screen>img{display:block;width:100%;height:auto}
 .app-status{display:flex;align-items:center;justify-content:space-between;height:calc(clamp(250px,19vw,292px)*.115);padding:0 9% 0 12%;background:#fff;color:#101316;font-family:Inter,-apple-system,sans-serif;font-size:13px;font-weight:600;letter-spacing:-.2px}
 .app-status svg{width:58px;height:13px;fill:currentColor}
-/* The report screen: one of its photo posts sits over the right edge, like a photo shared in a chat. */
-.app-screen-post{position:absolute;top:36%;right:-58px;width:56%;padding:8px 8px 12px;border-radius:18px;background:#fff;box-shadow:0 2px 6px #1d243314,0 18px 44px #1d24332e;font-family:Inter,-apple-system,sans-serif}
-.app-screen-post-photo{position:relative;border-radius:12px;overflow:hidden}
-html body .app-screen-post .app-screen-post-photo img{display:block;width:100%;height:auto;max-height:none;aspect-ratio:1;object-fit:cover}
-.app-screen-post .post-num,.app-screen-post .post-count{position:absolute;top:8px;padding:3px 8px;border-radius:100px;font-size:11px;font-weight:600;line-height:1.3}
-.app-screen-post .post-num{left:8px;background:#fff;color:#101316}
-.app-screen-post .post-count{right:8px;background:#101316b3;color:#fff}
-.app-screen-post p{margin:10px 4px 0;font-size:12px;line-height:1.4;color:#514c57}
-.app-screen-post strong{display:block;margin-bottom:2px;font-size:13px;font-weight:600;color:#101316}
 
 @media(max-width:1100px){
-  html body #why-Adltrack.intro.section,html body #previous-opening-copy.intro.section{padding-left:12%}
+  html body #why-Adltrack.intro.section{padding-left:12%}
 }
 /* Phones and small tablets: the words first, then the screen in the middle. */
 @media(max-width:800px){
-  html body #current-opening,html body #small-things{grid-template-columns:1fr;min-height:0;margin:24px auto 40px;padding:0 16px}
-  html body #why-Adltrack.intro.section,html body #previous-opening-copy.intro.section{padding:16px 6px 0}
-  html body #why-Adltrack h2,html body #previous-opening-copy h2{font-size:clamp(40px,11vw,56px);margin-top:16px}
-  html body #why-Adltrack .intro-bottom,html body #previous-opening-copy .intro-bottom{margin-top:18px}
-  html body #why-Adltrack .intro-bottom p,html body #previous-opening-copy .intro-bottom p{font-size:16px}
-  html body #why-Adltrack .tedy-intro-actions,html body #previous-opening-copy .tedy-intro-actions{margin-top:28px}
+  html body #current-opening{grid-template-columns:1fr;min-height:0;margin:24px auto 40px;padding:0 16px}
+  html body #why-Adltrack.intro.section{padding:16px 6px 0}
+  html body #why-Adltrack h2{font-size:clamp(40px,11vw,56px);margin-top:16px}
+  html body #why-Adltrack .intro-bottom{margin-top:18px}
+  html body #why-Adltrack .intro-bottom p{font-size:16px}
+  html body #why-Adltrack .tedy-intro-actions{margin-top:28px}
   .app-screen-art{justify-self:center;padding:44px 0 8px}
   .app-screen{width:min(68vw,280px);border-radius:30px}
   .app-status{height:calc(min(68vw,280px)*.115);font-size:12px}
   .app-status svg{width:52px}
-  .report-art{margin-right:8%}
-  .app-screen-post{right:-16%;width:60%;padding:6px 6px 10px;border-radius:16px}
-  .app-screen-post p{font-size:11px}
-  .app-screen-post strong{font-size:12px}
 }
