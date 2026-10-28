@@ -9,7 +9,7 @@
 .desk-bar{display:flex;align-items:center;gap:5px;height:22px;padding:0 10px;background:#eef0f3;border-bottom:1px solid #e1e4e8}
 .desk-bar i{width:7px;height:7px;border-radius:50%;background:#c9ced6}
 .desk-bar span{margin-left:10px;padding:2px 12px;border-radius:100px;background:#fff;font-family:Inter,sans-serif;font-size:9px;color:#6b6f76}
-html body .desk-updates .desk-copy{background:transparent;padding:0 12% 0 14%}
+html body .desk-updates .desk-copy{background:transparent;padding:0 10% 0 19%}
 html body .desk-copy .eyebrow{font-family:Inter,sans-serif;font-size:10px;font-weight:600;letter-spacing:.12em;color:#514c57}
 html body .desk-copy h2{margin:22px 0 0;font-family:Arial,Inter,sans-serif;font-weight:400;font-size:clamp(44px,5vw,76px);line-height:1.02;letter-spacing:-.045em;color:#101316}
 html body .desk-copy p{margin:24px 0 0;max-width:450px;font-family:Inter,sans-serif;font-size:19px;line-height:1.45;letter-spacing:-.25px;color:#2d2833}
@@ -31,7 +31,7 @@ html body .og-scope .manifesto p{font-size:19px;color:#3a3540}
   html body .desk-copy h2{font-size:clamp(40px,11vw,56px);margin-top:16px}
   html body .desk-copy p{margin-top:18px;font-size:16px}
   html body .desk-copy .tedy-intro-actions{margin-top:28px}
-  .desk-art{margin:44px 0 8px}
+  .desk-art{margin:84px 0 8px}
   .desk-window{border-radius:8px}
   .desk-bar{height:14px;gap:3px;padding:0 6px}
   .desk-bar i{width:4px;height:4px}

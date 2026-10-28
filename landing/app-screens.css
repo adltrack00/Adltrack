@@ -1,6 +1,6 @@
 /* "Everyone on the same page": the words on the left, the headline with its paragraph
    right under it, and the real My Tasks screen on its own to the right, with rounded corners and a soft shadow and no phone around it. */
-html body #current-opening{display:grid;grid-template-columns:59% 41%;align-items:center;gap:0;max-width:1400px;min-height:clamp(640px,62vw,820px);margin:40px auto;padding:0;box-sizing:border-box}
+html body #current-opening{display:grid;grid-template-columns:62% 38%;align-items:center;gap:0;max-width:1400px;min-height:clamp(640px,62vw,820px);margin:40px auto;padding:0;box-sizing:border-box}
 html body #current-opening>.og-scope{display:flex;align-items:center;min-width:0}
 html body #why-Adltrack.intro.section{display:block;min-height:0;margin:0;padding:0 24px 0 21.2%;background:transparent;border-radius:0;width:100%;box-sizing:border-box}
 html body #why-Adltrack h2{margin:22px 0 0;max-width:560px}
@@ -26,7 +26,7 @@ html body #why-Adltrack .tedy-intro-actions{margin-top:40px}
   html body #why-Adltrack .intro-bottom{margin-top:18px}
   html body #why-Adltrack .intro-bottom p{font-size:16px}
   html body #why-Adltrack .tedy-intro-actions{margin-top:28px}
-  .app-screen-art{justify-self:center;padding:44px 0 8px}
+  .app-screen-art{justify-self:center;padding:84px 0 8px}
   .app-screen{width:min(68vw,280px);border-radius:30px}
   .app-status{height:calc(min(68vw,280px)*.115);font-size:12px}
   .app-status svg{width:52px}
