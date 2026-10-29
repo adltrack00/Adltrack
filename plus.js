@@ -93,14 +93,14 @@ return `<section class="sub-page take-page plus-page">${subHeader('Add a planned
 ${plusField('What to do',`<input name="what" maxlength="100" required autocomplete="off" value="${esc(d.what)}" placeholder="Change the dressing on the left knee">`)}
 ${plusField('Note',`<textarea name="note" maxlength="500" placeholder="Anything to know (optional)">${esc(d.note)}</textarea>`)}
 ${plusPhotos(d,'plus-photo')}
-${plusField('When',`<div class="plus-when"><input name="date" type="date" min="${today()}" max="${last}" value="${esc(d.date)}" aria-label="Date"><input name="time" type="time" value="${esc(d.time)}" aria-label="Time"></div>`)}
+${plusField('When',`<div class="plus-when"><label class="when-box"><span>Date</span><input name="date" type="date" min="${today()}" max="${last}" value="${esc(d.date)}" aria-label="Date"></label><label class="when-box"><span>Time</span><input name="time" type="time" value="${esc(d.time)}" aria-label="Time"></label></div>`)}
 ${plusField('Repeats',`${plusRadios('repeat',REPEATS,d.repeat)}${d.repeat==='days'?`<div class="plus-days">${TASK_DAYS.map((w,n)=>`<label><input type="checkbox" name="day" value="${n}"${d.days.includes(n)?' checked':''}><span>${w}</span></label>`).join('')}</div>`:''}${d.repeat!=='once'?`<label class="plus-until"><span>Until</span><input name="until" type="date" min="${esc(d.date||today())}" max="${last}" value="${esc(d.until)}"></label><p class="take-muted">For as long as it's needed, up to 5 years ahead.</p>`:''}`)}
 <button class="primary plus-save"${d.busy?' disabled':''}>Add the task</button></form></section>`}
 function apptNewPage(){const d=plusDraft;
 return `<section class="sub-page take-page plus-page">${subHeader('Add an appointment','appointments')}<form id="appt-new-form" class="plus-form" novalidate>
 ${plusField('With',`<input name="with" maxlength="100" required autocomplete="off" value="${esc(d.with)}" placeholder="Dr. Patel">`)}
 ${plusField('Where',`<input name="place" maxlength="200" autocomplete="off" value="${esc(d.place)}" placeholder="Clinic and address">`)}
-${plusField('When',`<div class="plus-when"><input name="date" type="date" min="${today()}" value="${esc(d.date)}" aria-label="Date"><input name="time" type="time" value="${esc(d.time)}" aria-label="Time"></div>`)}
+${plusField('When',`<div class="plus-when"><label class="when-box"><span>Date</span><input name="date" type="date" min="${today()}" value="${esc(d.date)}" aria-label="Date"></label><label class="when-box"><span>Time</span><input name="time" type="time" value="${esc(d.time)}" aria-label="Time"></label></div>`)}
 ${plusField('Remind me',`<div class="plus-choice">${APPT_REMINDS.map(([v,l])=>`<label><input type="checkbox" name="remind" value="${v}"${d.remind.includes(v)?' checked':''}><span>${l}</span></label>`).join('')}</div><p class="take-muted">Always the day before and 2 hours before. Reminders come by notification, text and email. On the day, it’s in My Tasks.</p>`)}
 ${plusField('Phone',`<input name="phone" type="tel" maxlength="40" autocomplete="off" value="${esc(d.phone)}" placeholder="To change or cancel it (optional)">`)}
 ${plusField('Note',`<textarea name="note" maxlength="500" placeholder="What to bring, or anything to know (optional)">${esc(d.note)}</textarea>`)}
@@ -109,7 +109,7 @@ function incidentNewPage(){const d=plusDraft;
 return `<section class="sub-page take-page plus-page">${subHeader('Report an incident','plus')}<form id="incident-form" class="plus-form" novalidate>
 <section class="take-block plus-911"><p>In an emergency, call 911 first.</p><p>${call911}</p></section>
 ${plusField('What happened',plusRadios('kind',INCIDENTS,d.kind))}
-${plusField('When',`<div class="plus-when"><input name="date" type="date" max="${today()}" value="${esc(d.date)}" aria-label="Date"><input name="time" type="time" value="${esc(d.time)}" aria-label="Time"></div>`)}
+${plusField('When',`<div class="plus-when"><label class="when-box"><span>Date</span><input name="date" type="date" max="${today()}" value="${esc(d.date)}" aria-label="Date"></label><label class="when-box"><span>Time</span><input name="time" type="time" value="${esc(d.time)}" aria-label="Time"></label></div>`)}
 ${plusField('Note',`<textarea name="note" maxlength="1000" placeholder="What happened, and what was done">${esc(d.note)}</textarea>`)}
 ${plusPhotos(d,'plus-photo')}
 ${plusField('Witnesses',`<input name="witnesses" maxlength="200" autocomplete="off" value="${esc(d.witnesses)}" placeholder="Ann, Luis">`)}
@@ -120,7 +120,7 @@ ${plusField('Who was told',`<input name="told" maxlength="200" autocomplete="off
 function symptomNewPage(){const d=plusDraft;
 return `<section class="sub-page take-page plus-page">${subHeader('Symptoms','plus')}<form id="symptom-form" class="plus-form" novalidate>
 ${plusField('What they’re feeling',`<textarea name="feel" maxlength="1000" required placeholder="Dizzy when standing up, mild headache since lunch">${esc(d.feel)}</textarea>`)}
-${plusField('When',`<div class="plus-when"><input name="date" type="date" max="${today()}" value="${esc(d.date)}" aria-label="Date"><input name="time" type="time" value="${esc(d.time)}" aria-label="Time"></div>`)}
+${plusField('When',`<div class="plus-when"><label class="when-box"><span>Date</span><input name="date" type="date" max="${today()}" value="${esc(d.date)}" aria-label="Date"></label><label class="when-box"><span>Time</span><input name="time" type="time" value="${esc(d.time)}" aria-label="Time"></label></div>`)}
 ${plusPhotos(d,'plus-photo')}
 <button class="primary plus-save"${d.busy?' disabled':''}>Add to the daily report</button></form></section>`}
 /* New task: something done now that wasn't planned (a walk outside, a visitor, a shower): what was done, when, a note and photos. Like
@@ -128,7 +128,7 @@ ${plusPhotos(d,'plus-photo')}
 function activityNewPage(){const d=plusDraft;
 return `<section class="sub-page take-page plus-page">${subHeader('New task','plus')}<form id="activity-form" class="plus-form" novalidate>
 ${plusField('What was done',`<input name="done" maxlength="100" required autocomplete="off" value="${esc(d.done)}" placeholder="Went for a walk around the block">`)}
-${plusField('When',`<div class="plus-when"><input name="date" type="date" max="${today()}" value="${esc(d.date)}" aria-label="Date"><input name="time" type="time" value="${esc(d.time)}" aria-label="Time"></div>`)}
+${plusField('When',`<div class="plus-when"><label class="when-box"><span>Date</span><input name="date" type="date" max="${today()}" value="${esc(d.date)}" aria-label="Date"></label><label class="when-box"><span>Time</span><input name="time" type="time" value="${esc(d.time)}" aria-label="Time"></label></div>`)}
 ${plusField('Note',`<textarea name="note" maxlength="1000" placeholder="How it went (optional)">${esc(d.note)}</textarea>`)}
 ${plusPhotos(d,'plus-photo')}
 <button class="primary plus-save"${d.busy?' disabled':''}>Add to the daily report</button></form></section>`}
