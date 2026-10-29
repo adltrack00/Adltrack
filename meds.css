@@ -28,11 +28,17 @@
 .gallery-controls .gallery-filters.med-tabs button{display:block;background:none!important;border:0!important;border-bottom:2px solid #e8e8e6!important;border-radius:0!important;padding:10px 2px!important;font-size:14px!important;font-weight:500;color:#aaa!important;text-align:center;white-space:nowrap}
 .gallery-controls .gallery-filters.med-tabs button.active{background:none!important;color:#111!important;font-weight:600;border-bottom-color:#111!important}
 @media(max-width:600px){.gallery-controls .gallery-filters.med-tabs{gap:4px!important}.gallery-filters.med-tabs button{font-size:13px!important}}
-/* Needs refill: one card per medication, in the middle of the page. */
-.med-refills{display:grid;gap:14px;max-width:480px;margin:18px auto 0}
-.med-refill-card{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;padding:22px 18px;border:0;border-radius:22px;background:#fff;box-shadow:0 2px 14px #0000000d;text-align:center;color:var(--ink,#151412);cursor:pointer}
-.med-refill-name{font-size:22px;font-weight:700;letter-spacing:-.01em}
-.med-refill-days{font-size:30px;font-weight:700;color:#b5532c;line-height:1.2;margin-top:4px}
-.med-refill-card small{font-size:14px;color:var(--muted,#7b766d)}
-.med-refill-left{font-size:16px;font-weight:600}
-.med-refill-step{margin-top:6px;line-height:1.45}
+/* Needs refill: one card per medication, its photo small on the left and everything about the refill on the right. */
+.med-refills{display:grid;gap:14px;max-width:560px;margin:18px auto 0}
+.med-refill-card{display:grid;grid-template-columns:104px 1fr;gap:18px;align-items:center;width:100%;padding:16px;border:0;border-radius:22px;background:#fff;box-shadow:0 2px 14px #0000000d;text-align:left;color:var(--ink,#151412);cursor:pointer}
+.med-refill-photo{display:block;width:104px;height:104px;border-radius:16px;overflow:hidden;background:#f3ede3}
+.med-refill-photo .product-photo{width:100%;height:100%;aspect-ratio:auto!important;border-radius:0;margin:0}
+.med-refill-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.med-refill-photo svg{max-height:100%}
+.med-refill-info{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0}
+.med-refill-name{font-size:19px;font-weight:700;letter-spacing:-.01em;line-height:1.2}
+.med-refill-days{font-size:24px;font-weight:700;color:#b5532c;line-height:1.2;margin-top:2px}
+.med-refill-card small{font-size:13px;color:var(--muted,#7b766d)}
+.med-refill-left{font-size:15px;font-weight:600}
+.med-refill-step{margin-top:4px;line-height:1.4}
+@media(max-width:600px){.med-refill-card{grid-template-columns:84px 1fr;gap:14px;padding:14px}.med-refill-photo{width:84px;height:84px}}
