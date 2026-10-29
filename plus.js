@@ -1,11 +1,12 @@
-/* The + at the top right of My Tasks, in the back button's round white style: a new task or an incident, for the family on screen
-   (each family's plan is its own, so a caregiver on several families adds it to the patient they're looking at). Only people
-   allowed to add tasks or report incidents see it; the server checks it too (server/permissions.js).
-   A new task: what to do, an optional note and photo, the date and exact time, once or repeating (every day, chosen days or
-   every week), from today up to one year ahead. It shows in My Tasks on its days at its time and is done on the Take page with
-   the same Done or Skip, note and photos. An incident: what happened, when, a note, photos, the witnesses and who was told, with Call 911 on
-   the form. Both show in the daily care report, numbered and time-stamped. Uses the Take card's blocks. */
-const PLUS_PHOTOS=3,YEAR_AHEAD=365;
+/* The + at the top right of My Tasks, in the back button's round white style: what happens now, for the family on screen
+   (each family's plan is its own, so a caregiver on several families adds it to the patient they're looking at): something
+   done that wasn't planned, an incident or symptoms. Only people who do the care see it; the server checks it too
+   (server/permissions.js). The forms for a planned task and an appointment live here too, opened from the menu (planner.js).
+   A planned task: what to do, an optional note and photo, the date and exact time, once or repeating (every day, chosen days
+   or every week), from today up to 5 years ahead. It shows in My Tasks on its days at its time and is done on the Take page
+   with the same Done or Skip, note and photos. An incident: what happened, when, a note, photos, the witnesses and who was
+   told, with Call 911 on the form. All of them show in the daily care report, numbered and time-stamped. Uses the Take card's blocks. */
+const PLUS_PHOTOS=3,YEAR_AHEAD=5*365;
 const TASK_DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const REPEATS=[['once','Once'],['daily','Every day'],['days','Chosen days'],['weekly','Every week']];
 const INCIDENTS=[['fall','Fall'],['refused','Refused medication'],['injury','Injury'],['behaviour','Behaviour'],['other','Other']];
@@ -51,16 +52,17 @@ reportEntries=function(list=items,day=today(),vitalsLog){const out=reportEntries
 for(const t of list.filter(i=>i.task)){
 if(onDay(t.addedAt,day))out.push({title:'New task: '+t.name,at:t.addedAt,note:t.note||'',details:[repeatText(t)],name:t.name,photos:t.photos||[]});
 for(const m of (t.marks||[]).filter(m=>m.key==='task'&&m.day===day&&m.at))out.push({title:`${t.name} (${t.time?shortClock(t.time)+' task':'task'})${m.kind==='skipped'?' skipped':''}`,at:m.at,note:m.note||'',details:[],name:t.name,photos:m.photos||[]})}
+for(const i of list.filter(i=>i.activity&&onDay(i.at,day)))out.push({title:i.name,at:i.at,note:i.note||'',details:[],name:i.name,photos:i.photos||[]});
 for(const i of list.filter(i=>i.symptom&&onDay(i.at,day)))out.push({title:'Symptoms',at:i.at,note:i.note||'',details:[],name:'Symptoms',photos:i.photos||[]});
 for(const i of list.filter(i=>i.incident&&onDay(i.at,day)))out.push({title:'Incident: '+i.name,at:i.at,note:i.note||'',details:[i.witnesses?'Witnesses: '+i.witnesses:'',i.told?'Told: '+i.told:''].filter(Boolean),name:'Incident: '+i.name,photos:i.photos||[]});
 return out.sort((x,y)=>new Date(x.at)-new Date(y.at))};
 
 /* The + itself, at the top right across from the My Tasks title: the round white back button from the other pages, with a plus the size of
    its arrow. Someone who may do both picks one first; otherwise it opens the one they may do. */
-const plusButton=()=>mayAddTask()||mayReport()?`<button class="tasks-plus" id="tasks-plus" aria-label="Add to My Tasks">${menuIcon('<path d="M12 5v14M5 12h14"/>')}</button>`:'';
+const plusButton=()=>mayReport()?`<button class="tasks-plus" id="tasks-plus" aria-label="Add to My Tasks">${menuIcon('<path d="M12 5v14M5 12h14"/>')}</button>`:'';
 /* Tapping an incident in My Tasks shows it in today's daily care report. */
 document.addEventListener('click',e=>{const b=e.target.closest('[data-today-start$="|incident"]');if(!b)return;e.stopImmediatePropagation();reportTab='today';setTasksOpen(false);view='overview';render();window.scrollTo(0,0)},true);
-document.addEventListener('click',e=>{if(!e.target.closest('#tasks-plus'))return;e.stopPropagation();go(plusRows().length>1?'plus':mayAddTask()?'task-new':'incident-new')});
+document.addEventListener('click',e=>{if(!e.target.closest('#tasks-plus'))return;e.stopPropagation();go('plus')});
 
 /* What's being written, kept while a photo is added or the page redraws. */
 
@@ -70,31 +72,32 @@ const blankApptDraft=()=>({with:'',place:'',date:'',time:'',phone:'',note:'',rem
 const APPT_REMINDS=[['week','A week before'],['two','2 days before'],['daily','Every day until then']];
 const blankIncidentDraft=()=>({kind:'',date:today(),time:hmNow(),note:'',witnesses:'',told:'',photos:[],busy:false});
 const blankSymptomDraft=()=>({feel:'',date:today(),time:hmNow(),photos:[],busy:false});
+const blankActivityDraft=()=>({done:'',note:'',date:today(),time:hmNow(),photos:[],busy:false});
 const plusPhotos=(d,id)=>`<section class="take-block"><div class="take-line"><h2>Photo <span>${d.photos.length} of ${PLUS_PHOTOS}</span></h2>${d.photos.length>=PLUS_PHOTOS?'':`<label class="take-add" for="${id}" aria-label="Add a photo">+</label>`}</div><input type="file" id="${id}" accept="image/*" multiple hidden>${proofRow(d.photos,true)}<p class="take-muted">Optional. Up to ${PLUS_PHOTOS} photos.</p></section>`;
 const plusField=(label,html)=>`<section class="take-block"><h2>${label}</h2>${html}</section>`;
 const plusRadios=(name,list,value)=>`<div class="plus-choice">${list.map(([v,l])=>`<label><input type="radio" name="${name}" value="${v}"${v===value?' checked':''}><span>${l}</span></label>`).join('')}</div>`;
 
-/* The + list, in this order: a new task, the two scans (the discharge papers, or the medication bottles directly), an appointment
-   by hand, and an incident. The scans and the appointment open their usual screens through those screens' own buttons
-   (data-add, #flow-bottles), and only show for people allowed to add medications. An appointment is typed in by hand (who,
-   where, when, phone, note), for a visit booked over the phone; it shows in My Tasks on its day and on Your schedule ahead
-   of it, with the usual reminders plus any chosen (a week before, 2 days before, every day until then), which are only
-   messages (server/reminders.js), never My Tasks.
+/* The + list is for what happens now, not what's planned: something done that wasn't planned (a walk, a visitor), an incident
+   and symptoms. Each goes straight into the daily care report at its time, not into My Tasks. Planned tasks, the scans and
+   appointments are in the menu (planner.js), and still use the forms below: a planned task once or repeating, up to 5 years
+   ahead, shows in My Tasks on its days; an appointment typed in by hand (who, where, when, phone, note), for a visit booked
+   over the phone, shows in My Tasks on its day and on Your schedule ahead of it, with the usual reminders plus any chosen
+   (a week before, 2 days before, every day until then), which are only messages (server/reminders.js), never My Tasks.
    Appointments read from the papers are added on their own and show the same way once confirmed. */
 /* Each a white card with the My Tasks blue arrow, like the History list. */
 const plusRow=(attr,label)=>`<button class="plus-row" ${attr}><span>${label}</span>${TODAY_ARROW}</button>`;
-const plusRows=()=>[mayAddTask()&&plusRow('data-menu-go="task-new"','New task'),mayDo('meds')&&plusRow('data-add','Scan discharge papers'),mayDo('meds')&&plusRow('id="flow-bottles"','Scan medications'),mayDo('meds')&&plusRow('data-menu-go="appt-new"','Add appointment'),mayReport()&&plusRow('data-menu-go="incident-new"','Report an incident'),mayReport()&&plusRow('data-menu-go="symptom-new"','Symptoms')].filter(Boolean);
+const plusRows=()=>[mayReport()&&plusRow('data-menu-go="activity-new"','Something done now'),mayReport()&&plusRow('data-menu-go="incident-new"','Report an incident'),mayReport()&&plusRow('data-menu-go="symptom-new"','Symptoms')].filter(Boolean);
 function plusPage(){return `<section class="sub-page settings-page">${subHeader('Add to My Tasks','overview')}<div class="plus-list">${plusRows().join('')}</div></section>`}
 function taskNewPage(){const d=plusDraft,last=C.shift(today(),YEAR_AHEAD);
-return `<section class="sub-page take-page plus-page">${subHeader('New task',plusRows().length>1?'plus':'overview')}<form id="task-form" class="plus-form" novalidate>
+return `<section class="sub-page take-page plus-page">${subHeader('Add a planned task','planned-tasks')}<form id="task-form" class="plus-form" novalidate>
 ${plusField('What to do',`<input name="what" maxlength="100" required autocomplete="off" value="${esc(d.what)}" placeholder="Change the dressing on the left knee">`)}
 ${plusField('Note',`<textarea name="note" maxlength="500" placeholder="Anything to know (optional)">${esc(d.note)}</textarea>`)}
 ${plusPhotos(d,'plus-photo')}
 ${plusField('When',`<div class="plus-when"><input name="date" type="date" min="${today()}" max="${last}" value="${esc(d.date)}" aria-label="Date"><input name="time" type="time" value="${esc(d.time)}" aria-label="Time"></div>`)}
-${plusField('Repeats',`${plusRadios('repeat',REPEATS,d.repeat)}${d.repeat==='days'?`<div class="plus-days">${TASK_DAYS.map((w,n)=>`<label><input type="checkbox" name="day" value="${n}"${d.days.includes(n)?' checked':''}><span>${w}</span></label>`).join('')}</div>`:''}${d.repeat!=='once'?`<label class="plus-until"><span>Until</span><input name="until" type="date" min="${esc(d.date||today())}" max="${last}" value="${esc(d.until)}"></label><p class="take-muted">Up to one year ahead.</p>`:''}`)}
+${plusField('Repeats',`${plusRadios('repeat',REPEATS,d.repeat)}${d.repeat==='days'?`<div class="plus-days">${TASK_DAYS.map((w,n)=>`<label><input type="checkbox" name="day" value="${n}"${d.days.includes(n)?' checked':''}><span>${w}</span></label>`).join('')}</div>`:''}${d.repeat!=='once'?`<label class="plus-until"><span>Until</span><input name="until" type="date" min="${esc(d.date||today())}" max="${last}" value="${esc(d.until)}"></label><p class="take-muted">For as long as it's needed, up to 5 years ahead.</p>`:''}`)}
 <button class="primary plus-save"${d.busy?' disabled':''}>Add the task</button></form></section>`}
 function apptNewPage(){const d=plusDraft;
-return `<section class="sub-page take-page plus-page">${subHeader('Add appointment',plusRows().length>1?'plus':'overview')}<form id="appt-new-form" class="plus-form" novalidate>
+return `<section class="sub-page take-page plus-page">${subHeader('Add an appointment','appointments')}<form id="appt-new-form" class="plus-form" novalidate>
 ${plusField('With',`<input name="with" maxlength="100" required autocomplete="off" value="${esc(d.with)}" placeholder="Dr. Patel">`)}
 ${plusField('Where',`<input name="place" maxlength="200" autocomplete="off" value="${esc(d.place)}" placeholder="Clinic and address">`)}
 ${plusField('When',`<div class="plus-when"><input name="date" type="date" min="${today()}" value="${esc(d.date)}" aria-label="Date"><input name="time" type="time" value="${esc(d.time)}" aria-label="Time"></div>`)}
@@ -103,7 +106,7 @@ ${plusField('Phone',`<input name="phone" type="tel" maxlength="40" autocomplete=
 ${plusField('Note',`<textarea name="note" maxlength="500" placeholder="What to bring, or anything to know (optional)">${esc(d.note)}</textarea>`)}
 <button class="primary plus-save"${d.busy?' disabled':''}>Add the appointment</button></form></section>`}
 function incidentNewPage(){const d=plusDraft;
-return `<section class="sub-page take-page plus-page">${subHeader('Report an incident',plusRows().length>1?'plus':'overview')}<form id="incident-form" class="plus-form" novalidate>
+return `<section class="sub-page take-page plus-page">${subHeader('Report an incident','plus')}<form id="incident-form" class="plus-form" novalidate>
 <section class="take-block plus-911"><p>In an emergency, call 911 first.</p><p>${call911}</p></section>
 ${plusField('What happened',plusRadios('kind',INCIDENTS,d.kind))}
 ${plusField('When',`<div class="plus-when"><input name="date" type="date" max="${today()}" value="${esc(d.date)}" aria-label="Date"><input name="time" type="time" value="${esc(d.time)}" aria-label="Time"></div>`)}
@@ -115,53 +118,67 @@ ${plusField('Who was told',`<input name="told" maxlength="200" autocomplete="off
 /* Symptoms: what the patient is feeling, in their words, when it was felt, and photos of what can be seen (a rash, swelling).
    It goes straight into the daily care report at that time, and its photos into Photos. It isn't a task, so it isn't in My Tasks. */
 function symptomNewPage(){const d=plusDraft;
-return `<section class="sub-page take-page plus-page">${subHeader('Symptoms',plusRows().length>1?'plus':'overview')}<form id="symptom-form" class="plus-form" novalidate>
+return `<section class="sub-page take-page plus-page">${subHeader('Symptoms','plus')}<form id="symptom-form" class="plus-form" novalidate>
 ${plusField('What they’re feeling',`<textarea name="feel" maxlength="1000" required placeholder="Dizzy when standing up, mild headache since lunch">${esc(d.feel)}</textarea>`)}
 ${plusField('When',`<div class="plus-when"><input name="date" type="date" max="${today()}" value="${esc(d.date)}" aria-label="Date"><input name="time" type="time" value="${esc(d.time)}" aria-label="Time"></div>`)}
 ${plusPhotos(d,'plus-photo')}
 <button class="primary plus-save"${d.busy?' disabled':''}>Add to the daily report</button></form></section>`}
-Object.assign(menuPages,{plus:plusPage,'task-new':taskNewPage,'appt-new':apptNewPage,'incident-new':incidentNewPage,'symptom-new':symptomNewPage});
-menuViews.push('plus','task-new','appt-new','incident-new','symptom-new');
-const goBeforePlus=go;go=function(v){if(v==='task-new'&&(!plusDraft||!('what'in plusDraft)))plusDraft=blankTaskDraft();if(v==='appt-new'&&(!plusDraft||!('place'in plusDraft)))plusDraft=blankApptDraft();if(v==='incident-new'&&(!plusDraft||!('kind'in plusDraft)))plusDraft=blankIncidentDraft();if(v==='symptom-new'&&(!plusDraft||!('feel'in plusDraft)))plusDraft=blankSymptomDraft();if(v==='overview'||v==='plus')plusDraft=null;return goBeforePlus(v)};
+/* Something done now that wasn't planned (a walk outside, a visitor, a shower): what was done, when, a note and photos. Like
+   Symptoms, it goes straight into the daily care report at that time, and its photos into Photos; it isn't in My Tasks. */
+function activityNewPage(){const d=plusDraft;
+return `<section class="sub-page take-page plus-page">${subHeader('Something done now','plus')}<form id="activity-form" class="plus-form" novalidate>
+${plusField('What was done',`<input name="done" maxlength="100" required autocomplete="off" value="${esc(d.done)}" placeholder="Went for a walk around the block">`)}
+${plusField('When',`<div class="plus-when"><input name="date" type="date" max="${today()}" value="${esc(d.date)}" aria-label="Date"><input name="time" type="time" value="${esc(d.time)}" aria-label="Time"></div>`)}
+${plusField('Note',`<textarea name="note" maxlength="1000" placeholder="How it went (optional)">${esc(d.note)}</textarea>`)}
+${plusPhotos(d,'plus-photo')}
+<button class="primary plus-save"${d.busy?' disabled':''}>Add to the daily report</button></form></section>`}
+Object.assign(menuPages,{plus:plusPage,'activity-new':activityNewPage,'task-new':taskNewPage,'appt-new':apptNewPage,'incident-new':incidentNewPage,'symptom-new':symptomNewPage});
+menuViews.push('plus','task-new','appt-new','incident-new','symptom-new','activity-new');
+const goBeforePlus=go;go=function(v){if(v==='task-new'&&(!plusDraft||!('what'in plusDraft)))plusDraft=blankTaskDraft();if(v==='appt-new'&&(!plusDraft||!('place'in plusDraft)))plusDraft=blankApptDraft();if(v==='incident-new'&&(!plusDraft||!('kind'in plusDraft)))plusDraft=blankIncidentDraft();if(v==='symptom-new'&&(!plusDraft||!('feel'in plusDraft)))plusDraft=blankSymptomDraft();if(v==='activity-new'&&(!plusDraft||!('done'in plusDraft)))plusDraft=blankActivityDraft();if(['overview','plus','planned-tasks','appointments'].includes(v))plusDraft=null;return goBeforePlus(v)};
 
 /* Typing keeps the draft; a new repeat choice shows its days or its last day. */
-function readPlusForm(f){const d=plusDraft;for(const k of ['what','note','date','time','until','witnesses','told','kind','repeat','with','place','phone','feel'])if(f.elements[k]){const el=f.elements[k];d[k]=el instanceof RadioNodeList?el.value:el.value}
+function readPlusForm(f){const d=plusDraft;for(const k of ['what','note','date','time','until','witnesses','told','kind','repeat','with','place','phone','feel','done'])if(f.elements[k]){const el=f.elements[k];d[k]=el instanceof RadioNodeList?el.value:el.value}
 if(f.querySelector('[name="remind"]'))d.remind=[...f.querySelectorAll('[name="remind"]:checked')].map(c=>c.value);
 if(f.querySelector('[name="day"]'))d.days=[...f.querySelectorAll('[name="day"]:checked')].map(c=>Number(c.value))}
 document.addEventListener('input',e=>{const f=e.target.closest('.plus-form');if(f&&plusDraft)readPlusForm(f)});
 document.addEventListener('change',async e=>{const f=e.target.closest('.plus-form');if(!f||!plusDraft)return;
 if(e.target.id==='plus-photo'){const files=[...e.target.files].slice(0,PLUS_PHOTOS-plusDraft.photos.length);try{for(const file of files)plusDraft.photos.push(await readPhoto(file));if(e.target.files.length>files.length)toast(`Up to ${PLUS_PHOTOS} photos.`)}catch(err){toast(err.message)}render();return}
 readPlusForm(f);if(e.target.name==='repeat'||e.target.name==='date')render()});
-document.addEventListener('click',e=>{const b=e.target.closest('[data-take-remove]');if(!b||!plusDraft||!['task-new','incident-new','symptom-new'].includes(view))return;plusDraft.photos.splice(Number(b.dataset.takeRemove),1);render()});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-take-remove]');if(!b||!plusDraft||!['task-new','incident-new','symptom-new','activity-new'].includes(view))return;plusDraft.photos.splice(Number(b.dataset.takeRemove),1);render()});
 
 const clockOk=t=>/^([01]\d|2[0-3]):[0-5]\d$/.test(t),dayOk=d=>/^\d{4}-\d{2}-\d{2}$/.test(d)&&!!C.parseDate(d);
 const uploadPlus=(photos,kind)=>Promise.all(photos.map(src=>Account.api('POST','/api/files/proof',{data:src,for:kind}).then(r=>r.url,()=>smallPhoto(src).catch(()=>''))));
 function taskProblem(d){const last=C.shift(today(),YEAR_AHEAD);
-if(!d.what.trim())return 'Add what to do.';if(!dayOk(d.date)||d.date<today()||d.date>last)return 'Pick a day from today up to one year ahead.';if(!clockOk(d.time))return 'Pick the time.';
+if(!d.what.trim())return 'Add what to do.';if(!dayOk(d.date)||d.date<today()||d.date>last)return 'Pick a day from today up to 5 years ahead.';if(!clockOk(d.time))return 'Pick the time.';
 if(d.date===today()&&d.repeat==='once'&&d.time<hmNow())return 'That time has already passed today. Pick a later time.';
-if(d.repeat==='days'&&!d.days.length)return 'Pick the days it repeats.';if(d.repeat!=='once'&&(!dayOk(d.until)||d.until<d.date||d.until>last))return 'Pick when it stops, up to one year ahead.';return ''}
+if(d.repeat==='days'&&!d.days.length)return 'Pick the days it repeats.';if(d.repeat!=='once'&&(!dayOk(d.until)||d.until<d.date||d.until>last))return 'Pick when it stops, up to 5 years ahead.';return ''}
 function apptProblem(d){if(!d.with.trim())return 'Add who the appointment is with.';if(!dayOk(d.date)||d.date<today())return 'Pick the day of the appointment.';if(d.time&&!clockOk(d.time))return 'Check the time.';return ''}
 document.addEventListener('submit',e=>{const f=e.target;if(f.id!=='appt-new-form'||!plusDraft)return;e.preventDefault();readPlusForm(f);const d=plusDraft,problem=apptProblem(d);if(problem){toast(problem);return}
 const a={...newAppt({with:d.with.trim(),place:d.place.trim(),date:d.date,time:d.time,phone:d.phone.trim(),note:d.note.trim()}),...(d.remind.length?{remind:APPT_REMINDS.map(([v])=>v).filter(v=>d.remind.includes(v))}:{}),status:'deciding',confirmed:true};
-items.push(a);plusDraft=null;view='overview';tasksOpen=a.date===today();save();render();window.scrollTo(0,0);toast(`Appointment added for ${apptDay(a)}.`+apptReminds(a))});
+items.push(a);plusDraft=null;save();go('appointments');toast(`Appointment added for ${apptDay(a)}.`+apptReminds(a))});
 function symptomProblem(d){if(!d.feel.trim())return 'Write what they’re feeling.';if(!dayOk(d.date)||d.date>today()||!clockOk(d.time))return 'Check the date and time.';if(new Date(d.date+'T'+d.time)>new Date())return 'That time hasn’t happened yet.';return ''}
 document.addEventListener('submit',async e=>{const f=e.target;if(f.id!=='symptom-form'||!plusDraft)return;e.preventDefault();if(plusDraft.busy)return;readPlusForm(f);const d=plusDraft,problem=symptomProblem(d);if(problem){toast(problem);return}
 d.busy=true;render();const photos=(await uploadPlus(d.photos,'symptom')).filter(Boolean),by=markedBy();
 items.push({id:crypto.randomUUID(),symptom:true,name:'Symptoms',note:d.feel.trim(),at:new Date(d.date+'T'+d.time).toISOString(),...(photos.length?{photos}:{}),...(by?{by}:{}),addedAt:new Date().toISOString()});
 plusDraft=null;reportTab=d.date===today()?'today':d.date===C.shift(today(),-1)?'previous':reportTab;view='overview';tasksOpen=false;save();render();window.scrollTo(0,0);toast('Symptoms added to the daily care report.')});
+function activityProblem(d){if(!d.done.trim())return 'Write what was done.';if(!dayOk(d.date)||d.date>today()||!clockOk(d.time))return 'Check the date and time.';if(new Date(d.date+'T'+d.time)>new Date())return 'That time hasn’t happened yet.';return ''}
+document.addEventListener('submit',async e=>{const f=e.target;if(f.id!=='activity-form'||!plusDraft)return;e.preventDefault();if(plusDraft.busy)return;readPlusForm(f);const d=plusDraft,problem=activityProblem(d);if(problem){toast(problem);return}
+d.busy=true;render();const photos=(await uploadPlus(d.photos,'activity')).filter(Boolean),by=markedBy();
+items.push({id:crypto.randomUUID(),activity:true,name:d.done.trim(),...(d.note.trim()?{note:d.note.trim()}:{}),at:new Date(d.date+'T'+d.time).toISOString(),...(photos.length?{photos}:{}),...(by?{by}:{}),addedAt:new Date().toISOString()});
+plusDraft=null;reportTab=d.date===today()?'today':d.date===C.shift(today(),-1)?'previous':reportTab;view='overview';tasksOpen=false;save();render();window.scrollTo(0,0);toast('Added to the daily care report.')});
 function incidentProblem(d){if(!d.kind)return 'Pick what happened.';if(!dayOk(d.date)||d.date>today()||!clockOk(d.time))return 'Check the date and time.';if(new Date(d.date+'T'+d.time)>new Date())return 'That time hasn’t happened yet.';return ''}
 document.addEventListener('submit',async e=>{const f=e.target;if(!['task-form','incident-form'].includes(f.id)||!plusDraft)return;e.preventDefault();if(plusDraft.busy)return;readPlusForm(f);const d=plusDraft,task=f.id==='task-form';
 const problem=task?taskProblem(d):incidentProblem(d);if(problem){toast(problem);return}
 d.busy=true;render();const photos=(await uploadPlus(d.photos,task?'task':'incident')).filter(Boolean),by=markedBy(),added=new Date().toISOString();
 if(task){const t={id:crypto.randomUUID(),task:true,name:d.what.trim(),...(d.note.trim()?{note:d.note.trim()}:{}),...(photos.length?{photos}:{}),date:d.date,time:d.time,repeat:d.repeat,...(d.repeat==='days'?{days:[...d.days].sort()}:{}),...(d.repeat!=='once'?{until:d.until}:{}),...(by?{by}:{}),addedAt:added,marks:[]};
-  items.push(t);plusDraft=null;view='overview';tasksOpen=taskOn(t,today());save();render();window.scrollTo(0,0);toast(`Task added: ${repeatText(t)}.`);return}
+  items.push(t);plusDraft=null;save();go('planned-tasks');toast(`Added to My Tasks: ${repeatText(t)}.`);return}
 const kind=INCIDENTS.find(([k])=>k===d.kind),at=new Date(d.date+'T'+d.time).toISOString();
 items.push({id:crypto.randomUUID(),incident:true,kind:kind[0],name:kind[1],at,...(d.note.trim()?{note:d.note.trim()}:{}),...(d.told.trim()?{told:d.told.trim()}:{}),...(d.witnesses.trim()?{witnesses:d.witnesses.split(',').map(w=>w.trim()).filter(Boolean).join(', ')}:{}),...(photos.length?{photos}:{}),...(by?{by}:{}),addedAt:added});
 plusDraft=null;reportTab=d.date===today()?'today':d.date===C.shift(today(),-1)?'previous':reportTab;view='overview';tasksOpen=false;save();render();window.scrollTo(0,0);toast('Incident reported. Everyone on the care team is told, and it’s in the daily care report.')});
 
 /* The forms aren't open to people who can't use them. */
 const renderBeforePlus=render;
-render=function(){if(view==='task-new'&&!mayAddTask()||view==='appt-new'&&!mayDo('meds')||(view==='incident-new'||view==='symptom-new')&&!mayReport()||view==='plus'&&plusRows().length<2)view='overview';if(['task-new','appt-new','incident-new','symptom-new'].includes(view)&&!plusDraft)plusDraft=view==='task-new'?blankTaskDraft():view==='appt-new'?blankApptDraft():view==='symptom-new'?blankSymptomDraft():blankIncidentDraft();renderBeforePlus();
+render=function(){if(view==='task-new'&&!mayAddTask()||view==='appt-new'&&!mayDo('meds')||['incident-new','symptom-new','activity-new'].includes(view)&&!mayReport()||view==='plus'&&!plusRows().length)view='overview';if(['task-new','appt-new','incident-new','symptom-new','activity-new'].includes(view)&&!plusDraft)plusDraft=view==='task-new'?blankTaskDraft():view==='appt-new'?blankApptDraft():view==='symptom-new'?blankSymptomDraft():view==='activity-new'?blankActivityDraft():blankIncidentDraft();renderBeforePlus();
 /* The forms show the profile photo at the top right, where the scan pages have it. */
 syncFlowProfile()};
 render();
