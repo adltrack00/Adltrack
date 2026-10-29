@@ -28,7 +28,20 @@ test('photos of the vital signs are one post with those entries’ numbers and e
   assert.deepEqual(plain(r.reportPhotos(undefined,'2026-10-14')),[{n:3,name:'Lisinopril 10 mg',note:'Took it with breakfast.',photos:['/api/files/x','/api/files/y']},{n:5,name:'Vital signs',note:'',photos:['/api/files/v'],lines:['Blood pressure: 120/76 mmHg','Heart rate: 72 bpm','Temperature: 98.6°F'],last:7}])});
 /* Your schedule: a day that has ended opens its report; when several people documented it, each one's part is picked apart. */
 test('a past day lists who documented it in order, and each person sees only their own entries and photos',()=>{const r=report(meds());r.welcomeName=()=>'George';
-vm.runInNewContext(fs.readFileSync('pastday.js','utf8').split('function pastDayHTML(')[0].replace(/^let /m,'var ').replace(/const (\w+)=/g,'var $1=')+';this.pastDayPeople=pastDayPeople;',r);
+r.schedStart=i=>[i.purchased,...(i.doses||[]).map(d=>d.day||String(d.at||'').slice(0,10))].filter(Boolean).sort()[0]||'2026-10-14';
+vm.runInNewContext(fs.readFileSync('pastday.js','utf8').split('const dayX=')[0].replace(/^let /m,'var ').replace(/const (\w+)=/g,'var $1=')+';this.pastDayPeople=pastDayPeople;',r);
 const people=plain(r.pastDayPeople('2026-10-14'));assert.deepEqual(people.map(p=>p.name),['Ana','George']);assert.equal(people[0].count,3);assert.equal(people[1].count,2);assert.equal(people[0].from,at('08:05'));assert.equal(people[0].to,at('16:00'));
 assert.deepEqual(plain(r.reportPhotos(undefined,'2026-10-14','Ana')).map(p=>[p.n,p.name]),[[1,'Lisinopril 10 mg']]);assert.deepEqual(plain(r.reportPhotos(undefined,'2026-10-14','George')),[]);
 assert.deepEqual(plain(r.pastDayPeople('2026-10-13')).map(p=>p.name),['George'],'older entries saved without a name are the report’s own')});
+
+test('a day that has ended shows what was missed: a dose not taken, a visit not attended, a task missed, a refill not done; not today, and in no one’s name',()=>{
+const r=report([{id:'a',med:true,status:'deciding',name:'Lisinopril 10 mg',dose:'1 tablet',times:['08:00','20:00'],purchased:'2026-10-10',refill:{step:'call',since:'2026-10-12'},pharmacy:{name:'CVS'},doses:[{at:y('08:05'),day:'2026-10-13',slot:'08:00',kind:'taken',by:'Ana'}]},
+{id:'v',appt:true,status:'deciding',name:'Follow-up visit with Dr. Patel',date:'2026-10-13',time:'14:00',place:'Heart Clinic'}]);r.welcomeName=()=>'George';
+r.schedStart=i=>i.purchased;
+vm.runInNewContext(fs.readFileSync('pastday.js','utf8').split('const dayX=')[0].replace(/^let /m,'var ').replace(/const (\w+)=/g,'var $1=')+';this.pastDayPeople=pastDayPeople;this.reportEntries=reportEntries;',r);
+const e=plain(r.reportEntries(undefined,'2026-10-13',[]));
+assert.deepEqual(e.map(x=>x.title),['Lisinopril 10 mg (8am dose)','Follow-up visit with Dr. Patel: not attended','Lisinopril 10 mg (8pm dose) not taken','Lisinopril 10 mg: refill not done']);
+assert.ok(e.slice(1).every(x=>x.missed&&!x.by));assert.equal(e[3].untimed,true);
+assert.deepEqual(plain(r.pastDayPeople('2026-10-13')).map(p=>p.name),['Ana'],'missed entries add no one to the people list');
+assert.equal(r.reportEntries(undefined,'2026-10-14',[]).filter(x=>x.missed).length,0,'today is not over yet');
+assert.equal(r.reportEntries(undefined,'2026-10-11',[]).filter(x=>/refill/.test(x.title)).length,0,'no refill missed before it was due')});

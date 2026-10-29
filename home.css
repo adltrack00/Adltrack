@@ -239,3 +239,6 @@ body.not-home #main>.page-heading{margin-top:0}
 .day-report-initial{width:44px;height:44px;border-radius:50%;background:var(--cream-2,#f5efe5);display:grid;place-items:center;font-weight:600;font-size:17px}
 @media(max-width:650px){.day-report{padding:0 20px 45px}.day-report-top{padding:9px 0}}
 @media print{body:has(#day-report[open])>:not(#day-report){display:none!important}.day-report{position:static;height:auto;overflow:visible;padding:0}.day-report-top,.day-report-hero{display:none!important}}
+/* A day still to come: My Tasks for that day under the patient's photo, and a task's details with nothing to start. */
+.day-tasks .tasks-title h2{margin:0}.day-tasks-date{color:#7b766d;font-size:14px;margin:4px 0 16px}
+.day-future{padding-top:8px}.day-future-note{text-align:center;color:#7b766d;font-size:13px;margin:22px 0 0}
