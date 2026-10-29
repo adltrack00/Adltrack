@@ -58,6 +58,14 @@ test('an incident shows in the report at the time it happened, numbered in time 
   assert.deepEqual(plain(c.reportPhotos(undefined, '2026-10-14')), [{ n: 2, name: 'Incident: Fall', note: 'Slipped in the bathroom, no injury.', photos: ['/api/files/p'] }]);
 });
 
+test('symptoms go straight into the report at the time they were felt, with their photos in Photos, and not into My Tasks', () => {
+  const s = { id: 's1', symptom: true, name: 'Symptoms', at: at('2026-10-14', '13:05'), note: 'Dizzy when standing up.', photos: ['/api/files/r'], by: 'Maria' };
+  const c = app([s]);
+  assert.deepEqual(plain(c.reportEntries(undefined, '2026-10-14', [])), [{ title: 'Symptoms', at: s.at, note: 'Dizzy when standing up.', details: [], name: 'Symptoms', photos: ['/api/files/r'] }]);
+  assert.deepEqual(plain(c.reportPhotos(undefined, '2026-10-14')), [{ n: 1, name: 'Symptoms', note: 'Dizzy when standing up.', photos: ['/api/files/r'] }]);
+  assert.equal(c.todayTasks(undefined, '2026-10-14').length, 0);
+});
+
 /* On the server: who may add tasks and report incidents, for the family on screen. */
 async function boot() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'adltrack-plus-'));
@@ -141,6 +149,12 @@ test('an incident is reported straight away by a caregiver or an admin, and show
     assert.equal((await maria('POST', '/api/items', incident({ photos: [photo.body.url] }))).status, 201);
     assert.equal((await maria('POST', '/api/items', incident({ id: 'inc-2', med: true }))).status, 403);
     assert.equal((await maria('POST', '/api/items', incident({ id: 'inc-3', marks: [{ day: 'x' }] }))).status, 403);
+    // Symptoms the same way: by a caregiver, with a photo, never with a medication.
+    const rash = await maria('POST', '/api/files/proof', { data: png, for: 'symptom' });
+    assert.equal(rash.status, 201);
+    const symptom = { id: 'sym-1', symptom: true, name: 'Symptoms', note: 'Red rash on the left arm.', at: new Date().toISOString(), photos: [rash.body.url], by: 'Maria' };
+    assert.equal((await maria('POST', '/api/items', symptom)).status, 201);
+    assert.equal((await maria('POST', '/api/items', { ...symptom, id: 'sym-2', med: true })).status, 403);
     assert.equal((await lee('POST', '/api/items', incident({ id: 'inc-4', kind: 'refused', name: 'Refused medication', by: 'Lee' }))).status, 201);
     assert.equal((await lee('POST', '/api/files/proof', { data: png, for: 'task' })).status, 201);
     assert.equal((await lee('POST', '/api/items', task({ id: 'lee-task', by: 'Lee' }))).status, 201);
@@ -150,7 +164,7 @@ test('an incident is reported straight away by a caregiver or an admin, and show
     assert.deepEqual((await maria('GET', '/api/items')).body.items.map(i => i.id), ['inc-june']);
     assert.deepEqual((await ivy('GET', '/api/items')).body.items.map(i => i.id), ['inc-june']);
     maria.patient = grace.id;
-    assert.deepEqual((await maria('GET', '/api/items')).body.items.map(i => i.id).sort(), ['inc-1', 'inc-4', 'lee-task']);
+    assert.deepEqual((await maria('GET', '/api/items')).body.items.map(i => i.id).sort(), ['inc-1', 'inc-4', 'lee-task', 'sym-1']);
     assert.deepEqual((await grace('GET', '/api/items')).body.items.find(i => i.id === 'inc-1').photos, [photo.body.url]);
   } finally { await a.close(); }
 });
