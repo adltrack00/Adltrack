@@ -107,7 +107,9 @@ function mergeVitals(saved, incoming, seen) {
   const extra = saved.vitalsLog.filter(v => v && v.at && !have.has(v.at) && !known.has(v.at));
   if (!extra.length) return incoming;
   const log = [...mine, ...extra].sort((a, b) => String(a.at).localeCompare(String(b.at))).slice(-60);
-  return { ...incoming, vitalsLog: log, vitals: log[log.length - 1] };
+  // Each vital sign is saved on its own, so the latest readings are each one's last entry.
+  const vitals = log.reduce((v, e) => ({ ...v, ...Object.fromEntries(['bp', 'heart', 'temp', 'pain'].filter(k => e[k]).map(k => [k, e[k]])), at: e.at }), {});
+  return { ...incoming, vitalsLog: log, vitals };
 }
 const fileUrl = id => `/api/files/${id}`;
 const fileIdFromUrl = v => (typeof v === 'string' && FILE_URL.exec(v) || [])[1] || null;

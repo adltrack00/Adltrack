@@ -137,7 +137,7 @@ function receiptDraft(receipt, policy) {
   };
 }
 
-function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, discharge = null, labels = null, places = null, review = null, push = null, reminders = null, email = null, supportEmail = '', inbox = null, oauth = null, publicUrl = '', inboundSecret = '', sms = null, team = null, billing = null }) {
+function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, discharge = null, labels = null, vitals = null, places = null, review = null, push = null, reminders = null, email = null, supportEmail = '', inbox = null, oauth = null, publicUrl = '', inboundSecret = '', sms = null, team = null, billing = null }) {
   billing = billing || createBilling({ store });
   team = team || createTeam({ store, email, sms, billing });
   const authLimit = limiter(20, 15 * 60 * 1000);
@@ -640,6 +640,19 @@ function createApp({ store, data, production = false, policies = null, classifie
       if (!m) return send(res, 200, { label, check: [] });
       const med = Object.fromEntries(['name', 'instructions', 'dose', 'route', 'frequency'].map(k => [k, typeof m[k] === 'string' ? m[k].slice(0, 600) : '']));
       return send(res, 200, { label, check: compareLabel(med, label) });
+    }
+    // Vital signs: one photo of the blood pressure cuff or thermometer, read for its numbers to fill the form. The photo
+    // itself is saved with the reading by the app, not here.
+    if (route === '/api/vitals/read' && method === 'POST') {
+      checkWrite(req);
+      may.need('tasks');
+      const body = await readBody(req, 15 * 1024 * 1024);
+      const photos = data.receiptPages([body.photo], 1, 'vitals').filter(p => p.contentType !== 'application/pdf');
+      if (!photos.length) throw new HttpError(400, 'Use a photo of the reading.');
+      if (!vitals || !vitals.available()) return send(res, 200, { reading: null, reason: 'unavailable' });
+      if (!receiptLimit('user:' + user.id)) return send(res, 200, { reading: null, reason: 'limit' });
+      const reading = await vitals.read(photos[0]);
+      return send(res, 200, reading ? { reading } : { reading: null, reason: 'failed' });
     }
     // Web Push: the public key the browser subscribes with (null when push isn't set up), and this device's subscription.
     if (route === '/api/push/key' && method === 'GET') return send(res, 200, { key: push && push.available() ? push.publicKey() : null });

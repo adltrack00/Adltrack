@@ -25,8 +25,8 @@ const REPORT_LOG={'refill-needed':'needs a refill','refill-called':'called for a
 function reportEntries(list=items,day=today(),vitalsLog=settings.vitalsLog||(settings.vitals?[settings.vitals]:[])){const meds=list.filter(i=>i.med),out=[];
 for(const i of meds)for(const d of (i.doses||[]).filter(d=>dayOf(d)===day&&d.at&&['taken','skipped'].includes(d.kind)))
 out.push({title:`${i.name} (${d.slot?shortClock(d.slot)+' dose':'as-needed dose'})${d.kind==='skipped'?' skipped':''}`,at:d.at,note:d.note||'',details:[i.dose].filter(Boolean),name:i.name,photos:d.photos||[]});
-vitalsLog.forEach((v,n)=>{if(!onDay(v.at,day))return;const before=vitalsLog.slice(0,n).reverse().find(x=>onDay(x.at,day))||{};
-const photos=v.photos||[];REPORT_VITALS.filter(([k])=>v[k]&&(photos.length||v[k]!==before[k])).forEach(([k,label,reading],j)=>out.push({title:`${label}: ${reading(v[k])}`,at:v.at,note:'',details:[],...(photos.length?{vitals:'vitals-'+n,name:'Vital signs',photos:j?[]:photos}:{})}))});
+vitalsLog.forEach((v,n)=>{if(!onDay(v.at,day))return;const before=k=>(vitalsLog.slice(0,n).reverse().find(x=>onDay(x.at,day)&&x[k])||{})[k];
+const photos=v.photos||[];REPORT_VITALS.filter(([k])=>v[k]&&(photos.length||v[k]!==before(k))).forEach(([k,label,reading],j)=>out.push({title:`${label}: ${reading(v[k])}`,at:v.at,note:'',details:[],...(photos.length?{vitals:'vitals-'+n,name:'Vital signs',photos:j?[]:photos}:{})}))});
 for(const i of meds)for(const l of (i.log||[]).filter(l=>onDay(l.at,day)&&REPORT_LOG[l.kind]))out.push({title:`${i.name}: ${REPORT_LOG[l.kind]}`,at:l.at,note:'',details:[i.pharmacy&&i.pharmacy.name||''].filter(Boolean)});
 for(const i of meds.filter(i=>i.status==='received'&&onDay(i.finishedAt,day)))out.push({title:`${i.name} finished`,at:i.finishedAt,note:'',details:['No more reminders for it']});
 for(const a of appointments(list).filter(a=>a.status==='received'&&a.date===day))out.push({title:`${a.name}: went`,at:day+'T'+(a.time||'12:00'),note:a.note||'',details:[a.place].filter(Boolean)});

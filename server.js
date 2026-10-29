@@ -13,6 +13,7 @@ const { createClassifier } = require('./server/classify');
 const { createReceiptReader } = require('./server/receipts');
 const { createDischargeReader } = require('./server/discharge');
 const { createLabelReader } = require('./server/label');
+const { createVitalsReader } = require('./server/vitals');
 const { createPlaces } = require('./server/places');
 const { createPush, createReminders, vapidConfig } = require('./server/reminders');
 const { createPolicyFinder } = require('./server/lookup');
@@ -80,7 +81,7 @@ store.init().then(async () => {
   const migrated = await data.migrateAll();
   if (migrated) console.log(`Moved ${migrated} account${migrated === 1 ? '' : 's'} to the items tables.`);
   await jobs.start();
-  const server = http.createServer(createApp({ store, data, production, policies, classifier: createClassifier(), receipts: createReceiptReader(), discharge: createDischargeReader(), labels: createLabelReader(), places: createPlaces({ store }), review, push, reminders, email, supportEmail: process.env.SUPPORT_EMAIL || '', inbox, oauth, publicUrl: oauthSettings.publicUrl, inboundSecret: process.env.RESEND_WEBHOOK_SECRET || '', sms, billing })).listen(port, host, () =>
+  const server = http.createServer(createApp({ store, data, production, policies, classifier: createClassifier(), receipts: createReceiptReader(), discharge: createDischargeReader(), labels: createLabelReader(), vitals: createVitalsReader(), places: createPlaces({ store }), review, push, reminders, email, supportEmail: process.env.SUPPORT_EMAIL || '', inbox, oauth, publicUrl: oauthSettings.publicUrl, inboundSecret: process.env.RESEND_WEBHOOK_SECRET || '', sms, billing })).listen(port, host, () =>
     console.log(`Adltrack running on http://${host === '0.0.0.0' ? 'localhost' : host}:${port} (${databaseUrl ? 'Postgres' : 'local file store'}, ${storage.kind === 's3' ? 'S3 file storage' : 'local file storage'})`));
   const shutdown = () => { server.close(); jobs.stop().finally(() => store.close().finally(() => process.exit(0))); };
   process.on('SIGTERM', shutdown);
