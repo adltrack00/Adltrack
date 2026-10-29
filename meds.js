@@ -86,11 +86,14 @@ const renderBeforeMeds=render;render=function(){if(view==='med-add'&&!mayDo('med
   if(view==='med-add'&&typeof syncFlowProfile==='function'){syncFlowProfile();const fp=$('#flow-profile');if(fp){fp.hidden=false;fp.innerHTML=avatarInner()}}};
 }
 
-/* The medication's page from My Tasks: tap the photo to see it large in a pop-up, with only its name and strength below, to
-   check it's the right one before giving it. The × at the top closes it. */
+/* The medication's page from My Tasks: tap the photo to see only the photo, as large as the screen allows with a small
+   margin, so the bottle's own label can be read before giving it. The × on top of it closes it. */
 function medZoom(i){closeMedZoom();const box=document.createElement('div');box.className='med-zoom';box.setAttribute('role','dialog');box.setAttribute('aria-modal','true');box.setAttribute('aria-label',i.name);
-  box.innerHTML=`<div class="med-zoom-card" tabindex="-1"><button class="med-zoom-x" aria-label="Close">×</button><div class="med-zoom-photo">${medPhoto(i)}</div><h2>${esc(i.name)}</h2></div>`;
-  document.body.appendChild(box);document.body.classList.add('med-zoom-open');box.querySelector('.med-zoom-card').focus()}
+  box.innerHTML=`<div class="med-zoom-photo${i.photo?' has-img':''}" tabindex="-1">${medPhoto(i)}<button class="med-zoom-x" aria-label="Close">×</button></div>`;
+  document.body.appendChild(box);document.body.classList.add('med-zoom-open');box.querySelector('.med-zoom-photo').focus();
+  /* A real photo is scaled up or down to fill the screen, whole, keeping its shape. */
+  const img=box.querySelector('.has-img img'),fit=()=>{if(!img||!img.naturalWidth)return;const k=Math.min((innerWidth-24)/img.naturalWidth,(innerHeight-24)/img.naturalHeight);img.style.width=Math.round(img.naturalWidth*k)+'px';img.style.height=Math.round(img.naturalHeight*k)+'px'};
+  if(img){img.complete?fit():img.addEventListener('load',fit,{once:true})}}
 function closeMedZoom(){document.querySelector('.med-zoom')?.remove();document.body.classList.remove('med-zoom-open')}
 if(typeof document!=='undefined'){
   document.addEventListener('click',e=>{if(e.target.closest('.med-zoom-x')||e.target.classList.contains('med-zoom')){closeMedZoom();return}
