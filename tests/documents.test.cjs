@@ -93,3 +93,10 @@ test('a document’s pages are a photo or a PDF; adding needs the medications ti
     assert.equal((await george('GET', paper.body.url)).status, 404);
   } finally { await app.close(); }
 });
+
+test('papers filed by Scan show as one document until their confirmed medications carry them', async () => {
+  const filed = { id: 'd1', doc: true, scanned: true, purchaseId: 'p1', name: 'Discharge papers · Riverside', category: 'discharge', files: [{ url: '/api/files/a' }], date: '2026-10-29' };
+  assert.deepEqual(docList([filed]).map(d => d.id), ['d1']);
+  const med = { id: 'm1', med: true, name: 'Lisinopril', purchaseId: 'p1', papers: ['/api/files/a'], discharge: { hospital: 'Riverside', discharged: '2026-10-29' } };
+  assert.deepEqual(docList([filed, med]).map(d => d.id), ['scan-p1'], 'once confirmed, the medications’ scan takes its place');
+});

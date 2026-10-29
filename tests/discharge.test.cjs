@@ -139,6 +139,7 @@ function journey(response) {
     fetch: async (url, opts) => { requests.push({ url, body: JSON.parse(opts.body) }); return { ok: true, json: async () => typeof response === 'function' ? response() : response }; } };
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync('guided.js', 'utf8'), ctx);
+  vm.runInContext(fs.readFileSync('scan.js', 'utf8'), ctx);
   const file = { name: 'Discharge-page-1.jpg', type: 'image/jpeg', size: 30000 };
   return { ctx, requests, scan: () => ctx.acceptReceipt(file, page), submit: () => listeners.submit.forEach(fn => fn({ target: { id: 'flow-item-form' }, preventDefault() {} })), click: button => listeners.click.forEach(fn => fn({ target: { closest: () => button }, preventDefault() {} })) };
 }
@@ -149,16 +150,29 @@ test('scanning fills the Confirm card with each medication as printed, and savin
   await x.scan();
   assert.equal(x.requests[0].url, '/api/discharge/read');
   assert.equal(x.requests[0].body.purchaseId, 'scan-1');
+  // First the picture of the papers, filed in Documents, with what was found; then the Confirm card.
+  assert.equal(x.ctx.view, 'upload');
+  assert.equal(vm.runInContext('journey.step', x.ctx), 'filed');
+  const filed = vm.runInContext('uploadPage()', x.ctx);
+  assert.match(filed, /Saved to Documents/);
+  assert.match(filed, /<b>3<\/b>medications/);
+  assert.match(filed, /<b>1<\/b>follow-up visit</);
+  const [doc] = x.ctx.items;
+  assert.equal(doc.doc, true); assert.equal(doc.scanned, true); assert.equal(doc.category, 'discharge');
+  assert.equal(doc.purchaseId, 'scan-1');
+  assert.deepEqual(doc.files.map(f => f.url), ['/api/files/x']);
+  assert.equal(doc.name, 'Discharge papers · Riverside General Hospital');
+  vm.runInContext('filedNext()', x.ctx);
   assert.equal(x.ctx.view, 'review');
   assert.deepEqual(x.ctx.draft.products.map(p => p.name), ['Lisinopril 10 mg', 'Acetaminophen 500 mg', 'Metoprolol 25 mg']);
   assert.match(vm.runInContext('journey.error', x.ctx), /stop Ibuprofen/);
   x.submit();
-  const [lis] = x.ctx.items;
+  const [lis] = x.ctx.items.filter(i => i.med);
   assert.equal(lis.purchaseId, 'scan-1');
   assert.equal(lis.instructions, 'Take 1 tablet by mouth every morning.');
   assert.deepEqual(lis.times, ['08:00']);
   assert.deepEqual([...lis.papers], ['/api/files/x'], 'the saved pages go with the medication');
-  assert.deepEqual(x.ctx.items.map(i => i.page), [1, 2, 0], 'a page number outside the papers is left blank');
+  assert.deepEqual(x.ctx.items.filter(i => i.med).map(i => i.page), [1, 2, 0], 'a page number outside the papers is left blank');
   assert.equal(lis.prescriber.name, 'Dr. Maya Patel');
   assert.equal(lis.pharmacy.name, 'Main Street Pharmacy');
   assert.equal(lis.discharge.hospital, 'Riverside General Hospital');
@@ -173,6 +187,9 @@ test('a blurry page stays on Scan with the reason; no reading opens an empty Con
 
   const y = journey({ purchaseId: 'scan-1', files: ['/api/files/x'], papers: null, reason: 'unavailable' });
   await y.scan();
+  assert.equal(vm.runInContext('journey.step', y.ctx), 'filed', 'the pages are still filed in Documents');
+  assert.equal(y.ctx.items.filter(i => i.doc).length, 1);
+  vm.runInContext('filedNext()', y.ctx);
   assert.equal(y.ctx.view, 'review');
   assert.equal(y.ctx.draft.products.length, 1);
   assert.equal(y.ctx.draft.products[0].name, '');
@@ -182,13 +199,15 @@ test('a blurry page stays on Scan with the reason; no reading opens an empty Con
 test('a cut-off page keeps the pages, so the next photo is read together with them', async () => {
   const part = clean({ ...PAPERS, problem: 'cropped', medications: PAPERS.medications.slice(0, 1) }), whole = clean(PAPERS);
   let n = 0;
-  const x = journey(() => { const d = n++ ? whole : part; return { purchaseId: 'scan-1', files: [], papers: d, draft: dischargeDraft(d) }; });
+  const x = journey(() => { const d = n++ ? whole : part; return { purchaseId: 'scan-1', files: ['/api/files/x'], papers: d, draft: dischargeDraft(d) }; });
   await x.scan();
+  vm.runInContext('filedNext()', x.ctx);
   assert.match(vm.runInContext('journey.error', x.ctx), /cut off/);
   assert.equal(x.ctx.draft.products.length, 1);
   await x.scan();
   assert.equal(x.requests[1].body.pages.length, 2);
   assert.equal(x.ctx.draft.products.length, 3);
+  assert.equal(x.ctx.items.filter(i => i.doc).length, 1, 'more pages of the same papers stay one document');
 });
 
 test('on the Take card a skipped dose is only recorded, Needs refill starts the call to the prescriber, and Finished stops it', async () => {
@@ -211,20 +230,44 @@ test('on the Take card a skipped dose is only recorded, Needs refill starts the 
   assert.equal(med.status, 'received');
 });
 
-test('the bottle-photo guide shows the 3 example shots, marks the next one, and hides once all 3 are taken', () => {
+test('the scan screen draws the part to scan on the example bottle, and turns the bottle to the next part after each photo', () => {
   const x = journey({});
-  const guide = n => vm.runInContext(`bottleGuide(${n})`, x.ctx);
-  const none = guide(0);
-  assert.match(none, /<details class="pick-edit" open>/);
-  assert.equal((none.match(/<figure/g) || []).length, 3);
-  assert.match(none, /1\. Front/); assert.match(none, /2\. Turn it/); assert.match(none, /3\. Turn again/);
-  assert.match(none, /not a real prescription/);
-  const one = guide(1);
-  assert.doesNotMatch(one, / open>/);
-  assert.match(one, /✓ 1\. Front/);
-  assert.match(one, /<figure class="is-next">.*2\. Turn it/s);
+  vm.runInContext('startBottles()', x.ctx);
+  const choose = vm.runInContext('uploadPage()', x.ctx);
+  assert.match(choose, /data-scan-kind="leaflet"/); assert.match(choose, /data-scan-kind="bottle"/);
+  assert.match(choose, /stapled to the pharmacy bag/);
+  vm.runInContext('startKind("bottle")', x.ctx);
+  const one = vm.runInContext('uploadPage()', x.ctx);
+  assert.match(one, /Step 1 of 4/); assert.match(one, /Front of the label/);
+  assert.match(one, /--to:0px/);
+  assert.match(one, /not a real prescription/);
+  assert.doesNotMatch(one, /<details/, 'no “Which photos?” list');
+  vm.runInContext('journey.shots=["a"];journey.justShot=true', x.ctx);
+  const two = vm.runInContext('uploadPage()', x.ctx);
+  assert.match(two, /Step 2 of 4/); assert.match(two, /Turn the bottle/);
+  assert.match(two, /--from:0px;--to:-92px/, 'the label turns from the front to the side');
+  assert.match(two, /class="turn-arrow"/);
   const row = vm.runInContext(`bottleRow({labelPhotos:[]},0)`, x.ctx);
   assert.match(row, /Photo 1: the front/);
+  assert.match(vm.runInContext('bottleGuide(1)', x.ctx), /Photo 2: turn the bottle/);
+});
+
+test('the pharmacy paper is 1 or 2 photos, read as the paper, then the whole bottle for the card', async () => {
+  const label = { name: 'LISINOPRIL', strength: '10 MG', directions: 'Take 1 tablet by mouth every morning', pharmacy: { name: 'Main St Pharmacy', address: '', phone: '' }, prescriber: 'M. Patel', warnings: [], mainPhoto: 0, note: '' };
+  const x = journey({ label, check: [] });
+  vm.runInContext('startBottles();startKind("leaflet")', x.ctx);
+  const one = vm.runInContext('uploadPage()', x.ctx);
+  assert.match(one, /Step 1 of 3/); assert.match(one, /Top of the paper/);
+  await vm.runInContext('addBottleShots(["top"],"camera")', x.ctx);
+  assert.equal(x.requests.length, 0);
+  assert.match(vm.runInContext('uploadPage()', x.ctx), /Skip, read it now/);
+  await vm.runInContext('addBottleShots(["rest"],"camera")', x.ctx);
+  assert.deepEqual(x.requests[0].body, { photos: ['top', 'rest'], med: null, source: 'leaflet' });
+  assert.equal(vm.runInContext('journey.step', x.ctx), 'cardPhoto');
+  assert.match(vm.runInContext('uploadPage()', x.ctx), /Last photo: the whole bottle/);
+  vm.runInContext('finishBottleScan("card")', x.ctx);
+  assert.equal(x.ctx.draft.products[0].name, 'LISINOPRIL 10 MG');
+  assert.equal(x.ctx.view, 'review');
 });
 
 test('the Take card lists today’s dose times, each marked once, and as needed has no times', () => {
@@ -248,12 +291,12 @@ test('bottles only: 3 label photos are read as one label, the card fills itself 
   const label = { name: 'LISINOPRIL', strength: '10 MG', directions: 'Take 1 tablet by mouth every day', pharmacy: { name: 'Main St Pharmacy', address: '', phone: '' }, prescriber: 'M. Patel', warnings: [], mainPhoto: 1, note: '' };
   // Uploaded: the photo with the name and directions becomes the card's photo, no extra photo asked for.
   const up = journey({ label, check: [] });
-  vm.runInContext('startBottles()', up.ctx);
+  vm.runInContext('startBottles();startKind("bottle")', up.ctx);
   assert.equal(up.ctx.view, 'upload');
-  assert.match(vm.runInContext('uploadPage()', up.ctx), /Photo 1 of 3/);
+  assert.match(vm.runInContext('uploadPage()', up.ctx), /Step 1 of 4/);
   await vm.runInContext('addBottleShots(["front","side"],"upload")', up.ctx);
   assert.equal(up.requests.length, 0, 'not read until all 3 are in');
-  assert.match(vm.runInContext('uploadPage()', up.ctx), /Photo 3 of 3/);
+  assert.match(vm.runInContext('uploadPage()', up.ctx), /Step 3 of 4/);
   await vm.runInContext('addBottleShots(["back"],"upload")', up.ctx);
   assert.equal(up.requests[0].url, '/api/label/read');
   assert.deepEqual(up.requests[0].body, { photos: ['front', 'side', 'back'], med: null });
@@ -267,16 +310,16 @@ test('bottles only: 3 label photos are read as one label, the card fills itself 
   assert.match(card, /Fix a mistake/);
   // Camera: once read, one clear photo for the card.
   const cam = journey({ label, check: [] });
-  vm.runInContext('startBottles()', cam.ctx);
+  vm.runInContext('startBottles();startKind("bottle")', cam.ctx);
   await vm.runInContext('addBottleShots(["a"],"camera").then(()=>addBottleShots(["b"],"camera")).then(()=>addBottleShots(["c"],"camera"))', cam.ctx);
   assert.equal(vm.runInContext('journey.step', cam.ctx), 'cardPhoto');
-  assert.match(vm.runInContext('uploadPage()', cam.ctx), /One photo for the card/);
+  assert.match(vm.runInContext('uploadPage()', cam.ctx), /Last photo: the whole bottle/);
   vm.runInContext('finishBottleScan("card")', cam.ctx);
   assert.equal(cam.ctx.draft.products[0].photo, 'card');
   assert.equal(cam.ctx.view, 'review');
   // Not read: the card opens to type it in.
   const none = journey({ label: null, reason: 'failed' });
-  vm.runInContext('startBottles()', none.ctx);
+  vm.runInContext('startBottles();startKind("bottle")', none.ctx);
   await vm.runInContext('addBottleShots(["a","b","c"],"camera")', none.ctx);
   assert.equal(none.ctx.view, 'review');
   none.ctx.photo = () => '';

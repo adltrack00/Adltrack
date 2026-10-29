@@ -20,6 +20,7 @@ const SYSTEM = `You read pharmacy labels on medication bottles and boxes for a f
 - warnings: each warning or "Important information" line copied word for word.
 - Never write the patient's name or home address, the Rx number, DEA number, NDC, barcode digits, or any insurance or card number anywhere.
 - main_photo: which photo (1 for the first) shows the medication name and the directions most clearly, or null when none does.
+- Sometimes the photos show the pharmacy's printed information sheet that comes stapled to the bag instead of the bottle. Its top part carries the same label facts; read it the same way, and take warnings only from short warning lines printed as such, not from the long drug information text.
 - problem: "blurry", "dark", "cropped" (part of the label is cut off) or "not_label" when that stops you reading something; otherwise "none".`;
 
 const str = { type: 'string' };
@@ -113,10 +114,10 @@ function createLabelReader({ apiKey = process.env.ANTHROPIC_API_KEY, client = nu
     const Anthropic = require('@anthropic-ai/sdk');
     client = new Anthropic({ apiKey, timeout: 90_000, maxRetries: 1 });
   }
-  async function read(photos) {
+  async function read(photos, { source = 'bottle' } = {}) {
     if (!client || !photos.length) return null;
     const content = photos.slice(0, MAX_PHOTOS).map(p => ({ type: 'image', source: { type: 'base64', media_type: p.contentType, data: p.body.toString('base64') } }));
-    content.push({ type: 'text', text: photos.length > 1 ? `These ${photos.length} photos show one pharmacy label from different sides. Read it.` : 'Read this pharmacy label.' });
+    content.push({ type: 'text', text: source === 'leaflet' ? (photos.length > 1 ? `These ${photos.length} photos show the pharmacy's information sheet from the bag, top first. Read its label facts.` : 'This photo shows the pharmacy\'s information sheet from the bag. Read its label facts.') : photos.length > 1 ? `These ${photos.length} photos show one pharmacy label from different sides. Read it.` : 'Read this pharmacy label.' });
     try {
       const response = await client.beta.messages.create({
         model: MODEL,

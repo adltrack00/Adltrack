@@ -10,12 +10,13 @@ const DOC_PAGES=10;
 const docCategory=c=>DOC_CATEGORIES.some(([k])=>k===c)?c:'other';
 const docCategoryName=c=>(DOC_CATEGORIES.find(([k])=>k===docCategory(c))||[])[1];
 /* Every document, newest first: the scanned discharge papers (one per scan, from the medications that carry its pages) and the
-   documents added here. Examples are left out. */
+   documents added here. Papers filed by Scan before their medications are confirmed show as their own document until then.
+   Examples are left out. */
 function docList(list){const scans=new Map();
 for(const i of list){if(!i||!i.med||i.demo||!Array.isArray(i.papers)||!i.papers.length)continue;const k=i.purchaseId||i.id;
   if(!scans.has(k)){const d=i.discharge||{};scans.set(k,{id:'scan-'+k,scanned:true,name:'Discharge papers'+(d.hospital?' · '+d.hospital:''),category:'discharge',date:d.discharged||i.purchased||'',files:i.papers.map(url=>({url})),meds:[]})}
   const s=scans.get(k);if(!s.meds.includes(i.name))s.meds.push(i.name)}
-const added=list.filter(i=>i&&i.doc&&!i.demo).map(i=>({id:i.id,name:i.name||'Document',category:docCategory(i.category),date:i.date||String(i.addedAt||'').slice(0,10),files:Array.isArray(i.files)?i.files:[],note:i.note||''}));
+const added=list.filter(i=>i&&i.doc&&!i.demo&&!(i.scanned&&scans.has(i.purchaseId))).map(i=>({id:i.id,name:i.name||'Document',category:docCategory(i.category),date:i.date||String(i.addedAt||'').slice(0,10),files:Array.isArray(i.files)?i.files:[],note:i.note||''}));
 return [...scans.values(),...added].sort((a,b)=>String(b.date).localeCompare(String(a.date))||a.name.localeCompare(b.name))}
 /* The categories in their order, each with its documents; empty ones are left out. */
 const docGroups=docs=>DOC_CATEGORIES.map(([key,name])=>({key,name,docs:docs.filter(d=>d.category===key)})).filter(g=>g.docs.length);

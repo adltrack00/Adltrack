@@ -78,8 +78,9 @@ function createData({ store, storage, jobs = null }) {
     if (!parsed) throw new DataError(400, 'Use a photo or a PDF.');
     return { url: fileUrl(await saveFile(userId, 'receipt', parsed)), type: parsed.contentType };
   }
-  // A dose's photos, a task's or an incident's own photos, those added when a task was done, and a document's pages.
-  const proofFiles = item => [item, ...(Array.isArray(item.doses) ? item.doses : []), ...(Array.isArray(item.marks) ? item.marks : [])].flatMap(d => d && Array.isArray(d.photos) ? d.photos.map(fileIdFromUrl) : []).concat(item.doc && Array.isArray(item.files) ? item.files.map(f => fileIdFromUrl(f && f.url)) : []).filter(Boolean);
+  // A dose's photos, a task's or an incident's own photos, those added when a task was done, and a document's pages (not
+  // scanned discharge papers': their pages stay with the medications read from them).
+  const proofFiles = item => [item, ...(Array.isArray(item.doses) ? item.doses : []), ...(Array.isArray(item.marks) ? item.marks : [])].flatMap(d => d && Array.isArray(d.photos) ? d.photos.map(fileIdFromUrl) : []).concat(item.doc && !item.scanned && Array.isArray(item.files) ? item.files.map(f => fileIdFromUrl(f && f.url)) : []).filter(Boolean);
 
   /* Items. */
   async function saveItem(userId, input, { position = null, touch = true, mustBeNew = false } = {}) {
