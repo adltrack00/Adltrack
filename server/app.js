@@ -630,10 +630,10 @@ function createApp({ store, data, production = false, policies = null, classifie
       may.need('meds');
       const body = await readBody(req, 30 * 1024 * 1024);
       const photos = data.receiptPages(body.photos, MAX_LABEL_PHOTOS, 'label').filter(p => p.contentType !== 'application/pdf');
-      if (!photos.length) throw new HttpError(400, 'Use a photo of the bottle.');
+      if (!photos.length) throw new HttpError(400, body.source === 'leaflet' ? 'Use a photo of the pharmacy paper.' : 'Use a photo of the bottle.');
       if (!labels || !labels.available()) return send(res, 200, { label: null, reason: 'unavailable' });
       if (!receiptLimit('user:' + user.id)) return send(res, 200, { label: null, reason: 'limit' });
-      const label = await labels.read(photos);
+      const label = await labels.read(photos, { source: body.source === 'leaflet' ? 'leaflet' : 'bottle' });
       if (!label) return send(res, 200, { label: null, reason: 'failed' });
       // Bottles only (no discharge papers): nothing to compare against, so no check rows.
       const m = body.med && typeof body.med === 'object' ? body.med : null;

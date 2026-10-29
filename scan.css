@@ -1,0 +1,99 @@
+/* Scan screens (scan.js): a dark scanner panel with the live camera, the corners and a moving scan line; the drawing of what
+   to scan right under the camera; the photos taken in a tray by the shutter. Then the reading, and the papers filed. */
+.scan-head{margin:2px 2px 14px}.scan-head h1{font-size:25px!important;line-height:1.12!important;letter-spacing:-.025em!important;margin:0 0 6px!important}.scan-head p{margin:0;color:var(--muted,#7b766d);font-size:14px;line-height:1.5}
+.scan-stage{background:#0e0e10;color:#fff;border-radius:28px;padding:14px;box-shadow:0 20px 40px -24px rgba(0,0,0,.55)}
+.scan-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:2px 4px 12px;font-size:12px;color:#a1a1a6;letter-spacing:.01em}
+.scan-progress{display:flex;gap:5px}.scan-progress i{width:24px;height:4px;border-radius:4px;background:#3a3a3e}.scan-progress i.done{background:#3ddc97}.scan-progress i.now{background:linear-gradient(90deg,#fff 50%,#3a3a3e 50%);background-size:200% 100%;animation:scan-fill 1.6s ease-in-out infinite alternate}
+@keyframes scan-fill{from{background-position:100% 0}to{background-position:0 0}}
+
+/* The camera. The frame's shape follows what is scanned: a page, a label, or the whole bottle. */
+.scan-cam{position:relative;width:100%;height:min(46vh,420px);border-radius:20px;overflow:hidden;background:radial-gradient(120% 90% at 50% 40%,#2a2a2e,#121214);isolation:isolate}
+.scan-cam.frame-page{--fy:15%;--fx:11%}.scan-cam.frame-label{--fy:21%;--fx:13%}.scan-cam.frame-bottle{--fy:15%;--fx:27%}
+.scan-cam video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.scan-corners{position:absolute;inset:var(--fy) var(--fx);pointer-events:none;animation:scan-breathe 2.6s ease-in-out infinite;z-index:2}
+.scan-corners i{position:absolute;width:34px;height:34px;border:0 solid #fff;filter:drop-shadow(0 0 6px rgba(0,0,0,.35))}
+.scan-corners i:nth-child(1){top:0;left:0;border-top-width:4px;border-left-width:4px;border-top-left-radius:16px}
+.scan-corners i:nth-child(2){top:0;right:0;border-top-width:4px;border-right-width:4px;border-top-right-radius:16px}
+.scan-corners i:nth-child(3){bottom:0;right:0;border-bottom-width:4px;border-right-width:4px;border-bottom-right-radius:16px}
+.scan-corners i:nth-child(4){bottom:0;left:0;border-bottom-width:4px;border-left-width:4px;border-bottom-left-radius:16px}
+@keyframes scan-breathe{0%,100%{transform:scale(1)}50%{transform:scale(.975)}}
+.scan-beam{position:absolute;left:calc(var(--fx) + 6px);right:calc(var(--fx) + 6px);top:var(--fy);height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,#3ddc97 18%,#b8ffe0 50%,#3ddc97 82%,transparent);box-shadow:0 0 14px 3px rgba(61,220,151,.55);animation:scan-sweep 2.4s cubic-bezier(.45,0,.55,1) infinite alternate;z-index:2;pointer-events:none}
+.scan-beam::after{content:'';position:absolute;left:0;right:0;bottom:2px;height:56px;background:linear-gradient(to top,rgba(61,220,151,.22),transparent)}
+@keyframes scan-sweep{from{top:var(--fy)}to{top:calc(100% - var(--fy))}}
+.scan-hint{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:3;margin:0;width:max-content;max-width:86%;padding:8px 14px;border-radius:999px;background:rgba(18,18,20,.58);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);font-size:13px;line-height:1.35;text-align:center;color:#fff}
+.scan-cam .camera-message{position:absolute;inset:0;display:grid;place-items:center;padding:60px 30px;z-index:1;color:#9d9da2;font-size:13px;text-align:center;line-height:1.6}.scan-cam .camera-message[hidden]{display:none}
+.scan-retry{position:absolute;right:10px;bottom:10px;z-index:3;width:36px;height:36px;min-height:0;padding:0;border:0;border-radius:50%;background:rgba(18,18,20,.55);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);color:#fff;display:grid;place-items:center;cursor:pointer}.scan-retry svg{width:16px;height:16px}
+.scan-flash{position:absolute;inset:0;background:#fff;z-index:4;pointer-events:none;animation:scan-flash .5s ease-out forwards}
+@keyframes scan-flash{from{opacity:.95}to{opacity:0}}
+
+/* The drawing of what to scan, under the camera. It comes in fresh with each step. */
+.scan-guide{display:grid;grid-template-columns:104px 1fr;gap:14px;align-items:center;margin-top:12px;padding:8px 16px 8px 8px;border-radius:20px;background:#1b1b1e;animation:scan-guide-in .45s ease both}
+@keyframes scan-guide-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.scan-guide-art{height:150px;display:grid;place-items:center}.scan-guide-art svg{height:100%;width:auto;max-width:100%;overflow:visible}
+.scan-guide-text{display:grid;gap:3px}.scan-guide-text span{font-size:10.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:#3ddc97}.scan-guide-text b{font-size:18px;font-weight:600;letter-spacing:-.01em;line-height:1.2}.scan-guide-text small{font-size:13px;color:#b8b8bd;line-height:1.4}.scan-guide-text em{font-style:normal;font-size:11px;color:#6f6f75;margin-top:4px}
+.scan-art .target-fill{fill:rgba(61,220,151,.14)}.scan-art .target-line{fill:none;stroke:#3ddc97;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.scan-art .scan-target{animation:scan-target-in .35s ease .75s both,scan-pulse 1.6s ease-in-out 1.1s infinite}
+@keyframes scan-target-in{from{opacity:0}to{opacity:1}}@keyframes scan-pulse{0%,100%{opacity:1}50%{opacity:.45}}
+.bottle-art .label-strip{animation:scan-turn .9s cubic-bezier(.6,0,.3,1) both}
+@keyframes scan-turn{from{transform:translateX(var(--from))}to{transform:translateX(var(--to))}}
+.bottle-art .turn-arrow{animation:scan-pulse 1.4s ease-in-out infinite}
+
+/* Upload, the shutter, and the photos taken so far. */
+.scan-controls{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;margin:14px 6px 2px}
+.scan-upload{justify-self:start;display:grid;justify-items:center;gap:6px;color:#fff;font-size:12px;cursor:pointer;padding:4px 6px}.scan-upload svg{width:22px;height:22px}
+.scan-controls .shutter{width:70px;height:70px;min-height:0;padding:0;border-radius:50%;background:#fff;border:4px solid #0e0e10;outline:3px solid #fff;cursor:pointer;transition:transform .12s}.scan-controls .shutter:active{transform:scale(.92)}.scan-controls .shutter:disabled{opacity:.45;cursor:default}
+.scan-tray,.scan-tray-empty{justify-self:end;width:56px;height:62px}
+.scan-tray{position:relative}.scan-tray img{position:absolute;right:4px;top:3px;width:42px;height:54px;object-fit:cover;border-radius:7px;border:2px solid #fff;box-shadow:0 4px 10px rgba(0,0,0,.4)}
+.scan-tray img:nth-last-child(3){transform:rotate(-9deg) translateX(-6px)}.scan-tray img:nth-last-child(4){transform:rotate(-16deg) translateX(-10px)}
+.scan-tray img.is-new{animation:scan-fly .6s cubic-bezier(.2,.8,.2,1) both}
+@keyframes scan-fly{from{transform:translate(-130px,-260px) scale(3.2);opacity:.2}to{transform:none;opacity:1}}
+.scan-tray b{position:absolute;right:-4px;top:-6px;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:#3ddc97;color:#0e0e10;font-size:12px;display:grid;place-items:center}
+.scan-done{display:block;width:100%;margin-top:14px;min-height:50px;border:0;border-radius:999px;background:#fff;color:#111;font-size:15px;font-weight:600;cursor:pointer}.scan-done:disabled{opacity:.5}
+
+/* Reading: the picture just taken with the scan line going over it, and each step ticking off. */
+.scan-stage.is-reading .scan-cam{--fy:6%;--fx:8%;height:min(42vh,380px);background:#161618}
+.scan-shot{position:absolute;inset:6% 8%;display:grid;place-items:center}.scan-shot img,.scan-shot svg{max-width:100%;max-height:100%;border-radius:6px;box-shadow:0 14px 34px rgba(0,0,0,.55);object-fit:contain}
+.scan-stage.is-reading .scan-beam{left:8%;right:8%}
+.scan-tasks{list-style:none;margin:0;padding:16px 8px 6px;display:grid;gap:13px}
+.scan-tasks li{display:flex;align-items:center;gap:12px;font-size:15px;opacity:.32;animation:scan-task-on .35s ease calc(var(--n)*1.5s) forwards}
+.scan-tasks i{position:relative;width:22px;height:22px;flex:none}
+.scan-tasks i::before{content:'';position:absolute;inset:0;border-radius:50%;border:2px solid rgba(255,255,255,.16);border-top-color:#3ddc97;opacity:0;animation:scan-spin .8s linear infinite,scan-task-on 0s linear calc(var(--n)*1.5s) forwards}
+.scan-tasks i::after{content:'✓';position:absolute;inset:0;border-radius:50%;background:#3ddc97;color:#0e0e10;font-size:13px;font-weight:700;display:grid;place-items:center;opacity:0;transform:scale(.4);animation:scan-tick .3s ease calc((var(--n) + 1)*1.5s) forwards}
+.scan-tasks li:last-child i::after{animation:none}
+@keyframes scan-task-on{to{opacity:1}}@keyframes scan-spin{to{transform:rotate(360deg)}}@keyframes scan-tick{to{opacity:1;transform:none}}
+
+/* Filed: the picture of the papers drops into the Documents folder, then what was found. */
+.scan-filed{text-align:center;padding-top:6px}
+.filed-art{position:relative;width:220px;height:200px;margin:6px auto 4px}
+.filed-back,.filed-front{position:absolute;left:10px;bottom:0;width:200px;height:150px}.filed-front{z-index:2;filter:drop-shadow(0 -4px 8px rgba(0,0,0,.08))}
+.filed-sheet{position:absolute;left:50%;top:0;width:112px;height:146px;margin-left:-56px;background:#fff;border-radius:6px;overflow:hidden;box-shadow:0 10px 24px rgba(0,0,0,.18);z-index:1;animation:filed-drop 1.1s cubic-bezier(.3,.7,.2,1) both}
+.filed-sheet img{width:100%;height:100%;object-fit:cover;object-position:top}.filed-sheet svg{width:100%;height:100%}
+@keyframes filed-drop{from{transform:translateY(-60px) scale(1.55) rotate(-6deg);opacity:0}35%{opacity:1}to{transform:translateY(8px) rotate(-3deg)}}
+.filed-check{position:absolute;right:2px;top:44px;z-index:3;width:42px;height:42px;border-radius:50%;background:#1fa971;color:#fff;font-size:20px;font-weight:700;display:grid;place-items:center;box-shadow:0 0 0 5px var(--cream,#fcf8f1);animation:filed-pop .4s cubic-bezier(.3,1.6,.5,1) 1s both}
+@keyframes filed-pop{from{transform:scale(0)}to{transform:none}}
+.filed-tag{margin:14px 0 6px;font-size:11.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#1a8f5c}
+.scan-filed h1{font-size:28px!important;margin:0 0 8px!important}.filed-where{margin:0;color:var(--muted,#7b766d);font-size:14px;line-height:1.55}
+.filed-found{list-style:none;margin:20px 0 0;padding:0;display:grid;gap:8px;text-align:left}
+.filed-found li{display:flex;align-items:baseline;gap:10px;padding:14px 18px;border-radius:18px;background:#fff;font-size:15px;box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 22px -14px rgba(0,0,0,.22);animation:scan-guide-in .4s ease both}
+.filed-found li:nth-child(1){animation-delay:1.2s}.filed-found li:nth-child(2){animation-delay:1.35s}.filed-found li:nth-child(3){animation-delay:1.5s}
+.filed-found b{font-size:22px;font-weight:600;min-width:26px}
+.filed-next{margin:18px 4px 0;color:var(--muted,#7b766d);font-size:13.5px;line-height:1.55}
+.scan-filed .primary{margin-top:16px}
+
+/* The choice: the pharmacy paper or the bottle. */
+.scan-options{display:grid;gap:14px}
+.scan-option{display:grid;grid-template-columns:118px 1fr;gap:16px;align-items:center;width:100%;padding:12px 18px 12px 12px;border:0;border-radius:26px;background:#fff;color:var(--ink,#151412);text-align:left;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.05),0 12px 30px -16px rgba(0,0,0,.28);transition:transform .15s}
+.scan-option:active{transform:scale(.98)}
+.scan-option-art{height:146px;border-radius:18px;background:#f3ede3;display:grid;place-items:center;padding:8px;overflow:hidden}.scan-option-art.is-dark{background:#1b1b1e}.scan-option-art svg{height:100%;width:auto;max-width:100%}
+.scan-option-text{display:grid;gap:5px;justify-items:start}.scan-option-text b{font-size:19px;font-weight:600;letter-spacing:-.01em}.scan-option-text small{font-size:13.5px;color:var(--muted,#7b766d);line-height:1.45}
+.scan-option-text em{font-style:normal;font-size:11px;font-weight:600;padding:4px 9px;border-radius:999px;background:#ddf5e8;color:#157a4c}
+.scan-option .scan-target{animation:none}
+@media(min-width:601px){
+.scan-options{grid-template-columns:1fr 1fr}.scan-option{grid-template-columns:1fr;padding:12px 12px 20px;align-content:start}.scan-option-art{height:220px}.scan-option-text{padding:0 6px}
+.scan-cam{height:400px}.scan-guide-art{height:170px}.scan-guide{grid-template-columns:120px 1fr}
+}
+
+@media(max-width:600px){.scan-head.is-capture{display:none}.has-guide .scan-cam{height:min(38vh,380px)}.scan-guide-art{height:126px}.scan-guide{grid-template-columns:92px 1fr;padding:6px 14px 6px 6px}.scan-guide-text b{font-size:17px}.scan-guide-text small{font-size:12.5px}}
+/* The review card's small drawing of the next bottle photo. */
+.scan-mini{display:flex;align-items:center;gap:14px;margin:10px 0 0}.scan-mini svg{flex:none;width:78px;height:124px;padding:6px;border-radius:14px;background:#1b1b1e}.scan-mini p{margin:0;font-size:12px;color:#666;line-height:1.5}.scan-mini b{color:#111}
+@media(prefers-reduced-motion:reduce){.scan-beam,.scan-corners,.scan-progress i.now,.scan-art .scan-target,.bottle-art .turn-arrow{animation:none}.bottle-art .label-strip{animation-duration:.01s}}
