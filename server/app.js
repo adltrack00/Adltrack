@@ -758,11 +758,11 @@ function createApp({ store, data, production = false, policies = null, classifie
     }
 
     // A photo of a dose being taken: POST it as a data URL, kept with the dose by its file URL. A photo for a new task or an
-    // incident (from the + on My Tasks) says so in `for`, and needs what adding one needs.
+    // incident or symptoms (from the + on My Tasks) says so in `for`, and needs what adding one needs.
     if (route === '/api/files/proof' && method === 'POST') {
       checkWrite(req);
       const body = await readBody(req, 14 * 1024 * 1024);
-      may.need(body && body.for === 'task' ? 'addTasks' : body && body.for === 'incident' ? 'care' : 'tasks');
+      may.need(body && body.for === 'task' ? 'addTasks' : body && (body.for === 'incident' || body.for === 'symptom') ? 'care' : 'tasks');
       return send(res, 201, await data.saveProof(owner, body && body.data));
     }
 
