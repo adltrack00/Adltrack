@@ -89,6 +89,8 @@
 .vitals-form input{width:100%;border:0;border-radius:12px;background:#fff;padding:12px;font:inherit;font-size:15px}
 .vitals-actions{grid-column:1/-1;display:flex;gap:10px}.vitals-actions .is-light{background:#fff;color:#1c1c1c}
 .vitals-form .today-empty{grid-column:1/-1;margin:0}
+.vitals-photo{margin-left:auto;align-self:center}.vitals-photo svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round}
+.vitals-form .take-shots{grid-column:1/-1;grid-template-columns:repeat(3,minmax(0,120px));margin:0}
 @media(max-width:650px){.vitals{gap:8px;margin-left:-12px;margin-right:-12px}.vital-tile{border-radius:18px;padding:12px 4px}.vital-icon{width:42px;height:42px;border-radius:12px;margin-bottom:6px}.vital-icon svg{width:22px;height:22px}.vital-tile strong{font-size:16px}.vital-tile small{font-size:12px}
 .vitals-form{grid-template-columns:repeat(2,1fr);margin-left:-12px;margin-right:-12px}}
 
