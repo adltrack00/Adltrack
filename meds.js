@@ -86,11 +86,11 @@ const renderBeforeMeds=render;render=function(){if(view==='med-add'&&!mayDo('med
   if(view==='med-add'&&typeof syncFlowProfile==='function'){syncFlowProfile();const fp=$('#flow-profile');if(fp){fp.hidden=false;fp.innerHTML=avatarInner()}}};
 }
 
-/* The medication's page from My Tasks: tap the photo to see it large in a pop-up, with its name and how to take it, to
+/* The medication's page from My Tasks: tap the photo to see it large in a pop-up, with only its name and strength below, to
    check it's the right one before giving it. The × at the top closes it. */
 function medZoom(i){closeMedZoom();const box=document.createElement('div');box.className='med-zoom';box.setAttribute('role','dialog');box.setAttribute('aria-modal','true');box.setAttribute('aria-label',i.name);
-  box.innerHTML=`<div class="med-zoom-card"><button class="med-zoom-x" aria-label="Close">×</button><div class="med-zoom-photo">${medPhoto(i)}</div><h2>${esc(i.name)}</h2>${howText(i)?`<p>${esc(howText(i))}</p>`:''}${i.pillLooks?`<p class="med-zoom-sub"><b>Looks like</b> ${esc(i.pillLooks)}</p>`:''}</div>`;
-  document.body.appendChild(box);document.body.classList.add('med-zoom-open');box.querySelector('.med-zoom-x').focus()}
+  box.innerHTML=`<div class="med-zoom-card" tabindex="-1"><button class="med-zoom-x" aria-label="Close">×</button><div class="med-zoom-photo">${medPhoto(i)}</div><h2>${esc(i.name)}</h2></div>`;
+  document.body.appendChild(box);document.body.classList.add('med-zoom-open');box.querySelector('.med-zoom-card').focus()}
 function closeMedZoom(){document.querySelector('.med-zoom')?.remove();document.body.classList.remove('med-zoom-open')}
 if(typeof document!=='undefined'){
   document.addEventListener('click',e=>{if(e.target.closest('.med-zoom-x')||e.target.classList.contains('med-zoom')){closeMedZoom();return}

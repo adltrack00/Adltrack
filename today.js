@@ -18,7 +18,7 @@ function takePage(){const x=takeTask();if(!x)return '';const i=x.item,d=takeDose
 if(x.key==='task')return taskTakePage(x,d,full);
 if(isRefill(x))return refillTakePage(x,d,full);
 const top=`<div class="take-hero">${medPhoto(i)}<h1>${esc(i.name)}</h1><p>${esc([i.dose,'Today at '+clockText(x.slot)].filter(Boolean).join(' · '))}${i.demo?' · Example':''}</p></div>`;
-const how=`<section class="take-block"><h2>How to take it</h2><p>${esc(howText(i)||'Add how to take it from the discharge papers.')}</p>${i.pillLooks?`<p class="take-sub"><b>Looks like</b> ${esc(i.pillLooks)}</p>`:''}${(i.warnings||[]).map(w=>`<p class="take-sub">${esc(w)}</p>`).join('')}${i.prescriber&&i.prescriber.name?`<p class="take-sub"><b>Prescribed by</b> ${esc(i.prescriber.name)}</p>`:''}</section>`;
+const how=`<section class="take-block"><h2>How to take it</h2><p>${esc(howText(i)||'Add how to take it from the discharge papers.')}</p>${(i.warnings||[]).map(w=>`<p class="take-sub">${esc(w)}</p>`).join('')}${i.prescriber&&i.prescriber.name?`<p class="take-sub"><b>Prescribed by</b> ${esc(i.prescriber.name)}</p>`:''}</section>`;
 /* Instructions: who to call and the papers' warning signs, folded away; Need help opens it. */
 const details=`<details class="take-more" id="take-help"${takeDraft.help?' open':''}><summary>Instructions</summary>${helpNote(i)}</details>`;
 return `<section class="sub-page take-page"><div class="sub-top"><button class="sub-back" data-menu-go="overview" aria-label="Back">${menuIcon(menuIcons.back)}</button></div>${top}${how}${takeBody(d,full)}${details}</section>`}
