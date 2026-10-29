@@ -21,13 +21,24 @@ const reviewBeforeTyped=reviewPage;reviewPage=function(){const html=reviewBefore
 const scanBeforeDocs=menuPages.scan;
 menuPages.scan=()=>scanBeforeDocs().replace('The first way in. Scan the discharge papers, or go straight to the medication bottles.','Scan the discharge papers, a medication, or any paper you want to keep in Documents.').replace(plusRow('id="flow-bottles"','Scan medications'),plusRow('id="flow-bottles"','Scan medications')+plusRow('id="scan-docs"','Scan a document'));
 
-/* All medications: Open and Finished, medications only. */
+/* All medications: Open, Needs refill and Finished, medications only. Needs refill lists, in the middle of the page, each
+   medication that needs one: what's left and how many days until it runs out. */
+const refillList=(list=items,day=today())=>list.filter(i=>i.med&&i.status!=='received'&&i.status!=='kept'&&(!!i.pickup||!!(i.refill&&i.refill.step)||C.refillDue(i,day)));
+function refillLeft(i,day=today()){const out=C.runsOut(i),d=out?C.days(out,day):null,per=C.perDose(i),n=(i.times||[]).length,lines=[];
+  if(d!==null&&per&&n)lines.push(`About ${Math.max(0,d*per*n)} ${/capsule/i.test(howText(i)||'')?'capsule':'pill'}${Math.max(0,d*per*n)===1?'':'s'} left`);
+  if(i.refills!=null&&i.refills!=='')lines.push(Number(i.refills)===0?'No refills left. Call the doctor':`${i.refills} refill${Number(i.refills)===1?'':'s'} left`);
+  const days=d===null?'':d<0?'Ran out':d===0?'Runs out today':d===1?'1 day left':`${d} days left`;
+  return {days,when:out&&d>=0?new Date(out+'T12:00').toLocaleDateString([],{month:'short',day:'numeric'}):'',lines}}
+const refillCard=i=>{const r=refillLeft(i),step=typeof refillStep==='function'?refillStep(i):'';
+  return `<button class="med-refill-card" data-open="${esc(i.id)}"><strong class="med-refill-name">${esc(i.name)}</strong>${r.days?`<span class="med-refill-days">${esc(r.days)}</span>${r.when?`<small>Runs out ${esc(r.when)}</small>`:''}`:''}${r.lines.map(l=>`<span class="med-refill-left">${esc(l)}</span>`).join('')}${step?`<small class="med-refill-step">${esc(step)}</small>`:''}</button>`};
 const galleryBeforeOpen=gallery;
-gallery=function(){if(view!=='purchases')return galleryBeforeOpen();if(!['open','received'].includes(galleryFilter))galleryFilter='open';
+gallery=function(){if(view!=='purchases')return galleryBeforeOpen();if(!['open','refill','received'].includes(galleryFilter))galleryFilter='open';
   const el=document.createElement('div');el.innerHTML=galleryBeforeOpen();const tabs=el.querySelector('.gallery-filters');
-  if(tabs)tabs.innerHTML=[['open','Open'],['received','Finished']].map(([id,label])=>`<button data-gallery="${id}" class="${galleryFilter===id?'active':''}">${label}</button>`).join('');
+  if(tabs){tabs.classList.add('med-tabs');tabs.innerHTML=[['open','Open'],['refill','Needs refill'],['received','Finished']].map(([id,label])=>`<button data-gallery="${id}" class="${galleryFilter===id?'active':''}">${label}</button>`).join('')}
   const p=el.querySelector('.page-heading p');if(p)p.textContent='Every medication being taken. Tap one to see everything about it.';
-  if(galleryFilter==='received'&&!items.some(i=>i.med&&i.status==='received'))el.querySelector('.photo-gallery')?.insertAdjacentHTML('afterend','<p class="sub-note med-none">Finished medications show here.</p>');
+  const grid=el.querySelector('.photo-gallery');
+  if(galleryFilter==='refill'&&grid){const list=refillList();el.querySelectorAll('.empty').forEach(x=>x.remove());grid.outerHTML=`<div class="med-refills">${list.length?list.map(refillCard).join(''):'<p class="sub-note med-none">Nothing needs a refill right now.</p>'}</div>`}
+  if(galleryFilter==='received'&&!items.some(i=>i.med&&i.status==='received'))grid?.insertAdjacentHTML('afterend','<p class="sub-note med-none">Finished medications show here.</p>');
   return el.innerHTML};
 
 /* A medication's page. */

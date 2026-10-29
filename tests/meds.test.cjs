@@ -42,3 +42,13 @@ test('Medications starts with Add a medication, and Scan has Scan a document', (
   const add = vm.runInContext('medAddPage()', x);
   assert.match(add, /id="flow-bottles"/); assert.match(add, /id="med-type"/);
 });
+
+test('Needs refill lists each medication running low: what is left and how many days until it runs out', () => {
+  const x = load();
+  x.C = require('../core.js'); x.today = () => '2026-10-29';
+  x.items.push({ ...med, quantity: 30, refills: 2, filled: '2026-10-05' }, { ...med, id: 'm2', name: 'Lisinopril 10 mg', quantity: 90, filled: '2026-10-28' }, { ...med, id: 'm3', name: 'Amoxicillin', status: 'received', refill: { step: 'call' } });
+  const list = vm.runInContext('refillList().map(i=>i.id)', x);
+  assert.deepEqual([...list], ['m1'], 'only open medications that run out within a week or are marked Needs refill');
+  const card = vm.runInContext('refillCard(items[0])', x);
+  for (const want of ['Metformin 500 mg', '6 days left', 'About 6 pills left', '2 refills left']) assert.ok(card.includes(want), want);
+});
