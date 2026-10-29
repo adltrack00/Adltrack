@@ -242,3 +242,13 @@ body.not-home #main>.page-heading{margin-top:0}
 /* A day still to come: My Tasks for that day under the patient's photo, and a task's details with nothing to start. */
 .day-tasks .tasks-title h2{margin:0}.day-tasks-date{color:#7b766d;font-size:14px;margin:4px 0 16px}
 .day-future{padding-top:8px}.day-future-note{text-align:center;color:#7b766d;font-size:13px;margin:22px 0 0}
+/* Fitting the profile picture to its circle: the photo over black, dimmed outside the circle, Cancel and Use photo on top. */
+.photo-crop{width:100vw;height:100dvh;max-width:none!important;max-height:none;inset:0;margin:0;padding:0;border:0;border-radius:0;background:#000;color:#fff;display:none;overflow:hidden}.photo-crop[open]{display:flex;flex-direction:column}.photo-crop::backdrop{background:#000}.photo-crop:focus{outline:none}
+.crop-top{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;position:relative;z-index:2}
+.crop-top h2{font-size:17px;font-weight:600;margin:0;color:#fff}
+.crop-text{border:0;background:none;color:#fff;font:inherit;font-size:16px;padding:10px 6px;cursor:pointer}.crop-use{font-weight:600;color:#7fb2ff}
+.crop-stage{flex:1;display:grid;place-items:center;overflow:hidden}
+.crop-frame{position:relative;width:min(86vw,420px,60dvh);aspect-ratio:1;touch-action:none;cursor:grab}.crop-frame:active{cursor:grabbing}
+.crop-img{position:absolute;left:0;top:0;max-width:none;user-select:none;-webkit-user-select:none;pointer-events:none;transform-origin:0 0}
+.crop-ring{position:absolute;inset:0;border-radius:50%;box-shadow:0 0 0 2px rgba(255,255,255,.9),0 0 0 200vmax rgba(0,0,0,.62);pointer-events:none}
+.crop-slider{display:flex;align-items:center;gap:14px;width:min(86vw,420px);margin:0 auto;padding:18px 0 calc(28px + env(safe-area-inset-bottom));position:relative;z-index:2;font-size:20px}.crop-slider input{flex:1;accent-color:#fff}
