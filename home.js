@@ -53,27 +53,45 @@ return `<li class="today-row${x.state?' is-'+x.state:''}"><button class="today-c
    until it's done: call, then pick it up. */
 const homeTasks=(day=today())=>todayTasks(items,day).filter(x=>x.slot||['appt','task','incident'].includes(x.key)||x.key.startsWith('refill:'));
 /* Vital signs on Home, in four colored tiles: blood pressure, heart rate, temperature and pain. Tapping one opens a small form
-   under them; the last reading is kept with the reminder settings, so it follows the account. */
-let vitalsOpen=false,vitalsShots=[],vitalsTyped=null,vitalsBusy=false;const VITALS_PHOTOS=3;
-const VITALS=[['bp','BP','vital-pink','<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z" fill="currentColor" stroke="none"/>','120/76',''],
-['heart','Heart','vital-orange','<path d="M3 12h4l2-5 4 10 2-5h6"/>','72',''],
-['temp','Temp','vital-blue','<path d="M10 4a2 2 0 0 1 4 0v10a4 4 0 1 1-4 0Z"/><path d="M12 9v7"/>','98.6','°'],
-['pain','Pain','vital-purple','<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="6"/><path d="M10 11h.01M14 11h.01M10 15.5c1.2-1 2.8-1 4 0"/>','0 to 10','/10']];
-function vitalsHTML(){const v=settings.vitals||{},at=v.at?new Date(v.at):null;
-const tiles=VITALS.map(([k,label,tone,path,,unit])=>`<button class="vital-tile ${tone}" data-vitals aria-label="${esc(label)}: ${v[k]?esc(v[k]+unit):'add'}"><span class="vital-icon"><svg viewBox="0 0 24 24" aria-hidden="true">${path}</svg></span><strong>${v[k]?esc(v[k]+unit):'—'}</strong><small>${esc(label)}</small></button>`).join('');
-const form=vitalsOpen?`<form class="vitals-form" id="vitals-form">${VITALS.map(([k,label,,,ph])=>`<label><span>${esc(label)}</span><input id="vital-${k}" name="${k}" value="${esc((vitalsTyped?vitalsTyped[k]:v[k])||'')}" placeholder="${esc(ph)}" inputmode="${k==='bp'?'text':'decimal'}" maxlength="9" autocomplete="off"></label>`).join('')}<div class="vitals-actions"><button class="today-pill" id="vitals-save" type="submit">Save</button><button class="today-pill is-light" type="button" data-vitals>Cancel</button>${vitalsShots.length<VITALS_PHOTOS?`<label class="take-add vitals-photo" for="vitals-photo" aria-label="Add a photo of the vital signs"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5h3.2l1.8-2.5h6l1.8 2.5H20V19H4Z"/><circle cx="12" cy="13.2" r="3.4"/></svg></label>`:''}<input type="file" id="vitals-photo" accept="image/*" multiple hidden></div>${vitalsShots.length?`<div class="take-shots">${vitalsShots.map((src,n)=>`<div class="take-shot">${proofImg(src)}<button class="take-shot-x" type="button" data-vitals-remove="${n}" aria-label="Remove photo ${n+1}">×</button></div>`).join('')}</div>`:''}${at?`<p class="today-empty">Last saved ${esc(at.toLocaleDateString('en-US',{month:'short',day:'numeric'}))} at ${esc(at.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}))}.</p>`:''}</form>`:'';
+   under them for that vital sign only: blood pressure has systolic and diastolic (the cuff's pulse is the heart rate), heart
+   rate the pulse, temperature the reading and pain its 0 to 10. The last reading is kept with the reminder settings, so it
+   follows the account. */
+let vitalsOpen='',vitalsShots=[],vitalsTyped=null,vitalsBusy=false,vitalsReading=false;const VITALS_PHOTOS=3;
+const VITALS=[['bp','BP','vital-pink','<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z" fill="currentColor" stroke="none"/>','',''],
+['heart','Heart','vital-orange','<path d="M3 12h4l2-5 4 10 2-5h6"/>','',''],
+['temp','Temp','vital-blue','<path d="M10 4a2 2 0 0 1 4 0v10a4 4 0 1 1-4 0Z"/><path d="M12 9v7"/>','','°'],
+['pain','Pain','vital-purple','<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="6"/><path d="M10 11h.01M14 11h.01M10 15.5c1.2-1 2.8-1 4 0"/>','','/10']];
+/* Each vital sign's full name, its boxes (name, label, example), and whether a photo can be read for it. Pain can't be. */
+const VITAL_FORMS={bp:['Blood pressure',[['sys','Systolic','120'],['dia','Diastolic','76']],true],heart:['Heart rate',[['pulse','Pulse','72']],true],
+temp:['Temperature',[['temp','Temperature','98.6']],true],pain:['Pain level',[['pain','Pain','0 to 10']],false]};
+/* The boxes as last saved: blood pressure is kept as "120/76". */
+const vitalBoxes=(k,v=settings.vitals||{})=>k==='bp'?(([sys='',dia='']=String(v.bp||'').split('/'))=>({sys,dia}))():{[VITAL_FORMS[k][1][0][0]]:v[k]||''};
+const vitalLast=k=>{const l=(settings.vitalsLog||[]).filter(x=>x[k]).pop();return l?new Date(l.at):null};
+function vitalsHTML(){const v=settings.vitals||{};
+const tiles=VITALS.map(([k,label,tone,path,,unit])=>`<button class="vital-tile ${tone}" data-vitals="${k}" aria-pressed="${vitalsOpen===k}" aria-label="${esc(label)}: ${v[k]?esc(v[k]+unit):'add'}"><span class="vital-icon"><svg viewBox="0 0 24 24" aria-hidden="true">${path}</svg></span><strong>${v[k]?esc(v[k]+unit):'—'}</strong><small>${esc(label)}</small></button>`).join('');
+if(!vitalsOpen)return `<div class="vitals">${tiles}</div>`;
+const k=vitalsOpen,[name,boxes,photo]=VITAL_FORMS[k],val={...vitalBoxes(k),...(vitalsTyped||{})},at=vitalLast(k);
+const form=`<form class="vitals-form ${boxes.length>1?'is-two':'is-one'}" id="vitals-form" data-vital="${k}">${boxes.map(([b,label,ph])=>`<label><span>${esc(label)}</span><input id="vital-${b}" name="${b}" value="${esc(val[b]||'')}" placeholder="${esc(ph)}" inputmode="decimal" maxlength="5" autocomplete="off"></label>`).join('')}<div class="vitals-actions"><button class="today-pill" id="vitals-save" type="submit">Save</button><button class="today-pill is-light" type="button" data-vitals="">Cancel</button>${photo&&vitalsShots.length<VITALS_PHOTOS?`<label class="take-add vitals-photo" for="vitals-photo" aria-label="Take or add a photo of the ${esc(name.toLowerCase())} reading"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5h3.2l1.8-2.5h6l1.8 2.5H20V19H4Z"/><circle cx="12" cy="13.2" r="3.4"/></svg></label>`:''}${photo?'<input type="file" id="vitals-photo" accept="image/*" hidden>':''}</div>${vitalsShots.length?`<div class="take-shots">${vitalsShots.map((src,n)=>`<div class="take-shot">${proofImg(src)}<button class="take-shot-x" type="button" data-vitals-remove="${n}" aria-label="Remove photo ${n+1}">×</button></div>`).join('')}</div>`:''}${vitalsReading?'<p class="today-empty">Reading the numbers on the photo…</p>':at?`<p class="today-empty">${esc(name)} last saved ${esc(at.toLocaleDateString('en-US',{month:'short',day:'numeric'}))} at ${esc(at.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}))}.</p>`:''}</form>`;
 return `<div class="vitals">${tiles}</div>${form}`}
-/* The camera on the far right of Save and Cancel adds up to 3 photos of the readings (the machine, the thermometer), taken
-   or chosen. They're saved with the readings and show in Photos, like a dose's. What's typed stays while photos are added. */
-const vitalsKeep=()=>{const f=$('#vitals-form');if(f){const d=new FormData(f);vitalsTyped=Object.fromEntries(VITALS.map(([k])=>[k,String(d.get(k)||'')]))}};
-const vitalsClear=()=>{vitalsShots=[];vitalsTyped=null};
+/* The camera on the far right of Save and Cancel takes or picks a photo of the reading (the cuff's screen, the thermometer).
+   The numbers on it are read and fill the boxes, for this vital sign only; they can still be typed or changed by hand. The
+   photos (up to 3) are saved with the reading and show in Photos, like a dose's. */
+const vitalsKeep=()=>{const f=$('#vitals-form');if(f)vitalsTyped=Object.fromEntries([...new FormData(f)].map(([b,x])=>[b,String(x)]))};
+const vitalsClear=()=>{vitalsShots=[];vitalsTyped=null;vitalsReading=false};
+const VITALS_UNREAD={blurry:'The photo is too blurry to read. Type the numbers in, or take another.',dark:'The photo is too dark to read. Type the numbers in, or take another.',glare:'The screen has a glare. Type the numbers in, or take another.',not_device:'No reading found on the photo. Type the numbers in.'};
+async function readVitalsPhoto(k,src){vitalsReading=true;render();let r=null;try{r=await Account.api('POST','/api/vitals/read',{photo:src})}catch{}vitalsReading=false;
+if(vitalsOpen!==k){render();return}const got=r&&r.reading,want=VITAL_FORMS[k][1].map(([b])=>b),fill=got?Object.fromEntries(want.filter(b=>got[b]).map(b=>[b,got[b]])):{};
+if(Object.keys(fill).length===want.length){vitalsKeep();vitalsTyped={...(vitalsTyped||{}),...fill};render();toast(`${VITAL_FORMS[k][0]} filled in from the photo.`);return}
+render();toast(got&&VITALS_UNREAD[got.problem]||'Couldn’t read the numbers on the photo. Type them in.')}
 document.addEventListener('click',e=>{const r=e.target.closest('[data-vitals-remove]');if(r){vitalsKeep();vitalsShots.splice(Number(r.dataset.vitalsRemove),1);render();return}
-const b=e.target.closest('[data-vitals]');if(!b)return;vitalsOpen=!vitalsOpen;vitalsClear();render();if(vitalsOpen){const f=$('#vital-bp');if(f)f.focus()}});
-document.addEventListener('change',async e=>{if(e.target.id!=='vitals-photo')return;vitalsKeep();const all=[...e.target.files],files=all.slice(0,VITALS_PHOTOS-vitalsShots.length);
-try{for(const f of files)vitalsShots.push(await readPhoto(f));if(all.length>files.length)toast(`Up to ${VITALS_PHOTOS} photos.`)}catch(err){toast(err.message)}render()});
-document.addEventListener('submit',async e=>{if(e.target.id!=='vitals-form')return;e.preventDefault();if(vitalsBusy)return;const d=new FormData(e.target),v={};for(const [k] of VITALS){const x=String(d.get(k)||'').trim().slice(0,9);if(x)v[k]=x}
-vitalsBusy=true;const photos=(await Promise.all(vitalsShots.map(saveProof))).filter(Boolean);vitalsBusy=false;
-settings.vitals={...v,at:new Date().toISOString()};settings.vitalsLog=[...(settings.vitalsLog||[]),{...settings.vitals,...(photos.length?{photos}:{})}].slice(-60);vitalsOpen=false;vitalsClear();save();render();toast('Vital signs saved.')});
+const b=e.target.closest('[data-vitals]');if(!b)return;const k=b.dataset.vitals;vitalsOpen=k&&k!==vitalsOpen?k:'';vitalsClear();render();if(vitalsOpen){const f=$('#vitals-form input');if(f)f.focus()}});
+document.addEventListener('change',async e=>{if(e.target.id!=='vitals-photo')return;const k=vitalsOpen,f=e.target.files[0];if(!f||!k)return;vitalsKeep();let src;
+try{src=await readPhoto(f)}catch(err){toast(err.message);return}vitalsShots.push(src);readVitalsPhoto(k,src)});
+document.addEventListener('submit',async e=>{if(e.target.id!=='vitals-form')return;e.preventDefault();if(vitalsBusy)return;const k=e.target.dataset.vital,d=new FormData(e.target),x=b=>String(d.get(b)||'').trim().slice(0,5);
+const val=k==='bp'?(x('sys')||x('dia')?(x('sys')&&x('dia')?x('sys')+'/'+x('dia'):null):''):x(VITAL_FORMS[k][1][0][0]);if(val===null){toast('Enter both blood pressure numbers.');return}
+vitalsBusy=true;const photos=(await Promise.all(vitalsShots.map(saveProof))).filter(Boolean);vitalsBusy=false;const at=new Date().toISOString(),{[k]:_,...rest}=settings.vitals||{};
+settings.vitals={...rest,...(val?{[k]:val}:{}),at};if(val||photos.length)settings.vitalsLog=[...(settings.vitalsLog||[]),{...(val?{[k]:val}:{}),at,...(photos.length?{photos}:{})}].slice(-60);
+vitalsOpen='';vitalsClear();save();render();toast(`${VITAL_FORMS[k][0]} saved.`)});
 
 /* Home: the profile picture on top, the vital signs, how many of today's tasks are done as a line, then the task cards. */
 function todayHTML(){const has=items.some(i=>(i.med||i.appt)&&i.status!=='received');if(!has)return `<section class="home-today">${vitalsHTML()}</section>`;const day=today(),tasks=homeTasks(day),done=tasks.filter(x=>x.state==='done').length,pct=tasks.length?Math.round(done/tasks.length*100):0;
