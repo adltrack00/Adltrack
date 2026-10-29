@@ -182,7 +182,7 @@
 @media(max-width:650px){.report-paper{--margin:38px;--gutter:12px}.report-banner{padding:12px 14px 12px 18px}.report-section{padding-right:14px}.report-photos{grid-template-columns:1fr 1fr;gap:12px}}
 @media print{.global-header,.menu-open,.tasks-sheet,.report-tabs,#report-print,.profile-hero{display:none!important}#main{padding:0!important}.report-paper{box-shadow:none;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 /* Home: the profile picture sits a little higher and the report's tabs sit close under it. */
-#main>.profile-hero:not(.profile-hero-compact):has(+.report){margin-top:-58px;padding-bottom:14px}
+#main>.profile-hero:not(.profile-hero-compact):has(+.report){margin-top:-42px;padding-bottom:14px}
 /* Every page but Home: a round white back button with a soft shadow where the menu lines are; the page's own back arrow is
    hidden and its profile picture sits at the top, as on Home. */
 .global-header .menu-open.is-back{width:46px;height:46px;background:#fff;border-radius:50%;box-shadow:0 6px 26px rgba(0,0,0,.09),0 1px 3px rgba(0,0,0,.05)}
