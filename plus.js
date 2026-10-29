@@ -73,7 +73,7 @@ const APPT_REMINDS=[['week','A week before'],['two','2 days before'],['daily','E
 const blankIncidentDraft=()=>({kind:'',date:today(),time:hmNow(),note:'',witnesses:'',told:'',photos:[],busy:false});
 const blankSymptomDraft=()=>({feel:'',date:today(),time:hmNow(),photos:[],busy:false});
 const blankActivityDraft=()=>({done:'',note:'',date:today(),time:hmNow(),photos:[],busy:false});
-const plusPhotos=(d,id)=>`<section class="take-block"><div class="take-line"><h2>Photo <span>${d.photos.length} of ${PLUS_PHOTOS}</span></h2>${d.photos.length>=PLUS_PHOTOS?'':`<label class="take-add" for="${id}" aria-label="Add a photo">+</label>`}</div><input type="file" id="${id}" accept="image/*" multiple hidden>${proofRow(d.photos,true)}<p class="take-muted">Optional. Up to ${PLUS_PHOTOS} photos.</p></section>`;
+const plusPhotos=(d,id)=>`<section class="take-block"><div class="take-line"><h2>Photo <span>${d.photos.length} of ${PLUS_PHOTOS}</span></h2>${d.photos.length>=PLUS_PHOTOS?'':`<label class="take-add" for="${id}" aria-label="Add a photo">+</label>`}</div><input type="file" id="${id}" accept="image/*" capture="environment" hidden>${proofRow(d.photos,true)}<p class="take-muted">Optional. Up to ${PLUS_PHOTOS} photos.</p></section>`;
 const plusField=(label,html)=>`<section class="take-block"><h2>${label}</h2>${html}</section>`;
 const plusRadios=(name,list,value)=>`<div class="plus-choice">${list.map(([v,l])=>`<label><input type="radio" name="${name}" value="${v}"${v===value?' checked':''}><span>${l}</span></label>`).join('')}</div>`;
 

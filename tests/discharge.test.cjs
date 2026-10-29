@@ -266,7 +266,7 @@ test('the pharmacy paper is 1 or 2 photos, read as the paper, then one uploaded 
   assert.equal(vm.runInContext('journey.step', x.ctx), 'cardPhoto');
   assert.equal(vm.runInContext('cameraStep()', x.ctx), false, 'an upload, not a scan');
   const card = vm.runInContext('uploadPage()', x.ctx);
-  assert.match(card, /upload a photo of the bottle/); assert.match(card, /Zoom in/); assert.doesNotMatch(card, /flow-shutter|Scan this part/);
+  assert.match(card, /take a photo of the bottle/); assert.match(card, /Zoom in/); assert.doesNotMatch(card, /flow-shutter|Scan this part/);
   assert.equal(x.ctx.draft.products[0].photo, '', 'the paper is not the medication photo');
   vm.runInContext('finishBottleScan("card")', x.ctx);
   assert.equal(x.ctx.draft.products[0].name, 'LISINOPRIL 10 MG');
@@ -318,7 +318,7 @@ test('bottles only: 3 label photos are read as one label, the card fills itself 
   vm.runInContext('startBottles();startKind("bottle")', cam.ctx);
   await vm.runInContext('addBottleShots(["a"],"camera").then(()=>addBottleShots(["b"],"camera")).then(()=>addBottleShots(["c"],"camera"))', cam.ctx);
   assert.equal(vm.runInContext('journey.step', cam.ctx), 'cardPhoto');
-  assert.match(vm.runInContext('uploadPage()', cam.ctx), /upload a photo of the bottle/);
+  assert.match(vm.runInContext('uploadPage()', cam.ctx), /take a photo of the bottle/);
   vm.runInContext('finishBottleScan("card")', cam.ctx);
   assert.equal(cam.ctx.draft.products[0].photo, 'card');
   assert.equal(cam.ctx.view, 'review');
