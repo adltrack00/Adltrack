@@ -89,7 +89,7 @@ const renderBeforeMeds=render;render=function(){if(view==='med-add'&&!mayDo('med
 /* The medication's page from My Tasks: tap the photo to see it large in a pop-up, with its name and how to take it, to
    check it's the right one before giving it. The × at the top closes it. */
 function medZoom(i){closeMedZoom();const box=document.createElement('div');box.className='med-zoom';box.setAttribute('role','dialog');box.setAttribute('aria-modal','true');box.setAttribute('aria-label',i.name);
-  box.innerHTML=`<div class="med-zoom-card"><button class="med-zoom-x" aria-label="Close">×</button><div class="med-zoom-photo">${medPhoto(i)}</div><h2>${esc(i.name)}</h2>${howText(i)?`<p>${esc(howText(i))}</p>`:''}${i.pillLooks?`<p class="med-zoom-sub"><b>Looks like</b> ${esc(i.pillLooks)}</p>`:''}</div>`;
+  box.innerHTML=`<div class="med-zoom-card"><button class="med-zoom-x" aria-label="Close">×</button><div class="med-zoom-photo">${medPhoto(i)}</div><h2>${esc(i.name)}</h2>${howText(i)?`<p>${esc(howText(i))}</p>`:''}</div>`;
   document.body.appendChild(box);document.body.classList.add('med-zoom-open');box.querySelector('.med-zoom-x').focus()}
 function closeMedZoom(){document.querySelector('.med-zoom')?.remove();document.body.classList.remove('med-zoom-open')}
 if(typeof document!=='undefined'){
