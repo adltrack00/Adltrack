@@ -1,6 +1,6 @@
 /* Adltrack service worker: keeps the app shell for offline starts, shows daily reminders sent by Web Push while the app is
    closed with their action buttons, and opens the item's Return step when one is tapped. Account data (/api/) is never cached here. */
-const SHELL = 'returnly-shell-v43';
+const SHELL = 'returnly-shell-v44';
 const SHELL_FILES = ['app.html', 'index.html', 'signin.html', 'signup.html', 'forgot.html', 'reset.html', 'email.html', 'join.html', 'style.css', 'on.css', 'klarna.css', 'precision.css', 'guided.css', 'home.css', 'menu.css', 'mobile.css', 'type.css', 'dashboard.css',
   'core.js', 'nudge.js', 'account.js', 'auth.js', 'app.js', 'features.js', 'klarna.js', 'precision.js', 'guided.js', 'scan.js', 'scan.css', 'home.js', 'schedule.js', 'refills.js', 'menu.js', 'push.js', 'remind.js', 'today.js', 'report.js', 'team.js', 'plan.js', 'patients.js', 'plus.js', 'can.js', 'info.js', 'info.css', 'documents.js', 'documents.css', 'planner.js', 'meds.js', 'meds.css', 'pastday.js', 'crop.js', 'assets/qrcode.js', 'oracle.woff2', 'assets/roboto-serif-light.woff2', 'assets/inter-var.woff2', 'assets/caveat-var.woff2', 'assets/newsreader-var.woff2', 'assets/fragment-mono.woff2',
   'manifest.webmanifest', 'assets/icon-192.png', 'assets/icon-512.png', 'assets/apple-touch-icon.png'];

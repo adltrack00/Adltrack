@@ -252,3 +252,6 @@ body.not-home #main>.page-heading{margin-top:0}
 .crop-img{position:absolute;left:0;top:0;max-width:none;user-select:none;-webkit-user-select:none;pointer-events:none;transform-origin:0 0}
 .crop-ring{position:absolute;inset:0;border-radius:50%;box-shadow:0 0 0 2px rgba(255,255,255,.9),0 0 0 200vmax rgba(0,0,0,.62);pointer-events:none}
 .crop-slider{display:flex;align-items:center;gap:14px;width:min(86vw,420px);margin:0 auto;padding:18px 0 calc(28px + env(safe-area-inset-bottom));position:relative;z-index:2;font-size:20px}.crop-slider input{flex:1;accent-color:#fff}
+/* The patient's full name under the profile photo, in the serif of their information page. */
+.profile-hero .hero-name{font-family:var(--serif,Georgia,serif)!important;font-optical-sizing:auto;font-size:28px;font-weight:400;letter-spacing:-.02em;line-height:1.15;margin:14px 0 0;color:var(--ink,#151412);text-align:center}
+@media(max-width:650px){.profile-hero .hero-name{font-size:24px;margin-top:12px}}

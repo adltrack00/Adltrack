@@ -23,7 +23,12 @@ reportEntries=function(list=items,day=today(),vitalsLog){return [...reportEntrie
 function pastDayPeople(day){const seen=new Map();for(const x of reportEntries(items,day).filter(x=>!x.missed)){const n=reportWho(x),p=seen.get(n)||{name:n,count:0,from:x.at,to:x.at};p.count++;p.to=x.at;seen.set(n,p)}return [...seen.values()]}
 
 const dayX='<button class="day-report-x" id="day-report-close" aria-label="Close">×</button>';
-const dayHero=()=>`<section class="profile-hero day-report-hero"><div class="profile-circle">${avatarInner()}</div></section>`;
+/* The patient's full name under the photo, as on their information page: on Home and on each day opened from Your schedule. */
+const heroFullName=()=>infoOf(profile).name||welcomeName()||(typeof Account!=='undefined'&&Account.patient()?.name)||'';
+const heroName=()=>heroFullName()?`<h2 class="hero-name">${esc(heroFullName())}</h2>`:'';
+const dayHero=()=>`<section class="profile-hero day-report-hero"><div class="profile-circle">${avatarInner()}</div>${heroName()}</section>`;
+const galleryBeforeName=gallery;
+gallery=function(){const el=document.createElement('div');el.innerHTML=galleryBeforeName();const c=view==='overview'&&el.querySelector(':scope>.profile-hero:not(.profile-hero-compact)>.profile-circle');if(c)c.insertAdjacentHTML('afterend',heroName());return el.innerHTML};
 function pastDayHTML(){const {day,tab,who}=pastDay,people=pastDayPeople(day);
 if(people.length>1&&!who)return `<div class="day-report-top"><span></span>${dayX}</div>${dayHero()}<div class="day-report-pick"><h2>${esc(pastDayLong(day))}</h2><p>${people.length} people documented this day. Pick whose daily care report to see.</p><ul>${people.map(p=>`<li><button data-day-who="${esc(p.name)}"><span class="day-report-initial">${esc(p.name.slice(0,1).toUpperCase())}</span><span><strong>${esc(p.name)}</strong><small>${p.count} ${p.count>1?'entries':'entry'} · ${esc(reportTime(p.from))}${p.to!==p.from?' to '+esc(reportTime(p.to)):''}</small></span><em aria-hidden="true">›</em></button></li>`).join('')}</ul></div>`;
 const back=people.length>1?`<button class="day-report-back" id="day-report-people" aria-label="Back to who documented this day">${menuIcon(menuIcons.back)}</button>`:'<span></span>';
