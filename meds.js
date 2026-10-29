@@ -17,6 +17,9 @@ const bottleRowBeforeTyped=bottleRow;bottleRow=(p,n)=>p.typed?'':bottleRowBefore
 const readLabelBeforeTyped=readLabel;readLabel=n=>draft.products[n]&&draft.products[n].typed?undefined:readLabelBeforeTyped(n);
 const reviewBeforeTyped=reviewPage;reviewPage=function(){const html=reviewBeforeTyped();return draft.typed?html.split('+ Photos of the bottle').join('+ Photo of what it looks like').split('I checked this against the bottle.').join('I checked the name and how to take it.'):html};
 
+/* A card read from the pharmacy paper says so. */
+const reviewBeforeLeaflet=reviewPage;reviewPage=function(){const html=reviewBeforeLeaflet();return draft.products&&draft.products.length&&draft.products.every(p=>p.leaflet)?html.split('From the bottle label.').join('From the pharmacy paper.').split('We read the label.').join('We read the pharmacy paper.'):html};
+
 /* Scan: discharge papers, medications, and any document. */
 const scanBeforeDocs=menuPages.scan;
 menuPages.scan=()=>scanBeforeDocs().replace('The first way in. Scan the discharge papers, or go straight to the medication bottles.','Scan the discharge papers, a medication, or any paper you want to keep in Documents.').replace(plusRow('id="flow-bottles"','Scan medications'),plusRow('id="flow-bottles"','Scan medications')+plusRow('id="scan-docs"','Scan a document'));

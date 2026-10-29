@@ -91,7 +91,7 @@ function scanChoosePage(){return flowShell('','',`<div class="scan-head is-light
 <button class="scan-option" data-scan-kind="leaflet"><span class="scan-option-art">${leafletArt('top')}</span><span class="scan-option-text"><em>Fastest</em><b>The pharmacy paper</b><small>The sheet stapled to the pharmacy bag. It has everything on it: 1 or 2 photos.</small></span></button>
 <button class="scan-option" data-scan-kind="bottle"><span class="scan-option-art is-dark">${bottleArt('front')}</span><span class="scan-option-text"><b>The bottle</b><small>3 quick photos of the label as you turn the bottle.</small></span></button></div>
 <button class="flow-secondary" id="flow-papers">I have the discharge papers</button>`,1)}
-function bottleScanPage(){const kind=journey.kind;if(journey.step==='choose'||!kind)return scanChoosePage();const leaflet=kind==='leaflet',steps=SCAN_STEPS[kind],shots=journey.shots,n=shots.length,total=steps.length+1;
+function bottleScanPage(){const kind=journey.kind;if(journey.step==='choose'||!kind)return scanChoosePage();if(journey.step==='cardPhoto')return cardPhotoPage(kind==='leaflet');const leaflet=kind==='leaflet',steps=SCAN_STEPS[kind],shots=journey.shots,n=shots.length,total=steps.length+1;
 if(journey.reading)return flowShell('','',`<div class="scan-head"><h1>Reading the ${leaflet?'pharmacy paper':'label'}.</h1><p>Hold on, this takes a few seconds.</p></div>`+scanReading(shots[0],[`Reading ${n>1?`the ${n} photos`:'the photo'}`,'Finding how to take it','Finding the pharmacy and doctor']),1);
 const card=journey.step==='cardPhoto',step=card?SCAN_STEPS.card:steps[Math.min(n,steps.length-1)],at=card?steps.length:Math.min(n,steps.length-1),prev=card?steps[steps.length-1][3]:n?steps[n-1][3]:null;
 const art=leaflet&&!card?leafletArt(step[3]):bottleArt(step[3],journey.justShot?prev:null);journey.justShot=false;
@@ -101,7 +101,15 @@ return flowShell('','',`<div class="scan-head is-capture"><h1>${card?'Last photo
 <div class="scan-guide"><div class="scan-guide-art">${art}</div><div class="scan-guide-text"><span>Scan this part</span><b>${esc(step[0])}</b><small>${esc(step[1])}</small><em>Example ${leaflet&&!card?'paper':'bottle'}, not a real prescription</em></div></div>
 ${scanControls(card?'flow-card-upload':'flow-bottle-upload',card?[]:shots,'photo','image/*',!card)}${read}</div>
 ${card?`<button class="flow-secondary" id="flow-card-skip">Use the ${leaflet?'paper':'label'} photo instead</button>`:`<button class="flow-secondary" id="scan-switch">${leaflet?'Scan the bottle instead':'Scan the pharmacy paper instead'}</button>`}<button class="flow-secondary" id="flow-papers">I have the discharge papers</button><p class="flow-subtle">The photos are saved privately to your account.</p>`,1)}
+/* After the reading: not a scan, one photo of the bottle uploaded or taken, zoomed in so its label can be read. It is the
+   picture on the medication's task. The pharmacy paper already gave everything else, so no bottle steps follow. */
+function cardPhotoPage(leaflet){return flowShell('','',`<div class="scan-head"><h1>Now, upload a photo of the bottle.</h1><p>${leaflet?'We read the pharmacy paper.':'We read the label.'} This photo shows on the medication’s task, so everyone sees exactly what they’re giving.</p></div>
+<div class="card-photo"><div class="card-photo-art">${bottleArt('whole')}</div><ul class="card-photo-tips"><li><b>Zoom in</b> so the label fills the photo.</li><li><b>Make it sharp.</b> The name, the strength and how to take it must be easy to read.</li><li><b>Good light,</b> no glare on the label.</li></ul></div>
+<div class="card-photo-actions"><label class="primary" for="flow-card-upload" tabindex="0" role="button">Take the photo</label><label class="outline-button" for="flow-card-pick" tabindex="0" role="button">Upload from your photos</label></div>
+<input id="flow-card-upload" type="file" accept="image/*" capture="environment" hidden><input id="flow-card-pick" type="file" accept="image/*" hidden>
+<button class="flow-secondary" id="flow-card-skip">${leaflet?'Add the photo later':'Use the label photo instead'}</button>`,1)}
 uploadPage=function(){return journey.mode==='bottles'?bottleScanPage():papersScanPage()};
+if(typeof document!=='undefined')document.addEventListener('change',async e=>{if(e.target.id!=='flow-card-pick')return;const f=e.target.files[0];e.target.value='';try{if(f)finishBottleScan(await readPhoto(f))}catch(err){journey.error=err.message;render()}});
 /* The review card's small guide for the next bottle photo, drawn the same way. */
 function bottleGuide(count){const step=SCAN_STEPS.bottle[Math.min(count,2)];return `<div class="scan-mini">${bottleArt(step[3])}<p><b>Photo ${count+1}: ${esc(step[0].toLowerCase())}</b><br>${esc(step[1])}. Example bottle, not a real prescription.</p></div>`};
 
