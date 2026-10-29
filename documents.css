@@ -23,3 +23,10 @@
 .take-shot .doc-thumb{width:100%;height:100%}
 .doc-hint{display:block;font-size:12.5px;color:#888;margin-top:1px}
 @media(max-width:650px){.doc-pages{grid-template-columns:repeat(2,minmax(0,1fr));margin:0 -8px 10px}}
+/* Appointments and Planned tasks (planner.js) use the same rows, with the visit's calendar page or the task's photo or clock. */
+.doc-list .plan-thumb{height:48px;background:#f1f0ee;border-radius:12px;overflow:hidden}
+.plan-thumb .product-photo{width:100%!important;height:100%!important;min-height:0!important;margin:0!important;padding:0!important;border-radius:0!important;aspect-ratio:auto!important;background:transparent!important;display:grid!important;place-items:center}
+.plan-thumb .product-photo img,.plan-thumb .product-photo .bottle-svg{width:100%!important;height:100%!important;max-width:none!important;object-fit:cover}
+.plan-thumb .today-icon svg{width:24px!important;height:24px!important;color:var(--ink,#151412);stroke:currentColor}
+.settings-page>.sub-intro+.plus-list{margin-top:4px}
+.plan-doctors{margin:0 0 18px}

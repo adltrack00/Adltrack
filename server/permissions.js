@@ -21,7 +21,7 @@ const CARE_STATUS = new Set(['deciding', 'received']);
 // Saved apart from the item (the QR code or label has its own route), or the item's own id.
 const IGNORED = new Set(['id', 'label', 'labelFileId']);
 // What makes an item a medication, a visit, a task, an incident or a document: changing it changes the plan.
-const KIND_FIELDS = new Set(['med', 'appt', 'task', 'incident', 'symptom', 'doc']);
+const KIND_FIELDS = new Set(['med', 'appt', 'task', 'incident', 'symptom', 'activity', 'doc']);
 // Vital signs are recorded with the plan's settings; everything else in the settings belongs to the plan.
 const VITAL_KEYS = new Set(['vitals', 'vitalsLog']);
 // Turned on by anyone who allows notifications on their phone, viewers too, so alerts reach everyone.
@@ -45,13 +45,14 @@ function createPermissions(access) {
 
   /* An item saved whole: a new or removed item changes the plan; otherwise each changed field needs its own permission.
      From the + on My Tasks: a new task needs "Can add new tasks" (admins always have it), and anyone who does the care or
-     manages the plan reports an incident or symptoms. None can carry a medication or a visit with it. */
+     manages the plan reports an incident, symptoms or something done now that wasn't planned. None can carry a medication or a visit with it. */
   function item(before, after) {
     if (viewer) throw new PermissionError(SAY.viewer);
     const plain = !after.med && !after.appt && !after.doses;
     if (!before && after.task && !after.incident && plain) return need('addTasks');
     if (!before && after.incident && !after.task && plain && !after.marks) return need('care');
     if (!before && after.symptom && !after.task && !after.incident && plain && !after.marks) return need('care');
+    if (!before && after.activity && !after.task && !after.incident && !after.symptom && plain && !after.marks) return need('care');
     if (!before) return need('meds');
     const skip = new Set(IGNORED);
     // An app that leaves the purchase out keeps the saved one.
