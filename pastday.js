@@ -1,5 +1,5 @@
 /* Your schedule: a day that has ended opens its daily care report over the whole screen, and the × closes it. It is Home
-   without My Tasks: the patient's photo, then Previous day, that day and Photos, then the report as on Home, under the name of
+   without My Tasks: the patient's photo, then that day and Photos, then the report as on Home, under the name of
    the person who wrote it. Days still to come stay as they are. When more than one person documented that day (a shift handed
    on, family helping), it first asks whose report to see; the back button goes back to pick the next person. */
 let pastDay=null;
