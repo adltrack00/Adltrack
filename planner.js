@@ -1,5 +1,5 @@
-/* The menu's ways in: Scan first (the discharge papers or the medication bottles), then after All medications, Appointments and
-   Planned tasks. They hold what used to be in the + on My Tasks; the + now keeps what happens now (plus.js).
+/* The menu's ways in: Scan first (the discharge papers or the medication bottles), then Medications (All medications and Your
+   refills), Appointments and Planned tasks. They hold what used to be in the + on My Tasks; the + now keeps what happens now (plus.js).
    Scan: the two scans, as the + list showed them, opening their usual screens through their own buttons (data-add, #flow-bottles).
    Appointments: "Add an appointment" (the typed form from plus.js), then every appointment, like Documents: to confirm or book,
    coming up, and past. Each opens its own page; on its day it's in My Tasks, with its reminders as before.
@@ -10,6 +10,24 @@ menuIcons.appointments='<rect x="3.5" y="5" width="17" height="15" rx="3"/><path
 menuIcons.planned='<rect x="4" y="4" width="16" height="16" rx="4"/><path d="m8.5 12 2.5 2.5 4.5-5"/>';
 menuItems.unshift(['scan','Scan','scan']);
 menuItems.splice(menuItems.findIndex(([v])=>v==='purchases')+1,0,['appointments','Appointments','appointments'],['planned-tasks','Planned tasks','planned']);
+/* Fewer menu lines: Medications (in All medications' place) holds All medications and Your refills, and Settings holds
+   Reminders and Support. The menu is Scan, Medications, Appointments, Planned tasks, Documents, Your schedule, Settings. */
+menuItems.splice(menuItems.findIndex(([v])=>v==='purchases'),1,['medications','Medications','meds']);
+for(const v of ['wallet','reminders','support'])menuItems.splice(menuItems.findIndex(x=>x[0]===v),1);
+Object.assign(settingsParent,{reminders:'settings',support:'settings','medications-101':'settings'});
+
+/* Medications: All medications, then Your refills, as Scan shows its two scans. */
+function medicationsPage(){return `<section class="sub-page settings-page">${subHeader('Medications','overview')}<p class="sub-intro">Every medication, and the refills coming up.</p><div class="plus-list">${plusRow('data-menu-go="purchases"','All medications')}${plusRow('data-menu-go="wallet"','Your refills')}</div></section>`}
+/* All medications gets the printable medication list from Your refills, under its heading. */
+const galleryBeforeMedList=gallery;gallery=function(){const html=galleryBeforeMedList();if(view!=='purchases')return html;const el=document.createElement('div');el.innerHTML=html;el.querySelector(':scope>.page-heading')?.insertAdjacentHTML('beforeend','<button class="outline-button" id="med-list">Medication list ↓</button>');return el.innerHTML};
+/* Settings gets Reminders and Support, after My doctors and pharmacies; Support goes back to Settings. */
+const settingsBeforePlanner=menuPages.settings,supportBeforePlanner=menuPages.support;
+menuPages.settings=()=>settingsBeforePlanner().replace(settingsRow('privacy','Security and privacy'),settingsRow('reminders','Reminders')+settingsRow('support','Support')+settingsRow('privacy','Security and privacy'));
+menuPages.support=()=>supportBeforePlanner().replace('class="sub-back" data-menu-go="overview"','class="sub-back" data-menu-go="settings"');
+/* The round back button goes up one step from the pages that moved: Reminders to Settings, All medications and Your refills
+   to Medications. Ahead of report.js's own handler, which would go Home. */
+const planBack={reminders:'settings',purchases:'medications',wallet:'medications'};
+window.addEventListener('click',e=>{if(!e.target.closest('#menu-open.is-back')||!planBack[view])return;e.stopPropagation();e.preventDefault();go(planBack[view])},true);
 
 /* Scan */
 function scanPage(){const edit=mayDo('meds');
@@ -42,8 +60,8 @@ return `<section class="sub-page doc-page">${subHeader(esc(t.name),'planned-task
 ${(t.photos||[]).length?`<div class="doc-pages">${t.photos.map(src=>`<figure><span class="doc-thumb" style="background-image:url('${esc(src)}'),var(--doc-icon)"></span></figure>`).join('')}</div>`:''}
 ${mayDo('meds')&&taskLast(t)>=today()&&!(t.repeat==='once'&&done)?`<button class="danger-button" data-planned-remove="${esc(t.id)}">Remove this task</button>`:''}</section>`}
 
-Object.assign(menuPages,{scan:scanPage,appointments:appointmentsPage,'planned-tasks':plannedTasksPage,'planned-task':plannedTaskPage});
-menuViews.push('scan','appointments','planned-tasks','planned-task');
+Object.assign(menuPages,{medications:medicationsPage,scan:scanPage,appointments:appointmentsPage,'planned-tasks':plannedTasksPage,'planned-task':plannedTaskPage});
+menuViews.push('medications','scan','appointments','planned-tasks','planned-task');
 
 /* An appointment opens its own page, and its back button comes back here. */
 let apptFromList=false;
@@ -57,5 +75,5 @@ document.addEventListener('click',e=>{if(!apptFromList||!e.target.closest('#flow
 
 const renderBeforePlanner=render;
 render=function(){if(view!=='plan')apptFromList=false;renderBeforePlanner();
-  if(['scan','appointments','planned-tasks','planned-task'].includes(view)&&typeof syncFlowProfile==='function'){syncFlowProfile();const fp=$('#flow-profile');if(fp){fp.hidden=false;fp.innerHTML=avatarInner();fp.title='Patient information';fp.setAttribute('aria-label','Patient information')}}};
+  if(['medications','scan','appointments','planned-tasks','planned-task'].includes(view)&&typeof syncFlowProfile==='function'){syncFlowProfile();const fp=$('#flow-profile');if(fp){fp.hidden=false;fp.innerHTML=avatarInner();fp.title='Patient information';fp.setAttribute('aria-label','Patient information')}}};
 render();
