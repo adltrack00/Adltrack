@@ -50,11 +50,11 @@ return `<section class="sub-page take-page"><div class="sub-top"><button class="
 const reportEntriesBeforePlus=reportEntries;
 reportEntries=function(list=items,day=today(),vitalsLog){const out=reportEntriesBeforePlus(list,day,vitalsLog);
 for(const t of list.filter(i=>i.task)){
-if(onDay(t.addedAt,day))out.push({title:'New task: '+t.name,at:t.addedAt,note:t.note||'',details:[repeatText(t)],name:t.name,photos:t.photos||[]});
-for(const m of (t.marks||[]).filter(m=>m.key==='task'&&m.day===day&&m.at))out.push({title:`${t.name} (${t.time?shortClock(t.time)+' task':'task'})${m.kind==='skipped'?' skipped':''}`,at:m.at,note:m.note||'',details:[],name:t.name,photos:m.photos||[]})}
-for(const i of list.filter(i=>i.activity&&onDay(i.at,day)))out.push({title:i.name,at:i.at,note:i.note||'',details:[],name:i.name,photos:i.photos||[]});
-for(const i of list.filter(i=>i.symptom&&onDay(i.at,day)))out.push({title:'Symptoms',at:i.at,note:i.note||'',details:[],name:'Symptoms',photos:i.photos||[]});
-for(const i of list.filter(i=>i.incident&&onDay(i.at,day)))out.push({title:'Incident: '+i.name,at:i.at,note:i.note||'',details:[i.witnesses?'Witnesses: '+i.witnesses:'',i.told?'Told: '+i.told:''].filter(Boolean),name:'Incident: '+i.name,photos:i.photos||[]});
+if(onDay(t.addedAt,day))out.push({title:'New task: '+t.name,at:t.addedAt,note:t.note||'',details:[repeatText(t)],name:t.name,photos:t.photos||[],by:t.by});
+for(const m of (t.marks||[]).filter(m=>m.key==='task'&&m.day===day&&m.at))out.push({title:`${t.name} (${t.time?shortClock(t.time)+' task':'task'})${m.kind==='skipped'?' skipped':''}`,at:m.at,note:m.note||'',details:[],name:t.name,photos:m.photos||[],by:m.by})}
+for(const i of list.filter(i=>i.activity&&onDay(i.at,day)))out.push({title:i.name,at:i.at,note:i.note||'',details:[],name:i.name,photos:i.photos||[],by:i.by});
+for(const i of list.filter(i=>i.symptom&&onDay(i.at,day)))out.push({title:'Symptoms',at:i.at,note:i.note||'',details:[],name:'Symptoms',photos:i.photos||[],by:i.by});
+for(const i of list.filter(i=>i.incident&&onDay(i.at,day)))out.push({title:'Incident: '+i.name,at:i.at,note:i.note||'',details:[i.witnesses?'Witnesses: '+i.witnesses:'',i.told?'Told: '+i.told:''].filter(Boolean),name:'Incident: '+i.name,photos:i.photos||[],by:i.by});
 return out.sort((x,y)=>new Date(x.at)-new Date(y.at))};
 
 /* The + itself, at the top right across from the My Tasks title: the round white back button from the other pages, with a plus the size of

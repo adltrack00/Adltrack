@@ -90,7 +90,7 @@ try{src=await readPhoto(f)}catch(err){toast(err.message);return}vitalsShots.push
 document.addEventListener('submit',async e=>{if(e.target.id!=='vitals-form')return;e.preventDefault();if(vitalsBusy)return;const k=e.target.dataset.vital,d=new FormData(e.target),x=b=>String(d.get(b)||'').trim().slice(0,5);
 const val=k==='bp'?(x('sys')||x('dia')?(x('sys')&&x('dia')?x('sys')+'/'+x('dia'):null):''):x(VITAL_FORMS[k][1][0][0]);if(val===null){toast('Enter both blood pressure numbers.');return}
 vitalsBusy=true;const photos=(await Promise.all(vitalsShots.map(saveProof))).filter(Boolean);vitalsBusy=false;const at=new Date().toISOString(),{[k]:_,...rest}=settings.vitals||{};
-settings.vitals={...rest,...(val?{[k]:val}:{}),at};if(val||photos.length)settings.vitalsLog=[...(settings.vitalsLog||[]),{...(val?{[k]:val}:{}),at,...(photos.length?{photos}:{})}].slice(-60);
+settings.vitals={...rest,...(val?{[k]:val}:{}),at};if(val||photos.length)settings.vitalsLog=[...(settings.vitalsLog||[]),{...(val?{[k]:val}:{}),at,...(photos.length?{photos}:{}),...(markedBy()?{by:markedBy()}:{})}].slice(-60);
 vitalsOpen='';vitalsClear();save();render();toast(`${VITAL_FORMS[k][0]} saved.`)});
 
 /* Home: the profile picture on top, the vital signs, how many of today's tasks are done as a line, then the task cards. */

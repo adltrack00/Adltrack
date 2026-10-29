@@ -15,7 +15,7 @@ log:[{at:at('10:30'),kind:'refill-called',by:'Ana'},{at:y('09:00'),kind:'refill-
 const plain=x=>JSON.parse(JSON.stringify(x));
 test('today: every thing done, in time order, each with a subhead, its time, the note from the task and the details',()=>{const e=plain(report(meds()).reportEntries(undefined,'2026-10-14',[{bp:'120/76',heart:'72',at:at('09:00')},{bp:'130/80',at:y('09:00')}]));
   assert.deepEqual(e.map(x=>x.title),['Lisinopril 10 mg (8am dose)','Metoprolol 25 mg (8am dose) skipped','Blood pressure: 120/76 mmHg','Heart rate: 72 bpm','Lisinopril 10 mg: called for a refill','Follow-up visit with Dr. Patel: went','Amoxicillin 500 mg finished']);
-  assert.deepEqual(e[0],{title:'Lisinopril 10 mg (8am dose)',at:at('08:05'),note:'Took it with breakfast.',details:['1 tablet'],name:'Lisinopril 10 mg',photos:['/api/files/x','/api/files/y']});
+  assert.deepEqual(e[0],{title:'Lisinopril 10 mg (8am dose)',at:at('08:05'),note:'Took it with breakfast.',details:['1 tablet'],name:'Lisinopril 10 mg',photos:['/api/files/x','/api/files/y'],by:'Ana'});
   assert.equal(e[1].note,'Felt dizzy.');assert.equal(e[2].at,at('09:00'));assert.deepEqual(e[2].details,[]);assert.deepEqual(e[4].details,['CVS']);assert.deepEqual(e[6].details,['No more reminders for it']);assert.deepEqual(e[5].details,['Heart Clinic'])});
 test('the previous day shows only what was done that day',()=>{const e=plain(report(meds()).reportEntries(undefined,'2026-10-13',[{bp:'130/80',at:y('09:00')}]));
   assert.deepEqual(e.map(x=>x.title),['Lisinopril 10 mg (8am dose)','Blood pressure: 130/80 mmHg','Lisinopril 10 mg: needs a refill'])});
@@ -26,3 +26,9 @@ test('a dose time the short way',()=>{const r=report([]);assert.deepEqual(['08:0
 test('photos of the vital signs are one post with those entries’ numbers and each vital sign by its full name',()=>{const r=report(meds());r.settings.vitalsLog=[{bp:'120/76',heart:'72',at:at('07:00')},{bp:'120/76',heart:'72',temp:'98.6',at:at('09:00'),photos:['/api/files/v']}];
   const e=plain(r.reportEntries(undefined,'2026-10-14',r.settings.vitalsLog));assert.deepEqual(e.slice(0,2).map(x=>x.title),['Blood pressure: 120/76 mmHg','Heart rate: 72 bpm']);
   assert.deepEqual(plain(r.reportPhotos(undefined,'2026-10-14')),[{n:3,name:'Lisinopril 10 mg',note:'Took it with breakfast.',photos:['/api/files/x','/api/files/y']},{n:5,name:'Vital signs',note:'',photos:['/api/files/v'],lines:['Blood pressure: 120/76 mmHg','Heart rate: 72 bpm','Temperature: 98.6°F'],last:7}])});
+/* Your schedule: a day that has ended opens its report; when several people documented it, each one's part is picked apart. */
+test('a past day lists who documented it in order, and each person sees only their own entries and photos',()=>{const r=report(meds());r.welcomeName=()=>'George';
+vm.runInNewContext(fs.readFileSync('pastday.js','utf8').split('function pastDayHTML(')[0].replace(/^let /m,'var ').replace(/const (\w+)=/g,'var $1=')+';this.pastDayPeople=pastDayPeople;',r);
+const people=plain(r.pastDayPeople('2026-10-14'));assert.deepEqual(people.map(p=>p.name),['Ana','George']);assert.equal(people[0].count,3);assert.equal(people[1].count,2);assert.equal(people[0].from,at('08:05'));assert.equal(people[0].to,at('16:00'));
+assert.deepEqual(plain(r.reportPhotos(undefined,'2026-10-14','Ana')).map(p=>[p.n,p.name]),[[1,'Lisinopril 10 mg']]);assert.deepEqual(plain(r.reportPhotos(undefined,'2026-10-14','George')),[]);
+assert.deepEqual(plain(r.pastDayPeople('2026-10-13')).map(p=>p.name),['George'],'older entries saved without a name are the report’s own')});
