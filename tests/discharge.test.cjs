@@ -252,7 +252,7 @@ test('the scan screen draws the part to scan on the example bottle, and turns th
   assert.match(vm.runInContext('bottleGuide(1)', x.ctx), /Photo 2: turn the bottle/);
 });
 
-test('the pharmacy paper is 1 or 2 photos, read as the paper, then the whole bottle for the card', async () => {
+test('the pharmacy paper is 1 or 2 photos, read as the paper, then one uploaded bottle photo for the card and no bottle steps', async () => {
   const label = { name: 'LISINOPRIL', strength: '10 MG', directions: 'Take 1 tablet by mouth every morning', pharmacy: { name: 'Main St Pharmacy', address: '', phone: '' }, prescriber: 'M. Patel', warnings: [], mainPhoto: 0, note: '' };
   const x = journey({ label, check: [] });
   vm.runInContext('startBottles();startKind("leaflet")', x.ctx);
@@ -264,10 +264,15 @@ test('the pharmacy paper is 1 or 2 photos, read as the paper, then the whole bot
   await vm.runInContext('addBottleShots(["rest"],"camera")', x.ctx);
   assert.deepEqual(x.requests[0].body, { photos: ['top', 'rest'], med: null, source: 'leaflet' });
   assert.equal(vm.runInContext('journey.step', x.ctx), 'cardPhoto');
-  assert.match(vm.runInContext('uploadPage()', x.ctx), /Last photo: the whole bottle/);
+  assert.equal(vm.runInContext('cameraStep()', x.ctx), false, 'an upload, not a scan');
+  const card = vm.runInContext('uploadPage()', x.ctx);
+  assert.match(card, /take a photo of the bottle/); assert.match(card, /Zoom in/); assert.doesNotMatch(card, /flow-shutter|Scan this part/);
+  assert.equal(x.ctx.draft.products[0].photo, '', 'the paper is not the medication photo');
   vm.runInContext('finishBottleScan("card")', x.ctx);
   assert.equal(x.ctx.draft.products[0].name, 'LISINOPRIL 10 MG');
+  assert.equal(x.ctx.draft.products[0].photo, 'card');
   assert.equal(x.ctx.view, 'review');
+  assert.equal(vm.runInContext('bottleRow(draft.products[0],0)', x.ctx), '', 'no bottle steps after the paper');
 });
 
 test('the Take card lists today’s dose times, each marked once, and as needed has no times', () => {
@@ -313,7 +318,7 @@ test('bottles only: 3 label photos are read as one label, the card fills itself 
   vm.runInContext('startBottles();startKind("bottle")', cam.ctx);
   await vm.runInContext('addBottleShots(["a"],"camera").then(()=>addBottleShots(["b"],"camera")).then(()=>addBottleShots(["c"],"camera"))', cam.ctx);
   assert.equal(vm.runInContext('journey.step', cam.ctx), 'cardPhoto');
-  assert.match(vm.runInContext('uploadPage()', cam.ctx), /Last photo: the whole bottle/);
+  assert.match(vm.runInContext('uploadPage()', cam.ctx), /take a photo of the bottle/);
   vm.runInContext('finishBottleScan("card")', cam.ctx);
   assert.equal(cam.ctx.draft.products[0].photo, 'card');
   assert.equal(cam.ctx.view, 'review');
@@ -327,7 +332,7 @@ test('bottles only: 3 label photos are read as one label, the card fills itself 
   assert.match(vm.runInContext('journey.error', none.ctx), /Type it in from the bottle/);
 });
 
-test('the camera stays ready between bottle photos: the shutter works for photos 2 and 3 and for the card photo', async () => {
+test('the camera stays ready between bottle photos: the shutter works for photos 2 and 3; the card photo is an upload', async () => {
   const x = journey({});
   const els = { '#flow-video': { play: async () => {} }, '#camera-message': { hidden: false }, '#flow-shutter': { disabled: true } };
   x.ctx.$ = s => els[s] || null;
@@ -335,7 +340,7 @@ test('the camera stays ready between bottle photos: the shutter works for photos
   await vm.runInContext('startJourneyCamera()', x.ctx);
   assert.equal(els['#flow-shutter'].disabled, false);
   assert.equal(els['#camera-message'].hidden, true);
-  assert.equal(vm.runInContext('journey.step="cardPhoto";cameraStep()', x.ctx), true);
+  assert.equal(vm.runInContext('journey.step="cardPhoto";cameraStep()', x.ctx), false);
 });
 
 test('the Take card shows the next dose, the pill, how to take it, warnings, the doctor and pharmacy with Call, the papers page, and who marked each dose', () => {

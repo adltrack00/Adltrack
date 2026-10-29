@@ -17,6 +17,9 @@ const bottleRowBeforeTyped=bottleRow;bottleRow=(p,n)=>p.typed?'':bottleRowBefore
 const readLabelBeforeTyped=readLabel;readLabel=n=>draft.products[n]&&draft.products[n].typed?undefined:readLabelBeforeTyped(n);
 const reviewBeforeTyped=reviewPage;reviewPage=function(){const html=reviewBeforeTyped();return draft.typed?html.split('+ Photos of the bottle').join('+ Photo of what it looks like').split('I checked this against the bottle.').join('I checked the name and how to take it.'):html};
 
+/* A card read from the pharmacy paper says so. */
+const reviewBeforeLeaflet=reviewPage;reviewPage=function(){const html=reviewBeforeLeaflet();return draft.products&&draft.products.length&&draft.products.every(p=>p.leaflet)?html.split('From the bottle label.').join('From the pharmacy paper.').split('We read the label.').join('We read the pharmacy paper.'):html};
+
 /* Scan: discharge papers, medications, and any document. */
 const scanBeforeDocs=menuPages.scan;
 menuPages.scan=()=>scanBeforeDocs().replace('The first way in. Scan the discharge papers, or go straight to the medication bottles.','Scan the discharge papers, a medication, or any paper you want to keep in Documents.').replace(plusRow('id="flow-bottles"','Scan medications'),plusRow('id="flow-bottles"','Scan medications')+plusRow('id="scan-docs"','Scan a document'));
@@ -47,7 +50,7 @@ const medDate=d=>/^\d{4}-\d{2}-\d{2}$/.test(d||'')?new Date(d+'T12:00').toLocale
 function medInfoPage(i){const doc=i.prescriber||{},ph=i.pharmacy||{},finished=i.status==='received',edit=mayDo('meds'),times=i.asNeeded?[]:[...(i.times||[])].sort();
 const when=times.length?times.map(t=>esc((slotName(t)?slotName(t)+' ':'')+clockText(t))).join('<br>'):i.asNeeded||dosesPerDay(i)===0?'Only when needed':'';
 const call=phone=>phone?`<a class="med-call" href="tel:${esc(phone.replace(/[^\d+]/g,''))}">Call ${esc(phone)}</a>`:'';
-const photoBox=`<label class="med-hero-photo"${edit?` for="flow-photo-med" tabindex="0" role="button" aria-label="${i.photo?'Change':'Add'} photo of ${esc(i.name)}"`:''}>${medPhoto(i)}${!i.photo&&edit?'<span class="pick-photo-hint">+ Photo of what it looks like</span>':''}</label>${edit?`<input type="file" id="flow-photo-med" data-med-photo="${esc(i.id)}" accept="image/*" hidden>`:''}`;
+const photoBox=`<label class="med-hero-photo"${edit?` for="flow-photo-med" tabindex="0" role="button" aria-label="${i.photo?'Change':'Add'} photo of ${esc(i.name)}"`:''}>${medPhoto(i)}${!i.photo&&edit?'<span class="pick-photo-hint">+ Photo of what it looks like</span>':''}</label>${edit?`<input type="file" id="flow-photo-med" data-med-photo="${esc(i.id)}" accept="image/*" capture="environment" hidden>`:''}`;
 const papers=papersRow(i).replace(/^<p class="pick-price plan-when"><span>The papers<\/span>/,'').replace(/<\/p>$/,'');
 return `<section class="sub-page med-info">${subHeader('',medBack)}${photoBox}<h1 class="med-name">${esc(i.name)}</h1><p class="med-state">${esc(medState(i))}${i.demo?' · Example':''}</p>
 <section class="info-card"><dl>${infoRow('How to take it',esc(howText(i)||'Not written down yet'))}${infoRow('Dose times',when)}${infoRow('Looks like',esc(i.pillLooks||''))}${infoRow('Quantity',i.quantity?esc(i.quantity):'')}${infoRow('Refills left',i.refills!=null&&i.refills!==''?esc(i.refills):'')}${infoRow('Refill by',esc(medDate(i.refillBy)))}${infoRow('Filled',esc(medDate(i.filled)))}${infoRow('Discard after',esc(medDate(i.discardAfter)))}${i.warnings&&i.warnings.length?infoRow('Warnings',`<ul>${i.warnings.map(w=>`<li>${esc(w)}</li>`).join('')}</ul>`):''}</dl></section>
