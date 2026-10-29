@@ -60,6 +60,8 @@ Object.assign(menuPages,{documents:documentsPage,document:documentPage,'document
 menuViews.push(...DOC_VIEWS);
 const goBeforeDocs=go;go=function(v){if(v==='document-add'&&!docDraft)docDraft=blankDocDraft();if(v==='documents'||v==='overview')docDraft=null;return goBeforeDocs(v)};
 
+/* Scan a document (meds.js) hands its pages here, to be named and filed. */
+window.docAddPages=files=>{docFilter='all';docDraft={...blankDocDraft(),files};go('document-add')};
 const readDocForm=f=>{for(const k of ['name','date','note'])docDraft[k]=f.elements[k].value;docDraft.category=f.elements.category.value||docDraft.category};
 document.addEventListener('input',e=>{const f=e.target.closest('#doc-add-form');if(f&&docDraft)readDocForm(f)});
 document.addEventListener('change',async e=>{

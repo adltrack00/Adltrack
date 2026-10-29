@@ -1,0 +1,44 @@
+/* A medication's own page (meds.js): the big picture, the name, then everything about it in large, bold type on the
+   patient information cards; Needs refill and Finished side by side; Delete this medication last. */
+.med-info .sub-title:empty{display:none}
+.med-hero-photo{display:block;position:relative;border-radius:22px;overflow:hidden;margin:4px 0 18px;background:#f3ede3;cursor:pointer}
+.med-hero-photo .product-photo{width:100%;aspect-ratio:1/1;border-radius:0;margin:0}
+.med-hero-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.med-hero-photo .pick-photo-hint{position:absolute;left:12px;right:12px;bottom:12px;padding:10px;border-radius:999px;background:#fff;text-align:center;font-size:14px;font-weight:600}
+.med-name{font-size:30px;font-weight:700;letter-spacing:-.02em;line-height:1.15;margin:0 0 6px}
+.med-state{margin:0 0 18px;font-size:15px;font-weight:600;color:#1a8f5c}
+.med-info .info-row dt{font-size:13px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:#6f6a62}
+.med-info .info-row dd{font-size:18px;font-weight:600;line-height:1.45}
+.med-info .info-row li{font-weight:600}
+.med-sub{display:block;font-size:15px;font-weight:500;color:#555;margin-top:2px}
+.med-call{display:block;width:fit-content;margin:10px 0 0;padding:9px 16px;border-radius:999px;background:var(--ink,#151412);color:#fff!important;font-size:14px;font-weight:600;text-decoration:none}
+.med-info .info-row dd .flow-text-link{display:block;margin-top:10px;font-size:14px;font-weight:600}
+.med-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
+.med-actions .outline-button{width:100%;min-height:50px;font-size:15px;font-weight:600;border-radius:999px}
+.med-info .danger-button{margin-top:14px}
+.med-info .primary{width:100%;margin-top:14px}
+.med-none{text-align:center;margin-top:18px}
+.plus-sub{display:block;font-size:13px;color:var(--muted,#7b766d);margin-top:3px;font-weight:400}
+@media(min-width:601px){.med-info{max-width:560px;margin:0 auto}.med-hero-photo .product-photo{aspect-ratio:4/3}}
+.plus-row#med-type::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23151412' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z'/%3E%3Cpath d='M13.5 6.5l4 4'/%3E%3C/svg%3E")}
+.plus-row#scan-docs::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23151412' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2'/%3E%3Cpath d='M9 9h6M9 12h6M9 15h4'/%3E%3C/svg%3E")}
+/* All medications tabs: drawn like the Scan, Confirm, Take steps. The words on top, each with its own line below,
+   the open one dark. */
+.gallery-controls .gallery-filters.med-tabs{display:grid!important;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px!important;padding:0!important;border:0!important;overflow:visible;width:100%}
+.gallery-controls .gallery-filters.med-tabs button{display:block;background:none!important;border:0!important;border-bottom:2px solid #e8e8e6!important;border-radius:0!important;padding:10px 2px!important;font-size:14px!important;font-weight:500;color:#aaa!important;text-align:center;white-space:nowrap}
+.gallery-controls .gallery-filters.med-tabs button.active{background:none!important;color:#111!important;font-weight:600;border-bottom-color:#111!important}
+@media(max-width:600px){.gallery-controls .gallery-filters.med-tabs{gap:4px!important}.gallery-filters.med-tabs button{font-size:13px!important}}
+/* Needs refill: one card per medication, its photo small on the left and everything about the refill on the right. */
+.med-refills{display:grid;gap:14px;max-width:560px;margin:18px auto 0}
+.med-refill-card{display:grid;grid-template-columns:104px 1fr;gap:18px;align-items:center;width:100%;padding:16px;border:0;border-radius:22px;background:#fff;box-shadow:0 2px 14px #0000000d;text-align:left;color:var(--ink,#151412);cursor:pointer}
+.med-refill-photo{display:block;width:104px;height:104px;border-radius:16px;overflow:hidden;background:#f3ede3}
+.med-refill-photo .product-photo{width:100%;height:100%;aspect-ratio:auto!important;border-radius:0;margin:0}
+.med-refill-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.med-refill-photo svg{max-height:100%}
+.med-refill-info{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0}
+.med-refill-name{font-size:19px;font-weight:700;letter-spacing:-.01em;line-height:1.2}
+.med-refill-days{font-size:24px;font-weight:700;color:#b5532c;line-height:1.2;margin-top:2px}
+.med-refill-card small{font-size:13px;color:var(--muted,#7b766d)}
+.med-refill-left{font-size:15px;font-weight:600}
+.med-refill-step{margin-top:4px;line-height:1.4}
+@media(max-width:600px){.med-refill-card{grid-template-columns:84px 1fr;gap:14px;padding:14px}.med-refill-photo{width:84px;height:84px}}
