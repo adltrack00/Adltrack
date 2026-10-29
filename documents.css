@@ -29,3 +29,4 @@
 .plan-thumb .product-photo img,.plan-thumb .product-photo .bottle-svg{width:100%!important;height:100%!important;max-width:none!important;object-fit:cover}
 .plan-thumb .today-icon svg{width:24px!important;height:24px!important;color:var(--ink,#151412);stroke:currentColor}
 .settings-page>.sub-intro+.plus-list{margin-top:4px}
+.plan-doctors{margin:0 0 18px}

@@ -17,12 +17,17 @@ for(const v of ['wallet','reminders','support'])menuItems.splice(menuItems.findI
 Object.assign(settingsParent,{reminders:'settings',support:'settings','medications-101':'settings'});
 
 /* Medications: All medications, then Your refills, as Scan shows its two scans. */
-function medicationsPage(){return `<section class="sub-page settings-page">${subHeader('Medications','overview')}<p class="sub-intro">Every medication, and the refills coming up.</p><div class="plus-list">${plusRow('data-menu-go="purchases"','All medications')}${plusRow('data-menu-go="wallet"','Your refills')}</div></section>`}
+function medicationsPage(){return `<section class="sub-page settings-page">${subHeader('Medications','overview')}<p class="sub-intro">Every medication, the refills coming up and the pharmacies.</p><div class="plus-list">${plusRow('data-menu-go="purchases"','All medications')}${plusRow('data-menu-go="wallet"','Your refills')}${plusRow('data-menu-go="pharmacies"','My pharmacies')}</div></section>`}
 /* All medications gets the printable medication list from Your refills, under its heading. */
 const galleryBeforeMedList=gallery;gallery=function(){const html=galleryBeforeMedList();if(view!=='purchases')return html;const el=document.createElement('div');el.innerHTML=html;el.querySelector(':scope>.page-heading')?.insertAdjacentHTML('beforeend','<button class="outline-button" id="med-list">Medication list ↓</button>');return el.innerHTML};
 /* Settings gets Reminders and Support, after My doctors and pharmacies; Support goes back to Settings. */
 const settingsBeforePlanner=menuPages.settings,supportBeforePlanner=menuPages.support;
-menuPages.settings=()=>settingsBeforePlanner().replace(settingsRow('privacy','Security and privacy'),settingsRow('reminders','Reminders')+settingsRow('support','Support')+settingsRow('privacy','Security and privacy'));
+menuPages.settings=()=>settingsBeforePlanner().replace(settingsRow('care-contacts','My doctors and pharmacies'),'').replace(settingsRow('privacy','Security and privacy'),settingsRow('reminders','Reminders')+settingsRow('support','Support')+settingsRow('privacy','Security and privacy'));
+/* My doctors and pharmacies is split where each belongs: My pharmacies on Medications, My doctors on Appointments. The same
+   fold-open rows (menu.js contactRow); fixing a number still fixes it on every medication with that doctor or pharmacy. */
+const contactsPage=(title,back,field,list,none)=>`<section class="sub-page settings-page">${subHeader(title,back)}<p class="sub-intro">${none}${mayDo('meds')?' Fix a number once and every one of their medications uses it.':''}</p>${list.length?`<div class="people-list">${list.map(c=>contactRow(c,field)).join('')}</div>`:'<p class="sub-note">None yet. They show up here after you scan the papers or a label.</p>'}</section>`;
+const pharmaciesPage=()=>contactsPage('My pharmacies','medications','pharmacy',careContacts().pharmacies,'Every pharmacy from the pharmacy labels, once each, with the medications it fills.');
+const doctorsPage=()=>contactsPage('My doctors','appointments','prescriber',careContacts().doctors,'Every doctor from the discharge papers and the pharmacy labels, once each, with the medications they prescribed.');
 menuPages.support=()=>supportBeforePlanner().replace('class="sub-back" data-menu-go="overview"','class="sub-back" data-menu-go="settings"');
 /* The round back button goes up one step from the pages that moved: Reminders to Settings, All medications and Your refills
    to Medications. Ahead of report.js's own handler, which would go Home. */
@@ -41,7 +46,7 @@ return [['confirm','To confirm or book',open.filter(a=>a.status==='kept'||!a.dat
 ['past','Past',all.filter(a=>a.status==='received'||a.status!=='kept'&&a.date&&a.date<day).sort((x,y)=>apptWhen(y).localeCompare(apptWhen(x)))]].map(([key,name,list])=>({key,name,list})).filter(g=>g.list.length)}
 const apptRow=a=>`<li><button data-plan-appt="${esc(a.id)}"><span class="doc-thumb plan-thumb">${apptPhoto(a)}</span><span><strong>${esc(a.name)}</strong><small>${esc([apptState(a),a.place].filter(Boolean).join(' · ')+(a.demo?' · Example':''))}</small></span>${menuIcon(menuIcons.chevron)}</button></li>`;
 function appointmentsPage(){const groups=apptGroups(),edit=mayDo('meds');
-return `<section class="sub-page doc-page">${subHeader('Appointments','overview')}<p class="sub-intro">Every appointment in one place. On its day it’s in My Tasks, and the reminders come before it.</p>${edit?'<button class="primary doc-add" data-menu-go="appt-new">Add an appointment</button>':''}
+return `<section class="sub-page doc-page">${subHeader('Appointments','overview')}<p class="sub-intro">Every appointment in one place. On its day it’s in My Tasks, and the reminders come before it.</p>${edit?'<button class="primary doc-add" data-menu-go="appt-new">Add an appointment</button>':''}<div class="plus-list plan-doctors">${plusRow('data-menu-go="doctors"','My doctors')}</div>
 ${groups.length?groups.map(g=>`<section class="info-card doc-card"><div class="info-head"><h2>${esc(g.name)}</h2><span class="doc-count">${g.list.length}</span></div><ul class="doc-list">${g.list.map(apptRow).join('')}</ul></section>`).join(''):`<section class="info-card doc-card"><p class="info-none">No appointments yet. ${edit?'Add one here, or scan the discharge papers and the follow-up visits on them show up here.':'They show up here when someone on the care team adds one.'}</p></section>`}
 ${edit?'':'<p class="sub-note">Only admins and people who can scan papers can add appointments.</p>'}</section>`}
 
@@ -60,8 +65,8 @@ return `<section class="sub-page doc-page">${subHeader(esc(t.name),'planned-task
 ${(t.photos||[]).length?`<div class="doc-pages">${t.photos.map(src=>`<figure><span class="doc-thumb" style="background-image:url('${esc(src)}'),var(--doc-icon)"></span></figure>`).join('')}</div>`:''}
 ${mayDo('meds')&&taskLast(t)>=today()&&!(t.repeat==='once'&&done)?`<button class="danger-button" data-planned-remove="${esc(t.id)}">Remove this task</button>`:''}</section>`}
 
-Object.assign(menuPages,{medications:medicationsPage,scan:scanPage,appointments:appointmentsPage,'planned-tasks':plannedTasksPage,'planned-task':plannedTaskPage});
-menuViews.push('medications','scan','appointments','planned-tasks','planned-task');
+Object.assign(menuPages,{pharmacies:pharmaciesPage,doctors:doctorsPage,medications:medicationsPage,scan:scanPage,appointments:appointmentsPage,'planned-tasks':plannedTasksPage,'planned-task':plannedTaskPage});
+menuViews.push('pharmacies','doctors','medications','scan','appointments','planned-tasks','planned-task');
 
 /* An appointment opens its own page, and its back button comes back here. */
 let apptFromList=false;
@@ -75,5 +80,5 @@ document.addEventListener('click',e=>{if(!apptFromList||!e.target.closest('#flow
 
 const renderBeforePlanner=render;
 render=function(){if(view!=='plan')apptFromList=false;renderBeforePlanner();
-  if(['medications','scan','appointments','planned-tasks','planned-task'].includes(view)&&typeof syncFlowProfile==='function'){syncFlowProfile();const fp=$('#flow-profile');if(fp){fp.hidden=false;fp.innerHTML=avatarInner();fp.title='Patient information';fp.setAttribute('aria-label','Patient information')}}};
+  if(['pharmacies','doctors','medications','scan','appointments','planned-tasks','planned-task'].includes(view)&&typeof syncFlowProfile==='function'){syncFlowProfile();const fp=$('#flow-profile');if(fp){fp.hidden=false;fp.innerHTML=avatarInner();fp.title='Patient information';fp.setAttribute('aria-label','Patient information')}}};
 render();

@@ -86,7 +86,7 @@ const plusRadios=(name,list,value)=>`<div class="plus-choice">${list.map(([v,l])
    Appointments read from the papers are added on their own and show the same way once confirmed. */
 /* Each a white card with the My Tasks blue arrow, like the History list. */
 const plusRow=(attr,label)=>`<button class="plus-row" ${attr}><span>${label}</span>${TODAY_ARROW}</button>`;
-const plusRows=()=>[mayReport()&&plusRow('data-menu-go="activity-new"','Something done now'),mayReport()&&plusRow('data-menu-go="incident-new"','Report an incident'),mayReport()&&plusRow('data-menu-go="symptom-new"','Symptoms')].filter(Boolean);
+const plusRows=()=>[mayReport()&&plusRow('data-menu-go="activity-new"','New task'),mayReport()&&plusRow('data-menu-go="incident-new"','Report an incident'),mayReport()&&plusRow('data-menu-go="symptom-new"','Symptoms')].filter(Boolean);
 function plusPage(){return `<section class="sub-page settings-page">${subHeader('Add to My Tasks','overview')}<div class="plus-list">${plusRows().join('')}</div></section>`}
 function taskNewPage(){const d=plusDraft,last=C.shift(today(),YEAR_AHEAD);
 return `<section class="sub-page take-page plus-page">${subHeader('Add a planned task','planned-tasks')}<form id="task-form" class="plus-form" novalidate>
@@ -123,10 +123,10 @@ ${plusField('What they’re feeling',`<textarea name="feel" maxlength="1000" req
 ${plusField('When',`<div class="plus-when"><input name="date" type="date" max="${today()}" value="${esc(d.date)}" aria-label="Date"><input name="time" type="time" value="${esc(d.time)}" aria-label="Time"></div>`)}
 ${plusPhotos(d,'plus-photo')}
 <button class="primary plus-save"${d.busy?' disabled':''}>Add to the daily report</button></form></section>`}
-/* Something done now that wasn't planned (a walk outside, a visitor, a shower): what was done, when, a note and photos. Like
+/* New task: something done now that wasn't planned (a walk outside, a visitor, a shower): what was done, when, a note and photos. Like
    Symptoms, it goes straight into the daily care report at that time, and its photos into Photos; it isn't in My Tasks. */
 function activityNewPage(){const d=plusDraft;
-return `<section class="sub-page take-page plus-page">${subHeader('Something done now','plus')}<form id="activity-form" class="plus-form" novalidate>
+return `<section class="sub-page take-page plus-page">${subHeader('New task','plus')}<form id="activity-form" class="plus-form" novalidate>
 ${plusField('What was done',`<input name="done" maxlength="100" required autocomplete="off" value="${esc(d.done)}" placeholder="Went for a walk around the block">`)}
 ${plusField('When',`<div class="plus-when"><input name="date" type="date" max="${today()}" value="${esc(d.date)}" aria-label="Date"><input name="time" type="time" value="${esc(d.time)}" aria-label="Time"></div>`)}
 ${plusField('Note',`<textarea name="note" maxlength="1000" placeholder="How it went (optional)">${esc(d.note)}</textarea>`)}
