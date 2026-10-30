@@ -2,7 +2,7 @@
    report behind, today's Photos in front), and the words on the right. */
 .desk-updates{display:grid;grid-template-columns:52% 48%;align-items:center;max-width:1400px;min-height:clamp(560px,48vw,720px);margin:40px auto;box-sizing:border-box}
 .desk-art{position:relative;margin:0 0 0 12%;aspect-ratio:1.42}
-.desk-window{position:absolute;overflow:hidden;border-radius:10px;background:#fff;box-shadow:0 2px 6px #1d243314,0 24px 60px #1d243333}
+.desk-window{position:absolute;overflow:hidden;border-radius:10px;background:#fcf8f1;box-shadow:0 2px 6px #1d243314,0 24px 60px #1d243333}
 .desk-window img{display:block;width:100%;height:auto}
 .desk-back{left:0;top:0;width:74%}
 .desk-front{right:0;bottom:0;width:66%}
