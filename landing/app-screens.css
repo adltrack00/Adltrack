@@ -10,9 +10,9 @@ html body #why-Adltrack .intro-bottom p{max-width:450px;font-size:19px;line-heig
 html body #why-Adltrack .tedy-intro-actions{margin-top:40px}
 
 .app-screen-art{position:relative;justify-self:start;margin:0;padding:40px 0}
-.app-screen{position:relative;width:clamp(250px,19vw,292px);border-radius:32px;overflow:hidden;background:#fff;box-shadow:0 2px 6px #1d243312,0 24px 60px #1d24332e}
+.app-screen{position:relative;width:clamp(250px,19vw,292px);border-radius:32px;overflow:hidden;background:#fcf8f1;box-shadow:0 2px 6px #1d243312,0 24px 60px #1d24332e}
 .app-screen>img{display:block;width:100%;height:auto}
-.app-status{display:flex;align-items:center;justify-content:space-between;height:calc(clamp(250px,19vw,292px)*.115);padding:0 9% 0 12%;background:#fff;color:#101316;font-family:Inter,-apple-system,sans-serif;font-size:13px;font-weight:600;letter-spacing:-.2px}
+.app-status{display:flex;align-items:center;justify-content:space-between;height:calc(clamp(250px,19vw,292px)*.115);padding:0 9% 0 12%;background:#fcf8f1;color:#101316;font-family:Inter,-apple-system,sans-serif;font-size:13px;font-weight:600;letter-spacing:-.2px}
 .app-status svg{width:58px;height:13px;fill:currentColor}
 
 @media(max-width:1100px){
