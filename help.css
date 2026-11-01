@@ -1,0 +1,27 @@
+/* Help: the floating chat button and its pop-up (help.js). The pop-up is the medication photo pop-up's frame (meds.css .med-zoom):
+   the same dark backdrop, 12px margin, 18px corners and white × at the top right, filled with the section's help on the cream page. */
+.help-fab{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:max(18px,calc(env(safe-area-inset-bottom) + 10px));z-index:60;width:52px;height:52px;border-radius:50%;border:0;padding:0;display:grid;place-items:center;background:#fff;color:#111;box-shadow:0 1px 0 rgba(0,0,0,.04),0 6px 20px rgba(40,30,10,.18);cursor:pointer;transition:bottom .32s cubic-bezier(.2,.8,.2,1),transform .15s}
+.help-fab svg{width:26px;height:26px}
+.help-fab:active{transform:scale(.94)}
+.help-fab:focus:not(:focus-visible){outline:none}
+.help-fab[hidden]{display:none}
+/* Pages scroll far enough that their last buttons clear the floating button. */
+#main{padding-bottom:84px}
+.tasks-body{padding-bottom:84px!important}
+.help-pop{position:fixed;inset:0;z-index:200;background:#000000b3;display:grid;place-items:center;padding:12px}
+.help-pop-card{position:relative;width:min(calc(100vw - 24px),calc(100dvh - 24px));height:calc(100dvh - 24px);border-radius:18px;overflow:hidden;background:var(--cream,#fcf8f1);box-shadow:0 20px 60px #0000004d;outline:none}
+@media(max-width:650px){.help-pop-card{width:calc(100vw - 24px)}}
+.help-pop-body{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:30px 26px 26px;color:#111}
+.help-pop-eyebrow{display:block;font-family:var(--mono,ui-monospace,monospace);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#6b665c;margin:6px 60px 10px 0}
+.help-pop-body h2{font-family:var(--serif,Georgia,serif);font-weight:340;font-size:40px;line-height:1.04;letter-spacing:-.02em;margin:0 56px 14px 0;color:#111}
+.help-pop-intro{font-size:18px;line-height:1.45;margin:0 0 22px;color:#2b2a27}
+.help-pop-steps{list-style:none;counter-reset:help;margin:0;padding:0;display:grid;gap:10px}
+.help-pop-steps li{counter-increment:help;position:relative;background:#fff;border-radius:18px;padding:16px 18px 16px 58px;box-shadow:0 1px 2px rgba(40,30,10,.05)}
+.help-pop-steps li::before{content:counter(help,decimal-leading-zero);position:absolute;left:16px;top:16px;width:28px;height:28px;border-radius:50%;background:#f3ede3;display:grid;place-items:center;font-family:var(--mono,ui-monospace,monospace);font-size:11px;color:#111}
+.help-pop-steps strong{display:block;font-size:17px;font-weight:600;margin-bottom:3px}
+.help-pop-steps span{display:block;font-size:16px;line-height:1.45;color:#3a3833}
+.help-pop-note{font-size:13px;line-height:1.5;color:#6b665c;margin:20px 2px}
+.help-pop-done{width:100%;min-height:52px}
+body.help-open{overflow:hidden}
+@media(min-width:651px){.help-pop-body{padding:44px 48px 36px}.help-pop-body h2{font-size:48px}}
+@media print{.help-fab,.help-pop{display:none!important}}
