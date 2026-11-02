@@ -45,15 +45,21 @@ gallery=function(){if(view!=='purchases')return galleryBeforeOpen();if(!['open',
   return el.innerHTML};
 
 /* A medication's page. */
+let medTimeAdding=null;
 const infoRow=(label,value)=>value?`<div class="info-row"><dt>${label}</dt><dd>${value}</dd></div>`:'';
 const medDate=d=>/^\d{4}-\d{2}-\d{2}$/.test(d||'')?new Date(d+'T12:00').toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'}):'';
 function medInfoPage(i){const doc=i.prescriber||{},ph=i.pharmacy||{},finished=i.status==='received',edit=mayDo('meds'),times=i.asNeeded?[]:[...(i.times||[])].sort();
 const when=times.length?times.map(t=>esc((slotName(t)?slotName(t)+' ':'')+clockText(t))).join('<br>'):i.asNeeded||dosesPerDay(i)===0?'Only when needed':'';
+const timed=!finished&&!i.asNeeded&&dosesPerDay(i)!==0&&!i.pickup,offTasks=!!i.offTasks;
+/* With "Can change medications": each dose time is a clock to change, with Remove (while there are two or more) and Add a time. */
+const editTimes=edit&&timed?`<div class="med-times">${times.map(t=>`<div class="med-time"><input type="time" value="${esc(t)}" data-dose-time="${esc(i.id)}|${(i.times||[]).indexOf(t)}" aria-label="${esc(i.name)} dose time ${esc(clockText(t))}">${times.length>1?`<button type="button" class="med-time-x" data-med-time-remove="${esc(i.id)}|${esc(t)}" aria-label="Remove the ${esc(clockText(t))} dose">Remove</button>`:''}</div>`).join('')}${medTimeAdding===i.id?`<div class="med-time is-new"><input type="time" value="" data-med-time-new="${esc(i.id)}" aria-label="New dose time for ${esc(i.name)}"><button type="button" class="med-time-x" data-med-time-cancel aria-label="Cancel the new time">Cancel</button></div>`:''}</div>${medTimeAdding===i.id?'<p class="med-time-hint">Pick the time. It saves on its own.</p>':`<button type="button" class="med-time-add" data-med-time-add="${esc(i.id)}">+ Add a time</button>`}`:'';
+/* On My Tasks or off it: off means no dose rows and no reminders, but it stays in the medications. */
+const tasksRow=timed&&i.status==='deciding'?(edit?`<button type="button" class="med-switch" role="switch" aria-checked="${!offTasks}" data-med-tasks="${esc(i.id)}"><span class="med-switch-words"><strong>${offTasks?'Off My Tasks':'On My Tasks'}</strong><span class="med-sub">${offTasks?'No reminders. It stays in your medications.':'Each dose time is a task, with a reminder.'}</span></span><span class="med-switch-knob" aria-hidden="true"></span></button>`:offTasks?'Off My Tasks. No reminders.':''):'';
 const call=phone=>phone?`<a class="med-call" href="tel:${esc(phone.replace(/[^\d+]/g,''))}">Call ${esc(phone)}</a>`:'';
 const photoBox=`<label class="med-hero-photo"${edit?` for="flow-photo-med" tabindex="0" role="button" aria-label="${i.photo?'Change':'Add'} photo of ${esc(i.name)}"`:''}>${medPhoto(i)}${!i.photo&&edit?'<span class="pick-photo-hint">+ Photo of what it looks like</span>':''}</label>${edit?`<input type="file" id="flow-photo-med" data-med-photo="${esc(i.id)}" accept="image/*" capture="environment" hidden>`:''}`;
 const papers=papersRow(i).replace(/^<p class="pick-price plan-when"><span>The papers<\/span>/,'').replace(/<\/p>$/,'');
 return `<section class="sub-page med-info">${subHeader('',medBack)}${photoBox}<h1 class="med-name">${esc(i.name)}</h1><p class="med-state">${esc(medState(i))}${i.demo?' · Example':''}</p>
-<section class="info-card"><dl>${infoRow('How to take it',esc(howText(i)||'Not written down yet'))}${infoRow('Dose times',when)}${infoRow('Looks like',esc(i.pillLooks||''))}${infoRow('Quantity',i.quantity?esc(i.quantity):'')}${infoRow('Refills left',i.refills!=null&&i.refills!==''?esc(i.refills):'')}${infoRow('Refill by',esc(medDate(i.refillBy)))}${infoRow('Filled',esc(medDate(i.filled)))}${infoRow('Discard after',esc(medDate(i.discardAfter)))}${i.warnings&&i.warnings.length?infoRow('Warnings',`<ul>${i.warnings.map(w=>`<li>${esc(w)}</li>`).join('')}</ul>`):''}</dl></section>
+<section class="info-card"><dl>${infoRow('How to take it',esc(howText(i)||'Not written down yet'))}${infoRow('Dose times',editTimes||when)}${infoRow('My Tasks',tasksRow)}${infoRow('Looks like',esc(i.pillLooks||''))}${infoRow('Quantity',i.quantity?esc(i.quantity):'')}${infoRow('Refills left',i.refills!=null&&i.refills!==''?esc(i.refills):'')}${infoRow('Refill by',esc(medDate(i.refillBy)))}${infoRow('Filled',esc(medDate(i.filled)))}${infoRow('Discard after',esc(medDate(i.discardAfter)))}${i.warnings&&i.warnings.length?infoRow('Warnings',`<ul>${i.warnings.map(w=>`<li>${esc(w)}</li>`).join('')}</ul>`):''}</dl></section>
 <section class="info-card"><dl>${infoRow('Prescribed by',`${esc(doc.name||'Not written down')}${call(doc.phone)}`)}${infoRow('Pharmacy',`${esc(ph.name||'Not written down')}${ph.address?`<span class="med-sub">${esc(ph.address)}</span>`:''}${call(ph.phone)}${mapLink(ph)}`)}${papers?infoRow('Discharge papers',papers):''}</dl></section>
 ${i.status==='kept'?`<button class="primary" data-return="${esc(i.id)}">Confirm this medication</button>`:''}
 ${finished?'<p class="sub-note">Finished. No more reminders for this medication.</p>':mayDo('care')?'<div class="med-actions"><button class="outline-button" data-med-done="refill">Needs refill</button><button class="outline-button" data-med-done="finished">Finished</button></div>':''}
@@ -64,6 +70,17 @@ planPage=function(){const i=find(selected);if(i&&i.med&&!(planTab&&planTab.id===
 /* Delete: asked once; then it is gone for everyone, with its dose times, My Tasks rows and reminders. */
 function deleteMedication(id){const i=find(id);if(!i||!i.med||!mayDo('meds'))return false;if(typeof confirm==='function'&&!confirm(`Delete ${i.name}? It comes off the schedule, My Tasks and the reminders for everyone on the care team. This can’t be undone.`))return false;
 items=items.filter(x=>x.id!==id);if(selected===id)selected=null;planTab=null;save();return true}
+
+/* Dose times from the medication's page. A new time is added once it is picked; a time is removed (never the last one: to stop
+   the reminders, take it off My Tasks). A dose already marked today at a removed time stays in the day's record. */
+function addDoseTime(id,t){const i=find(id);if(!i||!i.med||!mayDo('meds')||!validClock(t))return false;const have=i.times||[];if(have.includes(t)){toast(`${i.name} already has a dose at ${clockText(t)}.`);return false}
+  i.times=[...have,t].sort();medTimeAdding=null;save();render();toast(`${i.name}: dose added at ${clockText(t)}.`);return true}
+function removeDoseTime(id,t){const i=find(id);if(!i||!i.med||!mayDo('meds')||!(i.times||[]).includes(t)||i.times.length<2)return false;
+  if(typeof confirm==='function'&&!confirm(`Remove the ${clockText(t)} dose of ${i.name}? It comes off My Tasks and the reminders.`))return false;
+  i.times=i.times.filter(x=>x!==t);save();render();toast(`${i.name}: the ${clockText(t)} dose is removed.`);return true}
+function toggleMedTasks(id){const i=find(id);if(!i||!i.med||!mayDo('meds'))return false;if(i.offTasks)delete i.offTasks;else i.offTasks=true;save();render();
+  toast(i.offTasks?`${i.name} is off My Tasks. No reminders, and it stays in your medications.`:`${i.name} is back on My Tasks, with its reminders.`);return true}
+if(typeof document!=='undefined')document.addEventListener('change',e=>{const t=e.target;if(!t.dataset||!t.dataset.medTimeNew||!t.value)return;addDoseTime(t.dataset.medTimeNew,t.value)});
 
 /* Scan a document: the same scanner as the discharge papers, then the pages go to Add a document to be named and filed. */
 function docScanPage(){const shots=journey.paperShots||[],n=shots.length;journey.justShot=false;
@@ -81,6 +98,10 @@ document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)r
   if(b.id==='scan-docs'){startDocScan();return}
   if(b.id==='flow-back'&&view==='upload'&&journey.mode==='docs'){e.stopImmediatePropagation();stopJourneyCamera();journey.mode='papers';journey.paperShots=[];go('scan');return}
   if(b.id==='scan-doc-done'){finishDocScan().catch(err=>{journey.error=err.message;render()});return}
+  if(b.dataset.medTimeAdd){medTimeAdding=b.dataset.medTimeAdd;render();document.querySelector('[data-med-time-new]')?.focus();return}
+  if(b.hasAttribute('data-med-time-cancel')){medTimeAdding=null;render();return}
+  if(b.dataset.medTimeRemove){const [id,t]=b.dataset.medTimeRemove.split('|');removeDoseTime(id,t);return}
+  if(b.dataset.medTasks){toggleMedTasks(b.dataset.medTasks);return}
   if(b.dataset.medDelete){const back=medBack;if(deleteMedication(b.dataset.medDelete)){go(back==='plan'?'purchases':back);toast('Deleted. It’s off the schedule, My Tasks and the reminders.')}return}
   /* Back from a typed-in medication goes back to Medications, not to a camera. */
   if(b.id==='flow-back'&&view==='review'&&draft.typed){e.stopImmediatePropagation();go('medications');return}

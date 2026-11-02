@@ -22,7 +22,7 @@ function reminderExtraRows(){const emailOn=emailPrefs.available&&(emailPrefs.dai
 /* The Reminders page for medications, in the same places: settings on the left, the preview of the next dose reminder (the
    same words and buttons the push carries) on the right, and each confirmed medication's dose times underneath. */
 const doseLine=i=>i.name+(i.dose?', '+i.dose:'');
-const remindMeds=()=>items.filter(i=>i.med&&i.status==='deciding'&&i.confirmed!==false&&!i.pickup);
+const remindMeds=()=>items.filter(i=>i.med&&i.status==='deciding'&&i.confirmed!==false&&!i.pickup&&!i.offTasks);
 /* The next dose still to give today, else the first one tomorrow: {item, time}. */
 function nextReminder(){const day=today(),now=nowClock(),slots=[];for(const i of remindMeds())if(!i.asNeeded)for(const t of new Set(i.times||[]))if(validClock(t))slots.push({item:i,time:t,marked:(i.doses||[]).some(d=>d.slot===t&&(d.day||String(d.at||'').slice(0,10))===day)});
 slots.sort((a,b)=>a.time.localeCompare(b.time));return slots.find(x=>!x.marked&&x.time>=now)||slots.find(x=>!x.marked)||slots[0]||null}

@@ -124,3 +124,10 @@ button.flow-tab:focus-visible{outline:2px solid #111;outline-offset:2px}
 .dose-times label{display:flex;flex-direction:column;gap:3px;font-size:10px;color:#999e8e}
 .dose-times input{font:inherit;font-size:12px;color:#222;padding:6px 8px;border:1px solid #e1ddd8;border-radius:8px;background:#fff}
 .dose-times-note{font-size:11px;color:#777;margin:4px 0 0}
+/* Confirm card: each dose time picked on a clock (any time of day), with Remove and + Add a time when the directions give no number. */
+.slot-times{display:grid;gap:8px;margin-top:8px}
+.slot-time{display:flex;align-items:flex-end;gap:8px}
+.pick-grid .slot-time label{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;margin:0;font-size:12px;color:#777}
+.pick-grid .slot-time input[type=time]{width:100%;min-height:48px;padding:10px 12px;border:1px solid #d8d6cc;border-radius:12px;background:#fff;font:inherit;font-size:16px;color:#111;-webkit-appearance:none;appearance:none}
+.slot-remove{flex:none;width:44px;height:48px;border:1px solid #d8d6cc;border-radius:12px;background:#fff;font-size:20px;line-height:1;color:#555;cursor:pointer}
+.slot-add{display:block;margin-top:8px;padding:4px 0;border:0;background:none;font:inherit;font-size:14px;font-weight:600;color:#111;text-decoration:underline;text-underline-offset:3px;cursor:pointer}

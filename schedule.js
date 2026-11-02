@@ -7,7 +7,7 @@ const schedClock=at=>{const d=new Date(at);return isNaN(d)?'':String(d.getHours(
 /* Everything on one day, in time order. Built from the Today checklist so the two never disagree. */
 function scheduleDay(list=items,day,now=today()){const out=[];
 for(const x of todayTasks(list,day)){if(x.slot){if(day<schedStart(x.item)||(day>now&&x.item.pickup))continue;out.push(x)}else if(day===now||x.state||String(x.key).startsWith('appt'))out.push(x)}
-for(const i of list.filter(i=>i.med&&!i.appt&&(i.asNeeded&&activeMed(i)||i.status==='received')))for(const d of (i.doses||[]).filter(d=>dayOf(d)===day))out.push({item:i,key:'dose:'+(d.slot||d.at),slot:d.slot||schedClock(d.at),time:d.slot||schedClock(d.at),title:i.name,sub:i.asNeeded?'As needed':howText(i),state:d.kind==='taken'?'done':'skipped'});
+for(const i of list.filter(i=>i.med&&!i.appt&&((i.asNeeded||i.offTasks)&&activeMed(i)||i.status==='received')))for(const d of (i.doses||[]).filter(d=>dayOf(d)===day))out.push({item:i,key:'dose:'+(d.slot||d.at),slot:d.slot||schedClock(d.at),time:d.slot||schedClock(d.at),title:i.name,sub:i.asNeeded?'As needed':howText(i),state:d.kind==='taken'?'done':'skipped'});
 return out.sort((a,b)=>(a.time||'99')<(b.time||'99')?-1:(a.time||'99')>(b.time||'99')?1:0)}
 
 /* The short labels inside a calendar day: visits first, then the doses, then refill steps. */
@@ -24,7 +24,7 @@ return `<li class="today-row${x.state?' is-'+x.state:''}"><div class="today-thum
 function scheduleICS(list=items,day=today()){const stamp=new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z'),txt=s=>String(s||'').replace(/\\/g,'\\\\').replace(/\n/g,'\\n').replace(/([,;])/g,'\\$1'),at=(d,t)=>d.replace(/-/g,'')+'T'+(t||'09:00').replace(':','')+'00';
 const lines=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Adltrack//Your schedule//EN','CALSCALE:GREGORIAN'];let n=0;
 const event=(uid,start,summary,desc,rule)=>{n++;lines.push('BEGIN:VEVENT',`UID:${uid}@adltrack`,`DTSTAMP:${stamp}`,`DTSTART:${start}`,'DURATION:PT15M',...(rule?[rule]:[]),`SUMMARY:${txt(summary)}`,`DESCRIPTION:${txt(desc)}`,'BEGIN:VALARM','ACTION:DISPLAY',`DESCRIPTION:${txt(summary)}`,'TRIGGER:PT0M','END:VALARM','END:VEVENT')};
-for(const i of list.filter(i=>activeMed(i)&&!i.asNeeded&&!i.appt))for(const t of i.times||[])event(`${i.id}-${t.replace(':','')}`,at(day,t),`${clockText(t)}: ${i.name}`,[howText(i),i.prescriber&&i.prescriber.name?'Prescribed by '+i.prescriber.name:''].filter(Boolean).join('\n'),'RRULE:FREQ=DAILY');
+for(const i of list.filter(i=>activeMed(i)&&!i.asNeeded&&!i.offTasks&&!i.appt))for(const t of i.times||[])event(`${i.id}-${t.replace(':','')}`,at(day,t),`${clockText(t)}: ${i.name}`,[howText(i),i.prescriber&&i.prescriber.name?'Prescribed by '+i.prescriber.name:''].filter(Boolean).join('\n'),'RRULE:FREQ=DAILY');
 const visits=new Map();for(const d of Array.from({length:120},(_,k)=>C.shift(day,k)))for(const x of todayTasks(list,d).filter(x=>String(x.key).startsWith('appt')))visits.set(x.item.id+x.key,{d,x});
 for(const [k,{d,x}] of visits)event('visit-'+k.replace(/[^a-z0-9]/gi,''),at(d,x.time),x.title,[x.sub,x.phone].filter(Boolean).join('\n'));
 lines.push('END:VCALENDAR');return n?lines.join('\r\n'):''}
