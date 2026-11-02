@@ -340,9 +340,9 @@ test('the real web-push library accepts our message and options (encrypted body 
 
 const med = (id, o = {}) => ({ id, name: id, med: true, status: 'deciding', intent: 'return', instructions: 'Take 1 tablet by mouth every morning.', times: ['08:00'], doses: [], price: 0, retailer: '', channel: 'store', purchased: today, window: 30, basis: 'purchase', outcome: 'unknown', requirement: 'unknown', confirmed: false, ...o });
 
-test('a dose is due from its time until an hour after, unless it was marked; as needed, pickups, finished and examples never are', () => {
+test('a dose is due from its time until an hour after, unless it was marked; as needed, pickups, finished, examples and meds off My Tasks never are', () => {
   const items = [med('Lisinopril 10 mg'), med('Metoprolol 25 mg', { times: ['08:00', '21:00'] }), med('Taken', { doses: [{ at: today + 'T08:01:00Z', day: today, kind: 'taken', slot: '08:00' }] }),
-    med('Tylenol', { asNeeded: true }), med('Pickup', { pickup: true }), med('Finished', { status: 'received' }), med('Unconfirmed', { status: 'kept' }), med('Example', { demo: true }), item('Dress')];
+    med('Tylenol', { asNeeded: true }), med('Pickup', { pickup: true }), med('Finished', { status: 'received' }), med('Unconfirmed', { status: 'kept' }), med('Example', { demo: true }), med('Off My Tasks', { offTasks: true }), item('Dress')];
   assert.deepEqual(dosesDue(items, today, '07:59'), []);
   assert.deepEqual(dosesDue(items, today, '08:00').map(d => [d.time, d.items.map(i => i.id)]), [['08:00', ['Lisinopril 10 mg', 'Metoprolol 25 mg']]]);
   assert.equal(dosesDue(items, today, '08:59').length, 1);

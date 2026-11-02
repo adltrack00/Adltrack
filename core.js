@@ -16,7 +16,7 @@ function calendar(item,today,time){const deadline=due(item);if(item.status==='sh
    than a guess: no quantity, no dose times, "as needed", a range ("1 to 2 tablets") or a liquid gives no date. */
 const WORD_COUNT={one:1,two:2,three:3,four:4,half:.5,'1/2':.5};
 function perDose(item){const how=[item.instructions,item.dose].filter(Boolean).join(' ');if(/\d\s*(?:to|-|or)\s*\d/i.test(how))return null;const m=/\b(\d+(?:\.\d+)?|one|two|three|four|half|1\/2)\s+(?:tablet|capsule|pill|caplet)s?\b/i.exec(how);if(!m)return null;const n=WORD_COUNT[m[1].toLowerCase()]||Number(m[1]);return n>0?n:null}
-function runsOut(item){const q=Number(item.quantity),per=perDose(item),n=(item.times||[]).length,from=item.refilledOn||item.filled||item.purchased;if(!item.med||item.asNeeded||!(q>0)||!n||!per||!parseDate(from))return null;return shift(from,Math.floor(q/(per*n)))}
+function runsOut(item){const q=Number(item.quantity),per=perDose(item),n=(item.times||[]).length,from=item.refilledOn||item.filled||item.purchased;if(!item.med||item.asNeeded||item.offTasks||!(q>0)||!n||!per||!parseDate(from))return null;return shift(from,Math.floor(q/(per*n)))}
 /* A week before it runs out the refill steps start. The pharmacy refills it while the label has refills left and the
    refill-by date hasn't passed; otherwise the doctor writes a new prescription. Unknown refills: ask the pharmacy. */
 function refillDue(item,today){const d=days(runsOut(item),today);return d!==null&&d<=7}

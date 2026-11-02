@@ -68,7 +68,7 @@ const minutes = t => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
 function dosesDue(items, date, time, after = 0) {
   const at = minutes(time) - after, due = {};
   for (const i of items || []) {
-    if (!i || !i.med || i.demo || i.status !== 'deciding' || i.pickup || i.asNeeded || !Array.isArray(i.times)) continue;
+    if (!i || !i.med || i.demo || i.status !== 'deciding' || i.pickup || i.offTasks || i.asNeeded || !Array.isArray(i.times)) continue;
     for (const t of new Set(i.times)) {
       if (!validTime(t) || at < minutes(t) || at >= minutes(t) + DOSE_WINDOW_MIN) continue;
       if ((i.doses || []).some(d => d && d.slot === t && (d.day || String(d.at || '').slice(0, 10)) === date)) continue;
@@ -97,7 +97,7 @@ function doseNotification({ time, items }, date = '', { patient = null, again = 
 /* The medications among `ids` whose dose at `time` on `date` isn't marked yet (for a snoozed or tested reminder, which may
    come after the hour a dose reminder is normally sent in). */
 function unmarked(items, date, time, ids) {
-  return (items || []).filter(i => i && i.med && ids.includes(i.id) && i.status === 'deciding' && !i.pickup && Array.isArray(i.times) && i.times.includes(time)
+  return (items || []).filter(i => i && i.med && ids.includes(i.id) && i.status === 'deciding' && !i.pickup && !i.offTasks && Array.isArray(i.times) && i.times.includes(time)
     && !(i.doses || []).some(d => d && d.slot === time && (d.day || String(d.at || '').slice(0, 10)) === date));
 }
 
@@ -146,7 +146,7 @@ function taskNotification(t, date, patient = null) {
 }
 
 /* The medications whose dose at `time` on `date` nobody marked taken or skipped. */
-const missedAt = (items, date, time) => (items || []).filter(i => i && i.med && !i.demo && i.status === 'deciding' && !i.pickup && !i.asNeeded && Array.isArray(i.times) && i.times.includes(time)
+const missedAt = (items, date, time) => (items || []).filter(i => i && i.med && !i.demo && i.status === 'deciding' && !i.pickup && !i.offTasks && !i.asNeeded && Array.isArray(i.times) && i.times.includes(time)
   && !(i.doses || []).some(d => d && d.slot === time && (d.day || String(d.at || '').slice(0, 10)) === date));
 function missedNotification(time, list, date, patient = null) {
   const names = list.slice(0, 4).map(doseLine).join(', ') + (list.length > 4 ? ` and ${list.length - 4} more` : '');
@@ -164,7 +164,7 @@ function daySummary(items, date, dayOf = at => String(at || '').slice(0, 10)) {
   let doses = 0, taken = 0, skipped = 0, tasks = 0, done = 0, incidents = 0;
   for (const i of items || []) {
     if (!i || i.demo) continue;
-    if (i.med && i.status === 'deciding' && !i.pickup && !i.asNeeded && Array.isArray(i.times)) for (const t of new Set(i.times.filter(validTime))) {
+    if (i.med && i.status === 'deciding' && !i.pickup && !i.offTasks && !i.asNeeded && Array.isArray(i.times)) for (const t of new Set(i.times.filter(validTime))) {
       doses++;
       const d = (i.doses || []).find(d => d && d.slot === t && (d.day || String(d.at || '').slice(0, 10)) === date);
       if (d && d.kind === 'taken') taken++; else if (d && d.kind === 'skipped') skipped++;
@@ -551,7 +551,7 @@ function createReminders({ store, push, email = null, sms = null, data = null, n
   async function testDose(ownerId, userId = ownerId) {
     const local = localParts(now(), await timeZoneOf(userId, await settingsOf(ownerId))), list = await store.listItems(ownerId);
     for (const i of list) {
-      if (!i || !i.med || i.status !== 'deciding' || i.pickup || i.asNeeded || !Array.isArray(i.times)) continue;
+      if (!i || !i.med || i.status !== 'deciding' || i.pickup || i.offTasks || i.asNeeded || !Array.isArray(i.times)) continue;
       const times = [...new Set(i.times.filter(validTime))].sort();
       const open = times.filter(t => unmarked([i], local.date, t, [i.id]).length);
       const time = open.find(t => t >= local.time) || open[open.length - 1];

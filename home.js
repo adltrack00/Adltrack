@@ -15,7 +15,7 @@ const appointments=(list=items)=>list.filter(i=>i.appt&&['deciding','received'].
 function todayTasks(list=items,day=today()){const tasks=[];
 for(const i of list.filter(activeMed)){const doses=(i.doses||[]).filter(d=>dayOf(d)===day);
 if(i.pickup||markOf(i,day,'pickup')){const m=markOf(i,day,'pickup');tasks.push({item:i,key:'pickup',time:'',title:'Pick up '+i.name,sub:i.pharmacy&&i.pharmacy.name?'From '+i.pharmacy.name:'From the pharmacy',state:m?m.kind:''})}
-else if(!i.asNeeded)for(const t of i.times||[]){const d=doses.find(x=>x.slot===t);tasks.push({item:i,key:'dose:'+t,slot:t,time:t,title:i.name,sub:howText(i),state:d?(d.kind==='taken'?'done':'skipped'):''})}
+else if(!i.asNeeded&&!i.offTasks)for(const t of i.times||[]){const d=doses.find(x=>x.slot===t);tasks.push({item:i,key:'dose:'+t,slot:t,time:t,title:i.name,sub:howText(i),state:d?(d.kind==='taken'?'done':'skipped'):''})}
 for(const step of ['call','ready']){const m=markOf(i,day,'refill:'+step);if(!m&&!(i.refill&&(i.refill.step===step||step==='ready'&&i.refill.step==='called')))continue;tasks.push({item:i,key:'refill:'+step,time:'',title:step==='call'?`Call ${refillWho(i,day)} to refill ${i.name}`:`Pick up the refill of ${i.name}`,sub:step==='call'?(C.refillFrom(i,day)==='doctor'?'For a new prescription':i.refills>0?`${i.refills} refill${i.refills>1?'s':''} left on the label`:'Ask how many refills are left'):i.pharmacy&&i.pharmacy.name||'',state:m?m.kind:''})}}
 for(const a of appointments(list))if(a.date===day){const m=markOf(a,day,'appt');tasks.push({item:a,key:'appt',time:a.time||'',title:a.name,sub:a.place||a.note||'',phone:a.phone,state:a.status==='received'?'done':m?m.kind:''})}
 return tasks.sort((a,b)=>(a.time||'99')<(b.time||'99')?-1:(a.time||'99')>(b.time||'99')?1:0)}
