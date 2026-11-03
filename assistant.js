@@ -177,7 +177,34 @@ function adaVitalsFrom(text) {
   if (pain && inR(+(pain[1] || pain[2]), 0, 10)) v.pain = String(+(pain[1] || pain[2]));
   return v;
 }
-if (typeof module !== 'undefined') module.exports = { ADA_LOOKS, adaFace, adaWords, adaFind, adaLocal, adaPlan, adaThings, ADA_PLACES, ADA_MEDICAL, adaTimes, adaSuggestTimes, adaDocCategory, adaVitalsFrom };
+/* A day in plain words, from the day it's said on: "today", "tomorrow", "Friday", "Nov 12", "11/12/2026", "the 12th".
+   want 'future' (an appointment) or 'past' (the date on a paper) picks the year or the month when it isn't said. */
+function adaDate(text, base, want = 'future') {
+  const s = String(text || '').toLowerCase(), pad = n => String(n).padStart(2, '0'), b = new Date(base + 'T12:00');
+  if (isNaN(b)) return '';
+  const iso = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  const make = (y, m, d) => { const x = new Date(y, m, d, 12); return x.getMonth() === m && x.getDate() === d ? x : null; };
+  const plus = n => { const d = new Date(b); d.setDate(d.getDate() + n); return iso(d); };
+  const fit = (m, d, y) => { if (y) { y = y < 100 ? 2000 + y : y; const x = make(y, m, d); return x ? iso(x) : ''; } let x = make(b.getFullYear(), m, d); if (!x) return ''; if (want === 'future' && iso(x) < base) x = make(b.getFullYear() + 1, m, d); if (want === 'past' && iso(x) > base) x = make(b.getFullYear() - 1, m, d); return x ? iso(x) : ''; };
+  let m = s.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+  if (m) { const x = make(+m[1], +m[2] - 1, +m[3]); return x ? iso(x) : ''; }
+  if (/\b(today|tonight|this (morning|afternoon|evening))\b/.test(s)) return base;
+  if (/\btomorrow\b/.test(s)) return plus(1);
+  if (/\byesterday\b/.test(s)) return plus(-1);
+  const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  m = s.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b(?:,?\s+(\d{4}))?/);
+  if (m) return fit(MONTHS.indexOf(m[1]), +m[2], m[3] && +m[3]);
+  m = s.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?(?:,?\s+(\d{4}))?/);
+  if (m) return fit(MONTHS.indexOf(m[2]), +m[1], m[3] && +m[3]);
+  m = s.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
+  if (m) return fit(+m[1] - 1, +m[2], m[3] && +m[3]);
+  m = s.match(/\b(sun|mon|tue|wed|thu|fri|sat)[a-z]*\b/);
+  if (m) { const k = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].indexOf(m[1]), n = b.getDay(); return /\blast\b/.test(s) || want === 'past' ? plus(-((n - k + 7) % 7 || 7)) : plus((k - n + 7) % 7 || 7); }
+  m = s.match(/\bthe (\d{1,2})(?:st|nd|rd|th)\b/);
+  if (m) { let x = make(b.getFullYear(), b.getMonth(), +m[1]); if (x && want === 'future' && iso(x) < base) x = make(b.getFullYear(), b.getMonth() + 1, +m[1]); return x ? iso(x) : ''; }
+  return '';
+}
+if (typeof module !== 'undefined') module.exports = { ADA_LOOKS, adaFace, adaWords, adaFind, adaLocal, adaPlan, adaThings, ADA_PLACES, ADA_MEDICAL, adaTimes, adaSuggestTimes, adaDocCategory, adaVitalsFrom, adaDate };
 
 if (typeof document !== 'undefined') {
 /* ---- The pop-up ---- */
@@ -286,251 +313,317 @@ const adaNowParts = () => { const d = new Date(); return { date: today(), time: 
 function adaAskNext(text, buttons) { adaSay(text, buttons && buttons.length ? [adaTaps(buttons)] : []); }
 function adaStop(say) { ada.flow = null; adaSay(say || 'Okay, I stopped. Nothing was saved.'); }
 
+/* Every task has its list of questions. Ada asks each one that isn't answered yet, one at a time, until everything a
+   health record needs is there; only then the Ready to save card. Some can be skipped ("I don't have it") when the person
+   can't know it; what's needed to give the care safely (a medication's name, strength, directions and times) can't. */
+const adaPhone = s => { const d = String(s || '').replace(/[^\d+]/g, ''); return d.replace(/\D/g, '').length >= 7 && d.replace(/\D/g, '').length <= 15 ? String(s).trim().slice(0, 30) : ''; };
+const adaNoneSaid = s => /^(no|none|nope|nothing|n\/a|na|skip|i don.?t know|don.?t know|not sure|no one|nobody)\b/i.test(String(s || '').trim());
+function adaWhen(fl, s) {
+  if (/\b(just now|right now|now|just)\b/i.test(s)) { Object.assign(fl, adaNowParts()); return ''; }
+  const t = adaTimes(s)[0]; if (!t) return 'I didn’t catch the time. Try like “2:30 pm”, or tap Just now.';
+  const date = /\byesterday\b/i.test(s) ? adaDate('yesterday', today()) : today();
+  if (new Date(date + 'T' + t) > new Date()) return 'That time hasn’t happened yet. When was it?';
+  fl.date = date; fl.time = t; return '';
+}
+const adaPharm = p => p.pharmacy || (p.pharmacy = { name: '', address: '', phone: '' });
+const adaDoc = p => p.prescriber || (p.prescriber = { name: '', phone: '' });
+const adaMissingOnLabel = p => [!howText(p) && 'how it’s taken', !(p.pharmacy && p.pharmacy.name) && 'the pharmacy', !(p.prescriber && p.prescriber.name) && 'the doctor', (p.refills == null || p.refills === '') && 'the refills'].filter(Boolean);
+const adaList = xs => xs.length > 1 ? xs.slice(0, -1).join(', ') + ' or ' + xs[xs.length - 1] : xs[0] || '';
+
+const ADA_QS = {
+  med: [
+    { key: 'label', need: fl => !fl.typed && !fl.read, ask: () => 'Take a live photo of the label on the bottle, the side with the name and directions, and I’ll read it.', taps: () => [['Take a photo of the label', 'photo:med', true], ['Type it in instead', 'set:label|typed']], set: (fl, s) => { fl.typed = true; if (s !== 'typed' && !/\btype\b/i.test(s)) fl.p.name = s.slice(0, 100); return ''; } },
+    { key: 'more', need: fl => fl.read && (fl.p.labelPhotos || []).length < 3 && adaMissingOnLabel(fl.p).length > 0, ask: fl => `${fl.p.name ? `I read ${fl.p.name}. ` : ''}I can’t see ${adaList(adaMissingOnLabel(fl.p))} on this side. Turn the bottle and take a photo of the side that shows it.`, taps: () => [['Take a photo of the other side', 'photo:med', true]], skip: 'It’s not on the bottle' },
+    { key: 'name', need: fl => !fl.p.name, ask: () => 'What is it called, exactly as on the label?', set: (fl, s) => { fl.p.name = s.slice(0, 100); return ''; } },
+    { key: 'strength', need: fl => !/\d/.test(fl.p.name), ask: fl => `What’s the strength of ${fl.p.name}? It’s next to the name on the label, like “25 mg”.`, skip: 'There’s no strength on it', set: (fl, s) => { if (!/\d/.test(s)) return 'Type the number and the unit, like “25 mg” or “5 mg/5 mL”.'; fl.p.name = (fl.p.name + ' ' + s.trim()).slice(0, 100); return ''; } },
+    { key: 'how', need: fl => !howText(fl.p), ask: () => 'How is it taken? Type it exactly as the label says, like “Take 1 tablet by mouth twice a day”.', set: (fl, s) => { if (s.length < 6) return 'Type the whole direction from the label, like “Take 1 tablet by mouth twice a day”.'; fl.p.instructions = s.slice(0, 600); return ''; } },
+    { key: 'times', need: fl => dosesPerDay(fl.p) !== 0, ask: fl => { const n = dosesPerDay(fl.p); return `${n ? `The label says ${n === 1 ? 'once' : n === 2 ? 'twice' : n + ' times'} a day. ` : ''}What time${n === 1 ? '' : 's'} should it be given? Tell me, like “${n === 1 ? '9 pm' : '8 am and 8 pm'}”.`; },
+      taps: fl => { const n = dosesPerDay(fl.p), said = adaTimes(howText(fl.p)), sug = said.length && (n == null || said.length === n) ? said : adaSuggestTimes(n); return [...(sug.length ? [[adaTimesText(sug), 'set:times|' + sug.join(','), true]] : []), ...(n == null ? [['Only when needed', 'set:times|asneeded']] : [])]; },
+      set: (fl, s) => { if (s === 'asneeded' || /\b(as needed|when needed|if needed|prn|only when)\b/i.test(s)) { if (dosesPerDay(fl.p)) return `The label says ${dosesPerDay(fl.p) === 1 ? 'once' : dosesPerDay(fl.p) + ' times'} a day, not only when needed. Check the label, and tell me the time${dosesPerDay(fl.p) === 1 ? '' : 's'}. If the doctor changed it, call the pharmacy first.`; fl.asNeeded = true; fl.p.slots = []; return ''; } const ts = /^\d\d:\d\d(,\d\d:\d\d)*$/.test(s) ? s.split(',') : adaTimes(s), n = dosesPerDay(fl.p); if (!ts.length) return 'I didn’t catch a time. Try like “8 am and 8 pm”.'; if (n && ts.length !== n) return `The label says ${n} time${n === 1 ? '' : 's'} a day, but I got ${ts.length}. Tell me all ${n === 1 ? 'of it' : n + ' times'}, like “${adaTimesText(adaSuggestTimes(n))}”.`; fl.asNeeded = false; fl.p.slots = ts; return ''; } },
+    { key: 'pharmacy', need: fl => !(fl.p.pharmacy && fl.p.pharmacy.name), ask: () => 'Which pharmacy filled it? The name is at the top of the label.', set: (fl, s) => { adaPharm(fl.p).name = s.slice(0, 100); return ''; } },
+    { key: 'pharmacyWhere', need: fl => !fl.p.pharmacy.address, ask: fl => `Where is ${fl.p.pharmacy.name}? The street address, as on the label.`, skip: 'I don’t know it', set: (fl, s) => { adaPharm(fl.p).address = s.slice(0, 200); return ''; } },
+    { key: 'pharmacyPhone', need: fl => !fl.p.pharmacy.phone, ask: fl => `What’s ${fl.p.pharmacy.name}’s phone number? It’s needed to call for refills.`, skip: 'I don’t have it', set: (fl, s) => { const ph = adaPhone(s); if (!ph) return 'That doesn’t look like a phone number. Type it like “555-010-0199”.'; adaPharm(fl.p).phone = ph; return ''; } },
+    { key: 'doctor', need: fl => !(fl.p.prescriber && fl.p.prescriber.name), ask: () => 'Which doctor prescribed it? It’s on the label after “Dr.” or “Prescriber”.', set: (fl, s) => { adaDoc(fl.p).name = s.slice(0, 80); return ''; } },
+    { key: 'doctorPhone', need: fl => !fl.p.prescriber.phone, ask: fl => `What’s ${fl.p.prescriber.name}’s phone number? I remind you to call for a refill.`, skip: 'I don’t have it', set: (fl, s) => { const ph = adaPhone(s); if (!ph) return 'That doesn’t look like a phone number. Type it like “555-010-0100”.'; adaDoc(fl.p).phone = ph; return ''; } },
+    { key: 'refills', need: fl => fl.p.refills == null || fl.p.refills === '', ask: () => 'How many refills are left? The label says it, like “Refills: 2” or “No refills”.', taps: () => [['No refills left', 'set:refills|0']], skip: 'It doesn’t say', set: (fl, s) => { const n = /\bno\b|none/i.test(s) ? 0 : parseInt(String(s).replace(/\D/g, ''), 10); if (!Number.isFinite(n) || n > 20) return 'Type the number of refills, like “2”.'; fl.p.refills = n; return ''; } },
+    { key: 'bottle', need: fl => !fl.p.photo && !fl.p.noBottle, ask: () => 'Last thing: a live photo of the bottle, so everyone knows it’s the right one.', taps: () => [['Take a photo of the bottle', 'photo:med', true], ['No bottle yet', 'set:bottle|none']], set: fl => { fl.p.noBottle = true; return ''; } }
+  ],
+  doc: [
+    { key: 'first', need: fl => !fl.files.length, ask: fl => `Take a live photo of ${fl.name ? '“' + fl.name + '”' : 'it'}, one page at a time, or choose the file.`, taps: () => [['Take a photo', 'photo:doc', true], ['Choose a file', 'file:doc']] },
+    { key: 'more', need: fl => fl.files.length < DOC_PAGES, ask: fl => `Got ${fl.files.length === 1 ? 'it' : fl.files.length + ' pages'}. Is there another page, or a back side with writing on it?`, taps: () => [['Take a photo of the next page', 'photo:doc', true], ['Choose another file', 'file:doc']], skip: 'That’s all' },
+    { key: 'name', need: fl => !fl.name, ask: () => 'What is it? For example: “Medicare card” or “Blood work, October”.', set: (fl, s) => { fl.name = s.slice(0, 120); fl.category = fl.category || adaDocCategory(s); return ''; } },
+    { key: 'category', need: fl => !fl.category, ask: () => 'Which part of Documents should it go in?', taps: () => DOC_CATEGORIES.map(([k, l]) => [l, 'set:category|' + k]), set: (fl, s) => { const k = DOC_CATEGORIES.find(([key, l]) => key === s || l.toLowerCase().startsWith(s.toLowerCase().slice(0, 5)))?.[0] || adaDocCategory(s); if (!k) return 'Tap the part of Documents it goes in.'; fl.category = k; return ''; } },
+    { key: 'date', need: fl => !fl.date, ask: fl => `What date is printed on “${fl.name}”? Like “Oct 2, 2026”.`, skip: 'There’s no date on it', set: (fl, s) => { const d = adaDate(s, today(), 'past'); if (!d) return 'I didn’t catch the date. Try like “Oct 2, 2026”.'; if (d > today()) return 'That date is after today. Check the date on the paper.'; fl.date = d; return ''; } },
+    { key: 'note', need: fl => !fl.note, ask: () => 'Anything the care team should know about it, like where the original is kept?', skip: 'No note', set: (fl, s) => { fl.note = s.slice(0, 500); return ''; } }
+  ],
+  task: [
+    { key: 'what', need: fl => !fl.d.what.trim(), ask: () => 'What should the reminder say?', set: (fl, s) => { fl.d.what = s.slice(0, 100); return ''; } },
+    { key: 'date', need: fl => !fl.dateSaid, ask: () => 'Which day should it start?', taps: () => [['Today', 'set:date|today'], ['Tomorrow', 'set:date|tomorrow']], set: (fl, s) => { const d = adaDate(s, today()); if (!d) return 'I didn’t catch the day. Try like “Friday” or “Nov 12”.'; fl.d.date = d; fl.dateSaid = true; return ''; } },
+    { key: 'time', need: fl => !fl.d.time, ask: fl => `What time should I remind the care team to ${fl.d.what.charAt(0).toLowerCase() + fl.d.what.slice(1)}?`, set: (fl, s) => { const t = adaTimes(s)[0]; if (!t) return 'I didn’t catch the time. Try like “10 am”.'; fl.d.time = t; return ''; } },
+    { key: 'repeat', need: fl => !fl.repeatSaid, ask: () => 'How often?', taps: () => [['Just once', 'set:repeat|once'], ['Every day', 'set:repeat|daily'], ['Every week', 'set:repeat|weekly']], set: (fl, s) => { const r = /once|one time|just/i.test(s) ? 'once' : /day|daily/i.test(s) ? 'daily' : /week/i.test(s) ? 'weekly' : ''; if (!r) return 'Tap Just once, Every day or Every week.'; fl.d.repeat = r; fl.repeatSaid = true; return ''; } },
+    { key: 'until', need: fl => fl.d.repeat !== 'once', ask: () => 'Until when? It can repeat for up to 5 years.', skip: 'No end date', set: (fl, s) => { const d = adaDate(s, today()); if (!d || d < fl.d.date) return 'I didn’t catch the day it stops. Try like “Dec 31”.'; fl.d.until = d; return ''; } },
+    { key: 'note', need: fl => !fl.d.note, ask: () => 'Any note for whoever does it?', skip: 'No note', set: (fl, s) => { fl.d.note = s.slice(0, 500); return ''; } }
+  ],
+  appt: [
+    { key: 'with', need: fl => !fl.d.with.trim(), ask: () => 'Who is the appointment with? The doctor or the clinic.', set: (fl, s) => { fl.d.with = s.slice(0, 100); return ''; } },
+    { key: 'date', need: fl => !fl.d.date, ask: () => 'What day is it?', set: (fl, s) => { const d = adaDate(s, today()); if (!d || d < today()) return 'I didn’t catch the day. Try like “Friday” or “Nov 12”.'; fl.d.date = d; return ''; } },
+    { key: 'time', need: fl => !fl.d.time, ask: () => 'What time?', skip: 'No set time', set: (fl, s) => { const t = adaTimes(s)[0]; if (!t) return 'I didn’t catch the time. Try like “2:30 pm”.'; fl.d.time = t; return ''; } },
+    { key: 'place', need: fl => !fl.d.place.trim(), ask: () => 'Where is it? The clinic and the address.', skip: 'I don’t know yet', set: (fl, s) => { fl.d.place = s.slice(0, 200); return ''; } },
+    { key: 'phone', need: fl => !fl.d.phone.trim(), ask: fl => `What’s the phone number for ${fl.d.with}?`, skip: 'I don’t have it', set: (fl, s) => { const ph = adaPhone(s); if (!ph) return 'That doesn’t look like a phone number. Type it like “555-010-0100”.'; fl.d.phone = ph; return ''; } },
+    { key: 'remind', need: () => true, ask: () => 'Should I remind the care team before it?', taps: () => [['A week before', 'set:remind|week'], ['2 days before', 'set:remind|two'], ['Both', 'set:remind|week,two'], ['Every day until then', 'set:remind|daily']], skip: 'No reminder', set: (fl, s) => { const r = s.split(',').filter(v => APPT_REMINDS.some(([k]) => k === v)); if (!r.length) return 'Tap one of the choices.'; fl.d.remind = r; return ''; } },
+    { key: 'note', need: fl => !fl.d.note, ask: () => 'Anything to bring or remember, like “bring the medication list”?', skip: 'No note', set: (fl, s) => { fl.d.note = s.slice(0, 500); return ''; } }
+  ],
+  vitals: [
+    { key: 'bp', need: fl => !(fl.v.sys && fl.v.dia), ask: () => 'What’s the blood pressure? Like “128 over 82”. Or take a photo of the monitor.', taps: () => [['Take a photo of the monitor', 'photo:vitals', true]], skip: 'Not taken', set: (fl, s) => { const v = adaVitalsFrom(s); if (!v.sys) return 'Type both numbers, like “128 over 82”.'; Object.assign(fl.v, v); return ''; } },
+    { key: 'pulse', need: fl => !fl.v.pulse, ask: () => 'What’s the heart rate (pulse)?', taps: () => [['Take a photo of the monitor', 'photo:vitals', true]], skip: 'Not taken', set: (fl, s) => { const n = +String(s).replace(/[^\d]/g, ''); if (!(n >= 20 && n <= 250)) return 'Type the pulse, like “72”.'; fl.v.pulse = String(n); return ''; } },
+    { key: 'temp', need: fl => !fl.v.temp, ask: () => 'What’s the temperature, in °F?', taps: () => [['Take a photo of the thermometer', 'photo:vitals', true]], skip: 'Not taken', set: (fl, s) => { const n = +String(s).replace(/[^\d.]/g, ''); if (!(n >= 86 && n <= 113)) return 'Type the temperature in °F, like “98.6”.'; fl.v.temp = String(Math.round(n * 10) / 10); return ''; } },
+    { key: 'pain', need: fl => !fl.v.pain, ask: () => 'What’s the pain level, from 0 (none) to 10 (worst)?', taps: () => ['0', '2', '4', '6', '8', '10'].map(n => [n, 'set:pain|' + n]), skip: 'Not asked', set: (fl, s) => { const n = parseInt(String(s).replace(/[^\d]/g, ''), 10); if (!(n >= 0 && n <= 10)) return 'Type a number from 0 to 10.'; fl.v.pain = String(n); return ''; } }
+  ],
+  dose: [
+    { key: 'med', need: fl => !(fl.med && find(fl.med)), ask: () => 'Which medication?', taps: () => adaTodayMeds().slice(0, 8).map(m => [m.name, 'set:med|' + m.id]), set: (fl, s) => { const m = find(s) || adaFind(s).find(t => t.kind === 'med'); if (!m) return 'Tap the medication.'; fl.med = m.id || m.item.id; fl.slot = ''; return ''; } },
+    { key: 'slot', need: fl => { const ts = find(fl.med).times || []; if (!fl.slot && ts.length === 1) fl.slot = ts[0]; return !fl.slot && ts.length > 1; }, ask: fl => `Which dose of ${find(fl.med).name}?`, taps: fl => find(fl.med).times.map(t => [adaClock(t), 'set:slot|' + t]), set: (fl, s) => { const ts = find(fl.med).times, t = /^\d\d:\d\d$/.test(s) ? s : adaTimes(s)[0]; if (!ts.includes(t)) return 'Tap the dose time.'; fl.slot = t; return ''; } },
+    { key: 'mark', need: fl => !fl.mark, ask: fl => `Was the ${fl.slot ? adaClock(fl.slot) + ' ' : ''}dose of ${find(fl.med).name} taken or skipped?`, taps: () => [['Taken', 'set:mark|taken', true], ['Skipped', 'set:mark|skipped']], set: (fl, s) => { const k = /skip|miss|refus|didn|not/i.test(s) ? 'skipped' : /took|taken|gave|given|yes/i.test(s) ? 'taken' : ''; if (!k) return 'Tap Taken or Skipped.'; fl.mark = k; return ''; } },
+    { key: 'note', need: fl => !fl.note, ask: fl => fl.mark === 'skipped' ? 'Why was it skipped? The doctor may ask.' : 'Anything to note, like “with food” or “half a tablet”?', skip: fl => fl.mark === 'skipped' ? 'Don’t know' : 'No note', set: (fl, s) => { fl.note = s.slice(0, 500); return ''; } }
+  ],
+  care: [
+    { key: 'kind', need: fl => fl.type === 'incident' && !fl.incident, ask: () => 'What happened?', taps: () => INCIDENTS.map(([k, l]) => [l, 'set:kind|' + k]), set: (fl, s) => { const k = INCIDENTS.find(([key, l]) => key === s || l.toLowerCase() === s.toLowerCase())?.[0] || adaIncidentKind(s); if (!k) { fl.incident = 'other'; fl.note = fl.note || s.slice(0, 500); } else fl.incident = k; return ''; } },
+    { key: 'note', need: fl => !fl.note.trim(), ask: fl => ADA_CARE[fl.type].ask, set: (fl, s) => { if (adaNoneSaid(s)) return 'Write a few words about it. It goes in the report for the care team.'; fl.note = s.slice(0, 500); return ''; } },
+    { key: 'when', need: () => true, ask: fl => fl.type === 'incident' ? 'When did it happen?' : fl.type === 'symptom' ? 'When did it start, or when did you notice it?' : 'When was it done?', taps: () => [['Just now', 'set:when|now', true]], set: (fl, s) => adaWhen(fl, s) },
+    { key: 'hurt', need: fl => fl.type === 'incident' && ['fall', 'injury'].includes(fl.incident) && !fl.hurt, ask: () => 'Is anyone hurt? If someone is badly hurt, call 911 now.', taps: () => [['No one is hurt', 'set:hurt|No one was hurt.'], ['Yes, a little', 'set:hurt|A little hurt.']], set: (fl, s) => { fl.hurt = s.slice(0, 200); fl.note = (fl.note.trim() + (/[.!?]$/.test(fl.note.trim()) ? ' ' : '. ') + fl.hurt).trim(); return ''; } },
+    { key: 'witnesses', need: fl => fl.type === 'incident' && !fl.witnesses, ask: () => 'Who saw it happen? Names, with commas between.', skip: 'No one else saw it', set: (fl, s) => { if (adaNoneSaid(s)) return ''; fl.witnesses = s.slice(0, 200); return ''; } },
+    { key: 'told', need: fl => fl.type === 'incident' && !fl.told, ask: () => 'Who have you told, like the nurse, the doctor or family?', skip: 'No one yet', set: (fl, s) => { if (adaNoneSaid(s)) return ''; fl.told = s.slice(0, 200); return ''; } },
+    { key: 'photo', need: fl => !fl.photos.length, ask: fl => fl.type === 'incident' ? 'Take a live photo if it helps show what happened.' : 'Take a live photo if it helps.', taps: () => [['Take a photo', 'photo:care', true]], skip: 'No photo' }
+  ]
+};
+ADA_QS.activity = ADA_QS.symptom = ADA_QS.incident = ADA_QS.care;
+
+/* Asks the next question that isn't answered, or shows the Ready to save card when all are. */
+function adaNext(lead) {
+  const fl = ada.flow; if (!fl) return;
+  lead = [fl.lead, lead].filter(Boolean).join(' '); fl.lead = '';
+  for (const q of ADA_QS[fl.type]) {
+    if (fl.done[q.key] || !q.need(fl)) continue;
+    fl.step = 'q'; fl.q = q.key;
+    const skip = typeof q.skip === 'function' ? q.skip(fl) : q.skip;
+    return adaAskNext((lead ? lead + ' ' : '') + q.ask(fl), [...(q.taps ? q.taps(fl) : []), ...(skip ? [[skip, 'skip:' + q.key]] : [])]);
+  }
+  fl.step = 'ready'; fl.q = '';
+  ADA_READY[fl.type](lead);
+}
+const adaQ = fl => fl && fl.step === 'q' && ADA_QS[fl.type].find(q => q.key === fl.q);
+/* An answer, typed or tapped. */
+function adaAnswer(s) {
+  const fl = ada.flow, q = adaQ(fl); if (!q) return false;
+  if (!q.set) { adaAskNext('Tap one of the choices above, or say “stop” to stop.'); return true; }
+  const problem = q.set(fl, s);
+  if (problem) { const skip = typeof q.skip === 'function' ? q.skip(fl) : q.skip; adaAskNext(problem, [...(q.taps ? q.taps(fl) : []), ...(skip ? [[skip, 'skip:' + q.key]] : [])]); return true; }
+  fl.done[q.key] = true; adaNext(); return true;
+}
+const adaFlow = (type, x) => (ada.flow = { type, step: '', q: '', done: {}, lead: '', ...x });
+
 /* Which task, from the app's own words or the AI's kind. */
 function adaStart(kind, f = {}, say, text = '') {
   f = f || {};
-  if (kind === 'medication') return adaStartMed(f, say);
+  if (kind === 'medication') return adaStartMed(f);
   if (kind === 'document') return adaStartDoc(f, say, text);
-  if (kind === 'vitals') return adaStartVitals(f, say);
-  if (kind === 'dose') return adaStartDose(f, say);
-  if (kind === 'activity' || kind === 'symptom' || kind === 'incident') return adaStartCare(kind, f, say);
+  if (kind === 'vitals') return adaStartVitals(f);
+  if (kind === 'dose') return adaStartDose(f);
+  if (kind === 'activity' || kind === 'symptom' || kind === 'incident') return adaStartCare(kind, f);
   adaSay(say || 'I can help with that.');
 }
 
-/* A medication: a live photo of the label is read (the same reader as Scan), then Ada asks the times. Or typed in. */
-function adaStartMed(f, say) {
+/* A medication: a live photo of each side of the label is read (the same reader as Scan), then every detail still missing
+   is asked: the strength, the directions, the times, the pharmacy and where it is and its phone, the doctor and their
+   phone, and the refills left. */
+function adaStartMed(f) {
   if (!mayDo('meds')) return adaSay(ADA_NOT_ALLOWED);
-  ada.flow = { type: 'med', step: 'photo', p: { ...blankProduct(), ...(f.name ? { name: f.name } : {}) } };
-  adaAskNext(say && !/\b(open|form|page|there)\b/i.test(say) ? say + ' Take a live photo of the label on the bottle and I’ll read it.' : 'Sure, I’ll add it. Take a live photo of the label on the bottle, the side with the directions, and I’ll read it.', [['Take a photo of the label', 'photo:med', true], ['Type it instead', 'med-typed']]);
+  adaFlow('med', { p: { ...blankProduct(), labelPhotos: [], ...(f.name ? { name: f.name } : {}) }, read: false, typed: false, lead: 'Sure, I’ll add it.' });
+  adaNext();
 }
 async function adaMedPhoto(src) {
   const fl = ada.flow; if (!fl || fl.type !== 'med') return;
-  if (fl.step === 'bottle') { fl.p.photo = src; fl.p.labelPhotos = [src]; return adaMedReady(); }
+  if (fl.q === 'bottle') { fl.p.photo = src; fl.done.bottle = true; return adaNext(); }
+  const shots = [...(fl.p.labelPhotos || []), src].slice(-3);
   ada.busy = true; adaPaint();
-  let r = {}; try { r = await Account.api('POST', '/api/label/read', { photos: [src], med: null }); } catch (err) { r = { error: err.message }; }
+  let r = {}; try { r = await Account.api('POST', '/api/label/read', { photos: shots, med: null }); } catch (err) { r = { error: err.message }; }
   ada.busy = false; if (ada.flow !== fl) return;
-  if (!r.label) return adaAskNext(r.error || (typeof LABEL_FAILED === 'object' && LABEL_FAILED[r.reason]) || 'I couldn’t read this label.' + ' Try another photo with the label flat and in good light, or type it in.', [['Take another photo', 'photo:med', true], ['Type it instead', 'med-typed']]);
-  const p = { ...fl.p, labelPhotos: [src], photo: src }; applyLabel(p, r.label, []); p.scanned = !!(p.name || p.instructions); fl.p = p;
-  if (!p.name) { fl.step = 'name'; return adaAskNext('I couldn’t read the name. What is it called, with the strength, as on the label?'); }
-  if (!howText(p)) { fl.step = 'how'; return adaAskNext(`I read ${p.name}, but not how it’s taken. Type it as the label says, like “Take 1 tablet twice a day”.`); }
-  adaMedTimes(`I read it: ${p.name}. “${howText(p)}”.`);
+  if (!r.label) { if (fl.read) { fl.done.more = true; return adaNext('I couldn’t read that side.'); } return adaAskNext((r.error || (typeof LABEL_FAILED === 'object' && LABEL_FAILED[r.reason]) || 'I couldn’t read this label.') + ' Try another photo with the label flat and in good light, or type it in.', [['Take another photo', 'photo:med', true], ['Type it in instead', 'set:label|typed']]); }
+  const p = fl.p; p.labelPhotos = shots; if (!p.photo) p.photo = shots[0];
+  applyLabel(p, r.label, []); p.scanned = !!(p.name || p.instructions); fl.read = true; fl.done.label = true;
+  adaNext(howText(p) ? `I read: ${p.name || 'the label'}, “${howText(p)}”.` : '');
 }
-function adaMedTimes(lead) {
-  const fl = ada.flow, n = dosesPerDay(fl.p);
-  if (n === 0) { fl.p.slots = []; return adaMedReady(lead); }
-  fl.step = 'times';
-  const said = adaTimes(howText(fl.p)), sug = said.length && (n == null || said.length === n) ? said : adaSuggestTimes(n), taps = [];
-  if (sug.length) taps.push([adaTimesText(sug), 'times:' + sug.join(','), true]);
-  taps.push(['Only when needed', 'times:asneeded']);
-  adaAskNext(`${lead ? lead + ' ' : ''}What time${n === 1 ? '' : 's'} should it be given? Tell me, like “${n === 1 ? '9 pm' : '8 am and 8 pm'}”${sug.length ? `, or tap ${said.length ? 'the time on the label' : 'the usual time' + (sug.length > 1 ? 's' : '')}` : ''}.`, taps);
-}
-function adaMedSetTimes(ts, asNeeded) {
-  const fl = ada.flow; if (!fl || fl.type !== 'med') return;
-  fl.p.slots = asNeeded ? [] : ts; fl.asNeeded = !!asNeeded;
-  if (!fl.p.photo) { fl.step = 'bottle'; return adaAskNext('Last thing: a live photo of the bottle, so everyone knows it’s the right one.', [['Take a photo of the bottle', 'photo:med', true], ['No bottle yet', 'med-nobottle']]); }
-  adaMedReady();
-}
-function adaMedReady(lead) {
-  const fl = ada.flow, p = fl.p, times = pickedTimes(p);
-  fl.step = 'ready';
-  adaSay(lead ? lead + ' Check it against the bottle and tap Save.' : 'Here it is. Check it against the bottle and tap Save.', [adaReady({
-    tag: 'Medication', title: p.name, photos: () => p.photo ? [p.photo] : [],
-    rows: () => [['How', howText(p)], ['Times', fl.asNeeded || dosesPerDay(p) === 0 ? 'Only when needed' : adaTimesText(times) || 'No times yet'], ['Pharmacy', p.pharmacy && p.pharmacy.name], ['Doctor', p.prescriber && p.prescriber.name], ['Refills', p.refills != null && p.refills !== '' ? String(p.refills) : '']],
-    place: 'purchases',
+const ADA_READY = {
+  med(lead) {
+    const fl = ada.flow, p = fl.p, times = pickedTimes(p), ph = p.pharmacy || {}, dr = p.prescriber || {};
+    adaSay((lead ? lead + ' ' : '') + 'That’s everything. Check it against the bottle and tap Save.', [adaReady({
+      tag: 'Medication', title: p.name, photos: () => p.photo ? [p.photo] : [],
+      rows: () => [['How', howText(p)], ['Times', fl.asNeeded || dosesPerDay(p) === 0 ? 'Only when needed' : adaTimesText(times)], ['Pharmacy', [ph.name, ph.address, ph.phone].filter(Boolean).join(' · ')], ['Doctor', [dr.name, dr.phone].filter(Boolean).join(' · ')], ['Refills left', p.refills != null && p.refills !== '' ? String(p.refills) : ''], ['Quantity', p.quantity ? String(p.quantity) : ''], ['Bottle', p.noBottle ? 'To pick up from the pharmacy' : '']],
+      place: 'purchases',
+      save: async () => {
+        const { labelReading, labelNote, scanned, fixing, slots, ...i } = p, day = today();
+        const med = { ...i, med: true, id: crypto.randomUUID(), purchaseId: crypto.randomUUID(), name: p.name.trim(), times, asNeeded: !!fl.asNeeded || dosesPerDay(p) === 0, pickup: !!p.noBottle, price: 0, retailer: '', purchased: day, delivered: '', channel: 'store', basis: 'purchase', window: 30, outcome: 'unknown', requirement: 'unknown', confirmed: !!p.photo, url: '', next: 'Take it as written on the bottle label.', status: 'deciding', intent: 'return', doses: [], policySource: p.label ? 'From the bottle label' : 'Entered by you' };
+        items.push(med); settings.daily = true;
+        return { say: `${med.name} is saved.${times.length ? ` It’s in My Tasks at ${adaTimesText(times)}.` : ''}`, place: 'purchases' };
+      }
+    })]);
+  },
+  doc(lead) {
+    const fl = ada.flow;
+    adaSay((lead ? lead + ' ' : '') + 'Ready. Tap Save and I’ll file it.', [adaReady({
+      tag: 'Document', title: () => fl.name, photos: () => fl.files.map(x => /^image\//.test(x.type) ? x.data : ''), pages: () => fl.files.length,
+      rows: () => [['Goes in', docCategoryName(fl.category)], ['Pages', String(fl.files.length)], ['Date on it', adaDay(fl.date)], ['Note', fl.note]], place: 'documents',
+      save: async () => {
+        const files = await Promise.all(fl.files.map(x => Account.api('POST', '/api/files/document', { data: x.data })));
+        const doc = { id: crypto.randomUUID(), doc: true, name: fl.name.trim(), category: docCategory(fl.category), files: files.map(r => ({ url: r.url, type: r.type })), ...(fl.date ? { date: fl.date } : {}), ...(fl.note.trim() ? { note: fl.note.trim() } : {}), addedAt: new Date().toISOString() };
+        items.push(doc); docFilter = 'all';
+        return { say: `Saved “${doc.name}” in ${docCategoryName(doc.category)}.`, place: 'documents' };
+      }
+    })]);
+  },
+  task(lead) {
+    const fl = ada.flow, d = fl.d, problem = taskProblem(d);
+    if (problem) { if (/time/i.test(problem)) { d.time = ''; fl.done.time = false; } else if (/day/i.test(problem)) { fl.dateSaid = false; fl.done.date = false; } else return adaForm('task-new', d, problem + ' I filled in the rest for you.'); return adaNext(problem); }
+    adaSay((lead ? lead + ' ' : '') + 'Here it is. Tap Save and it goes in My Tasks.', [adaReady({
+      tag: 'Planned task', title: d.what, rows: () => [['When', repeatText(d)], ['Note', d.note]], change: { form: 'task-new', draft: d }, place: 'planned-tasks',
+      save: async () => {
+        const by = markedBy(), task = { id: crypto.randomUUID(), task: true, name: d.what.trim(), ...(d.note.trim() ? { note: d.note.trim() } : {}), date: d.date, time: d.time, repeat: d.repeat, ...(d.repeat !== 'once' ? { until: d.until } : {}), ...(by ? { by } : {}), addedAt: new Date().toISOString(), marks: [] };
+        items.push(task);
+        return { say: `Added to My Tasks: ${repeatText(task)}.`, place: 'planned-tasks' };
+      }
+    })]);
+  },
+  appt(lead) {
+    const fl = ada.flow, d = fl.d, problem = apptProblem(d);
+    if (problem) return adaForm('appt-new', d, problem + ' I filled in the rest for you.');
+    const when = [adaDay(d.date), d.time && adaClock(d.time)].filter(Boolean).join(' at ');
+    adaSay((lead ? lead + ' ' : '') + 'Here it is. Tap Save and it goes in Appointments.', [adaReady({
+      tag: 'Appointment', title: 'Follow-up visit with ' + d.with, rows: () => [['When', when], ['Where', d.place], ['Phone', d.phone], ['Reminders', d.remind.map(v => (APPT_REMINDS.find(([k]) => k === v) || [])[1]).filter(Boolean).join(', ')], ['Note', d.note]], change: { form: 'appt-new', draft: d }, place: 'appointments',
+      save: async () => {
+        const appt = { ...newAppt({ with: d.with.trim(), place: d.place.trim(), date: d.date, time: d.time, phone: d.phone.trim(), note: d.note.trim() }), ...(d.remind.length ? { remind: APPT_REMINDS.map(([v]) => v).filter(v => d.remind.includes(v)) } : {}), status: 'deciding', confirmed: true };
+        items.push(appt);
+        return { say: `Appointment added for ${apptDay(appt)}.` + apptReminds(appt), place: 'appointments' };
+      }
+    })]);
+  },
+  vitals(lead) {
+    const fl = ada.flow;
+    if (!ADA_VITALS.some(([, , show]) => show(fl.v))) return adaStop('No numbers were given, so there’s nothing to save.');
+    adaSay((lead ? lead + ' ' : '') + 'Check the numbers and tap Save.', [adaReady({
+      tag: 'Vital signs', title: 'Vital signs', photos: () => fl.photos, place: 'vitals',
+      rows: () => ADA_VITALS.map(([, name, show]) => [name, show(fl.v)]),
+      save: async () => {
+        const photos = (await Promise.all(fl.photos.map(saveProof))).filter(Boolean), by = markedBy(), at = new Date().toISOString(), log = [];
+        const saved = ADA_VITALS.filter(([, , show]) => show(fl.v));
+        saved.forEach(([k], n) => { const val = k === 'bp' ? fl.v.sys + '/' + fl.v.dia : fl.v[k === 'heart' ? 'pulse' : k]; settings.vitals = { ...(settings.vitals || {}), [k]: val, at }; log.push({ [k]: val, at, ...(n === 0 && photos.length ? { photos } : {}), ...(by ? { by } : {}) }); });
+        settings.vitalsLog = [...(settings.vitalsLog || []), ...log].slice(-60);
+        return { say: `${saved.map(([, name]) => name).join(', ').replace(/, ([^,]*)$/, ' and $1')} saved.`, place: 'vitals' };
+      }
+    })]);
+  },
+  dose(lead) {
+    const fl = ada.flow, med = find(fl.med), day = today();
+    const done = fl.slot && (med.doses || []).find(d => (d.day || String(d.at || '').slice(0, 10)) === day && (d.slot || '') === fl.slot);
+    if (done) return adaStop(`The ${adaClock(fl.slot)} dose of ${med.name} is already marked ${done.kind} today${done.by ? ' by ' + done.by : ''}.`);
+    adaSay((lead ? lead + ' ' : '') + 'Tap Save and I’ll mark it.', [adaReady({
+      tag: 'Dose', title: med.name, photos: () => med.photo ? [med.photo] : [], rows: () => [['Time', fl.slot ? adaClock(fl.slot) : 'Now'], ['Marked', fl.mark === 'taken' ? 'Taken' : 'Skipped'], ['Note', fl.note]], place: 'tasks',
+      save: async () => {
+        const m = find(med.id); if (!m) throw Error('That medication isn’t in the app anymore.');
+        m.doses = [...(m.doses || []), { at: new Date().toISOString(), day: today(), kind: fl.mark, ...(fl.slot ? { slot: fl.slot } : {}), ...(markedBy() ? { by: markedBy() } : {}), ...(fl.note.trim() ? { note: fl.note.trim() } : {}) }].slice(-200);
+        return { say: fl.mark === 'taken' ? `Marked taken: ${med.name}.` : `Marked skipped: ${med.name}. Don’t give an extra dose to make up for it unless the papers or the pharmacist say so.`, place: 'tasks' };
+      }
+    })]);
+  }
+};
+ADA_READY.activity = ADA_READY.symptom = ADA_READY.incident = function (lead) {
+  const fl = ada.flow, c = ADA_CARE[fl.type], kindName = () => (INCIDENTS.find(([k]) => k === fl.incident) || [])[1];
+  adaSay((lead ? lead + ' ' : '') + 'Check it and tap Save. It goes in the daily report.', [adaReady({
+    tag: c.tag, title: () => fl.type === 'incident' ? kindName() : fl.type === 'symptom' ? 'Symptoms' : fl.note, photos: () => fl.photos,
+    rows: () => [['When', (fl.date === today() ? 'Today' : adaDay(fl.date)) + ' at ' + adaClock(fl.time)], [fl.type === 'activity' ? '' : 'What happened', fl.type === 'activity' ? '' : fl.note], ['Who saw it', fl.witnesses], ['Told', fl.told]].filter(([t]) => t),
+    more: fl.photos.length < PLUS_PHOTOS ? [['Add a photo', 'photo:care']] : [], place: 'home',
     save: async () => {
-      const { labelReading, labelNote, scanned, fixing, ...i } = p, day = today();
-      const med = { ...i, med: true, id: crypto.randomUUID(), purchaseId: crypto.randomUUID(), name: p.name.trim(), times, asNeeded: !!fl.asNeeded || dosesPerDay(p) === 0, pickup: !!p.noBottle, price: 0, retailer: '', purchased: day, delivered: '', channel: 'store', basis: 'purchase', window: 30, outcome: 'unknown', requirement: 'unknown', confirmed: !!p.photo, url: '', next: 'Take it as written on the bottle label.', status: 'deciding', intent: 'return', doses: [], policySource: p.label ? 'From the bottle label' : 'Entered by you' };
-      items.push(med); settings.daily = true;
-      return { say: `${med.name} is saved.${times.length ? ` It’s in My Tasks at ${adaTimesText(times)}.` : ''}`, place: 'purchases' };
+      const photos = (await uploadPlus(fl.photos, fl.type)).filter(Boolean), by = markedBy(), at = new Date(fl.date + 'T' + fl.time).toISOString(), added = new Date().toISOString(), base = { id: crypto.randomUUID(), at, ...(photos.length ? { photos } : {}), ...(by ? { by } : {}), addedAt: added };
+      if (fl.type === 'activity') items.push({ ...base, activity: true, name: fl.note.trim() });
+      if (fl.type === 'symptom') items.push({ ...base, symptom: true, name: 'Symptoms', note: fl.note.trim() });
+      if (fl.type === 'incident') items.push({ ...base, incident: true, kind: fl.incident, name: kindName(), ...(fl.note.trim() ? { note: fl.note.trim() } : {}), ...(fl.told.trim() ? { told: fl.told.trim() } : {}), ...(fl.witnesses.trim() ? { witnesses: fl.witnesses.split(',').map(w => w.trim()).filter(Boolean).join(', ') } : {}) });
+      reportTab = fl.date === today() ? 'today' : 'previous';
+      return { say: fl.type === 'incident' ? 'Incident reported. Everyone on the care team is told, and it’s in the daily report.' : fl.type === 'symptom' ? 'Symptoms added to the daily report.' : 'Added to the daily report.', place: 'home' };
     }
   })]);
-}
+};
 
-/* A document: live photos of each page, or the file, then its name; the category is guessed from the name or asked. */
+/* A document: live photos of every page (or the file), then its name, category, the date on it and a note. */
 function adaStartDoc(f, say, text) {
   if (!mayDo('meds')) return adaSay(ADA_NOT_ALLOWED);
-  const guess = f.category || adaDocCategory(f.name || text);
-  ada.flow = { type: 'doc', step: 'pages', name: f.name || '', category: guess, files: [] };
-  adaAskNext(`Sure, I’ll save it in Documents. Take a live photo of ${f.name ? 'the ' + f.name.toLowerCase() : 'it'}, one page at a time, or choose the file.`, [['Take a photo', 'photo:doc', true], ['Choose a file', 'file:doc']]);
+  adaFlow('doc', { name: f.name || '', category: f.category || adaDocCategory(f.name || text), files: [], date: '', note: '', lead: 'Sure, I’ll save it in Documents.' });
+  adaNext();
 }
 function adaDocPage(file) {
   const fl = ada.flow; if (!fl || fl.type !== 'doc') return;
   if (fl.files.length >= DOC_PAGES) return adaSay(`That’s the most for one document (${DOC_PAGES} pages).`);
-  fl.files.push(file);
-  if (fl.step === 'ready') { adaPaint(true); return; }
-  adaDocNext();
-}
-function adaDocNext() {
-  const fl = ada.flow;
-  if (!fl.name) { fl.step = 'name'; return adaAskNext(`Got it${fl.files.length > 1 ? `, ${fl.files.length} pages` : ''}. What is it? For example: “Medicare card”.`, [['Add another page', 'photo:doc']]); }
-  if (!fl.category) { fl.step = 'category'; return adaAskNext('Which part of Documents should it go in?', DOC_CATEGORIES.map(([k, l]) => [l, 'cat:' + k])); }
-  fl.step = 'ready';
-  adaSay('Ready. Tap Save and I’ll file it.', [adaReady({
-    tag: 'Document', title: () => fl.name, photos: () => fl.files.map(x => /^image\//.test(x.type) ? x.data : ''), pages: () => fl.files.length,
-    rows: () => [['Goes in', docCategoryName(fl.category)], ['Pages', String(fl.files.length)]],
-    more: [['Add another page', 'photo:doc']], place: 'documents',
-    save: async () => {
-      const files = await Promise.all(fl.files.map(x => Account.api('POST', '/api/files/document', { data: x.data })));
-      const doc = { id: crypto.randomUUID(), doc: true, name: fl.name.trim(), category: docCategory(fl.category), files: files.map(r => ({ url: r.url, type: r.type })), addedAt: new Date().toISOString() };
-      items.push(doc); docFilter = 'all';
-      return { say: `Saved “${doc.name}” in ${docCategoryName(doc.category)}.`, place: 'documents' };
-    }
-  })]);
+  fl.files.push(file); fl.done.more = false; fl.done.first = true;
+  adaNext();
 }
 
-/* A planned task or reminder, and an appointment: saved straight from the chat. "Change" opens the full form, filled in. */
+/* A planned task or reminder, and an appointment. "Change" on the card opens the full form, filled in. */
 function adaTaskReady(t, say) {
   if (!mayAddTask()) return adaSay(ADA_NOT_ALLOWED);
-  const d = { ...blankTaskDraft(), what: t.what || '', note: t.note || '', date: t.date || today(), time: t.time || '', repeat: t.repeat || 'once' };
-  if (!d.what.trim()) { ada.flow = { type: 'task', step: 'what', d }; return adaAskNext('What should the reminder say?'); }
-  if (!d.time) { ada.flow = { type: 'task', step: 'time', d }; return adaAskNext(`What time should I remind the care team to ${d.what.charAt(0).toLowerCase() + d.what.slice(1)}?`); }
-  const problem = taskProblem(d);
-  if (problem) return adaForm('task-new', d, problem + ' I filled in the rest for you.');
-  ada.flow = null;
-  adaSay(say && !/\b(check|form)\b/i.test(say) ? say : 'Here it is. Tap Save and it goes in My Tasks.', [adaReady({
-    tag: 'Planned task', title: d.what, rows: () => [['When', repeatText(d)], ['Note', d.note]], change: { form: 'task-new', draft: d }, place: 'planned-tasks',
-    save: async () => {
-      const by = markedBy(), task = { id: crypto.randomUUID(), task: true, name: d.what.trim(), ...(d.note.trim() ? { note: d.note.trim() } : {}), date: d.date, time: d.time, repeat: d.repeat, ...(d.repeat !== 'once' ? { until: d.until } : {}), ...(by ? { by } : {}), addedAt: new Date().toISOString(), marks: [] };
-      items.push(task);
-      return { say: `Added to My Tasks: ${repeatText(task)}.`, place: 'planned-tasks' };
-    }
-  })]);
+  adaFlow('task', { d: { ...blankTaskDraft(), what: t.what || '', note: t.note || '', date: t.date || today(), time: t.time || '', repeat: t.repeat || 'once' }, dateSaid: !!t.date, repeatSaid: !!t.repeat && t.repeat !== 'once' });
+  adaNext();
 }
 function adaApptReady(a, say) {
   if (!mayDo('meds')) return adaSay(ADA_NOT_ALLOWED);
-  const d = { ...blankApptDraft(), with: a.with || '', place: a.place || '', date: a.date || '', time: a.time || '', note: a.note || '' };
-  if (!d.with.trim()) { ada.flow = { type: 'appt', step: 'with', d }; return adaAskNext('Who is the appointment with?'); }
-  const problem = apptProblem(d);
-  if (problem) return adaForm('appt-new', d, problem + ' I filled in the rest for you.');
-  ada.flow = null;
-  const when = [adaDay(d.date), d.time && adaClock(d.time)].filter(Boolean).join(' at ');
-  adaSay(say && !/\b(check|form)\b/i.test(say) ? say : 'Here it is. Tap Save and it goes in Appointments.', [adaReady({
-    tag: 'Appointment', title: 'Follow-up visit with ' + d.with, rows: () => [['When', when], ['Where', d.place], ['Note', d.note]], change: { form: 'appt-new', draft: d }, place: 'appointments',
-    save: async () => {
-      const appt = { ...newAppt({ with: d.with.trim(), place: d.place.trim(), date: d.date, time: d.time, phone: '', note: d.note.trim() }), status: 'deciding', confirmed: true };
-      items.push(appt);
-      return { say: `Appointment added for ${apptDay(appt)}.` + apptReminds(appt), place: 'appointments' };
-    }
-  })]);
+  adaFlow('appt', { d: { ...blankApptDraft(), with: a.with || '', place: a.place || '', date: a.date || '', time: a.time || '', note: a.note || '' } });
+  adaNext();
 }
 
-/* Vital signs: the numbers as said, or a live photo of the monitor read for them. Each one is saved on its own, as in My Tasks. */
+/* Vital signs: each one is asked (blood pressure, heart rate, temperature, pain), typed or read from a live photo of the
+   monitor. "Not taken" skips one. Each is saved on its own, as in My Tasks. */
 const ADA_VITALS = [['bp', 'Blood pressure', v => v.sys && v.dia ? v.sys + '/' + v.dia : ''], ['heart', 'Heart rate', v => v.pulse || ''], ['temp', 'Temperature', v => v.temp ? v.temp + '°' : ''], ['pain', 'Pain level', v => v.pain ? v.pain + '/10' : '']];
-function adaStartVitals(f, say) {
+function adaStartVitals(f) {
   if (!mayDo('tasks')) return adaSay(ADA_NOT_ALLOWED);
-  const v = Object.fromEntries(['sys', 'dia', 'pulse', 'temp', 'pain'].filter(k => f[k]).map(k => [k, String(f[k])]));
-  ada.flow = { type: 'vitals', step: 'numbers', v, photos: [] };
-  if (ADA_VITALS.some(([, , show]) => show(v))) return adaVitalsReady();
-  adaAskNext('Tell me the numbers, like “BP 128 over 82, pulse 70”, or take a photo of the monitor and I’ll read it.', [['Take a photo of the monitor', 'photo:vitals', true]]);
+  adaFlow('vitals', { v: Object.fromEntries(['sys', 'dia', 'pulse', 'temp', 'pain'].filter(k => f[k]).map(k => [k, String(f[k])])), photos: [] });
+  adaNext();
 }
 async function adaVitalsPhoto(src) {
   const fl = ada.flow; if (!fl || fl.type !== 'vitals') return;
   fl.photos.push(src); ada.busy = true; adaPaint();
   let r = null; try { r = await Account.api('POST', '/api/vitals/read', { photo: src }); } catch {}
   ada.busy = false; if (ada.flow !== fl) return;
-  const got = r && r.reading || {};
-  for (const k of ['sys', 'dia', 'pulse', 'temp']) if (got[k]) fl.v[k] = String(got[k]);
-  if (fl.step === 'ready') { adaPaint(true); return; }
-  if (ADA_VITALS.some(([, , show]) => show(fl.v))) return adaVitalsReady('I read the numbers on the photo.');
-  adaAskNext(((typeof VITALS_UNREAD === 'object' && VITALS_UNREAD[got.problem]) || 'I couldn’t read the numbers on the photo.').replace(/ Type the numbers in.*$/, '') + ' Tell me the numbers instead, like “BP 128 over 82”.');
-}
-function adaVitalsReady(lead) {
-  const fl = ada.flow; fl.step = 'ready';
-  adaSay((lead ? lead + ' ' : '') + 'Check the numbers and tap Save.', [adaReady({
-    tag: 'Vital signs', title: 'Vital signs', photos: () => fl.photos, more: [['Add a photo', 'photo:vitals']], place: 'vitals',
-    rows: () => ADA_VITALS.map(([, name, show]) => [name, show(fl.v)]),
-    save: async () => {
-      const photos = (await Promise.all(fl.photos.map(saveProof))).filter(Boolean), by = markedBy(), at = new Date().toISOString(), log = [];
-      const saved = ADA_VITALS.filter(([, , show]) => show(fl.v));
-      saved.forEach(([k], n) => { const val = k === 'bp' ? fl.v.sys + '/' + fl.v.dia : fl.v[k === 'heart' ? 'pulse' : k]; settings.vitals = { ...(settings.vitals || {}), [k]: val, at }; log.push({ [k]: val, at, ...(n === 0 && photos.length ? { photos } : {}), ...(by ? { by } : {}) }); });
-      settings.vitalsLog = [...(settings.vitalsLog || []), ...log].slice(-60);
-      return { say: `${saved.map(([, name]) => name).join(', ').replace(/, ([^,]*)$/, ' and $1')} saved.`, place: 'vitals' };
-    }
-  })]);
+  const got = r && r.reading || {}, read = ['sys', 'dia', 'pulse', 'temp'].filter(k => got[k]);
+  for (const k of read) fl.v[k] = String(got[k]);
+  if (fl.step === 'ready') return adaPaint(true);
+  adaNext(read.length ? 'I read the numbers on the photo.' : ((typeof VITALS_UNREAD === 'object' && VITALS_UNREAD[got.problem]) || 'I couldn’t read the numbers on the photo.').replace(/ Type the numbers in.*$/, '') + ' Type them instead.');
 }
 
-/* A dose given or skipped: which medication, which time, taken or skipped. */
+/* A dose given or skipped: which medication, which time, taken or skipped, and why when it was skipped. */
 const adaTodayMeds = () => items.filter(i => i.med && !i.demo && i.status !== 'received');
-function adaStartDose(f, say) {
+function adaStartDose(f) {
   if (!mayDo('tasks')) return adaSay(ADA_NOT_ALLOWED);
-  ada.flow = { type: 'dose', step: 'med', med: f.med_id || '', slot: f.slot || '', mark: f.mark || '', note: f.note || '' };
-  adaDoseNext(say);
-}
-function adaDoseNext(say) {
-  const fl = ada.flow, med = fl.med && find(fl.med);
-  if (!med) { const meds = adaTodayMeds(); if (!meds.length) return adaStop('There are no medications in the app yet.'); fl.step = 'med'; return adaAskNext('Which medication?', meds.slice(0, 8).map(m => [m.name, 'dose-med:' + m.id])); }
-  const times = med.times || [];
-  if (!fl.slot && times.length === 1) fl.slot = times[0];
-  if (!fl.slot && times.length > 1) { fl.step = 'slot'; return adaAskNext(`Which dose of ${med.name}?`, times.map(t => [adaClock(t), 'dose-slot:' + t])); }
-  if (!fl.mark) { fl.step = 'mark'; return adaAskNext(`Was the ${fl.slot ? adaClock(fl.slot) + ' ' : ''}dose of ${med.name} taken or skipped?`, [['Taken', 'dose-mark:taken', true], ['Skipped', 'dose-mark:skipped']]); }
-  const day = today(), done = (med.doses || []).find(d => (d.day || String(d.at || '').slice(0, 10)) === day && (d.slot || '') === (fl.slot || '') && fl.slot);
-  if (done) return adaStop(`The ${adaClock(fl.slot)} dose of ${med.name} is already marked ${done.kind} today${done.by ? ' by ' + done.by : ''}.`);
-  fl.step = 'ready';
-  adaSay(say && !/\b(check|form|open)\b/i.test(say) ? say : 'Tap Save and I’ll mark it.', [adaReady({
-    tag: 'Dose', title: med.name, photos: () => med.photo ? [med.photo] : [], rows: () => [['Time', fl.slot ? adaClock(fl.slot) : 'Now'], ['Marked', fl.mark === 'taken' ? 'Taken' : 'Skipped'], ['Note', fl.note]], place: 'tasks',
-    save: async () => {
-      const m = find(med.id); if (!m) throw Error('That medication isn’t in the app anymore.');
-      m.doses = [...(m.doses || []), { at: new Date().toISOString(), day: today(), kind: fl.mark, ...(fl.slot ? { slot: fl.slot } : {}), ...(markedBy() ? { by: markedBy() } : {}), ...(fl.note.trim() ? { note: fl.note.trim() } : {}) }].slice(-200);
-      return { say: fl.mark === 'taken' ? `Marked taken: ${med.name}.` : `Marked skipped: ${med.name}. Don’t give an extra dose to make up for it unless the papers or the pharmacist say so.`, place: 'tasks' };
-    }
-  })]);
+  if (!adaTodayMeds().length) return adaSay('There are no medications in the app yet.');
+  adaFlow('dose', { med: f.med_id || '', slot: f.slot || '', mark: f.mark || '', note: f.note || '' });
+  adaNext();
 }
 
-/* Something done now, symptoms, or an incident: what happened in their words, optional live photos, then into the report. */
+/* Something done now, symptoms, or an incident: what happened in their words, when, for an incident who saw it and who was
+   told, and a live photo if it helps. */
 const ADA_CARE = {
-  activity: { ask: 'What was done? For example: “a bath and fresh clothes”.', tag: 'Something done now', place: 'home', photoFor: 'activity' },
-  symptom: { ask: 'How are they feeling? Write it in their words.', tag: 'Symptoms', place: 'home', photoFor: 'symptom' },
-  incident: { ask: 'What happened, in a few words?', tag: 'Incident', place: 'home', photoFor: 'incident' }
+  activity: { ask: 'What was done? For example: “a bath and fresh clothes”.', tag: 'Something done now' },
+  symptom: { ask: 'How are they feeling? Write it in their words.', tag: 'Symptoms' },
+  incident: { ask: 'What happened, in a few words? Where, and how?', tag: 'Incident' }
 };
 function adaIncidentKind(s) { s = String(s || '').toLowerCase(); return /\b(fell|fall|fallen|slipped|tripped)\b/.test(s) ? 'fall' : /\b(refused?|won.?t take|wouldn.?t take|spat)\b/.test(s) ? 'refused' : /\b(injur|hurt|bruise|cut|bleed|burn)/.test(s) ? 'injury' : /\b(agitated|angry|aggressive|confused|wander|yell|hit)/.test(s) ? 'behaviour' : ''; }
-function adaStartCare(kind, f, say) {
+function adaStartCare(kind, f) {
   if (!mayReport()) return adaSay(ADA_NOT_ALLOWED);
-  ada.flow = { type: kind, step: 'note', note: f.note || '', incident: f.incident || '', witnesses: f.witnesses || '', photos: f.photos || [], ...adaNowParts() };
-  adaCareNext(kind === 'incident' ? 'I’m sorry. I’ll report it, and everyone on the care team is told. If anyone is hurt badly, call 911.' : '');
-}
-function adaCareNext(lead) {
-  const fl = ada.flow, c = ADA_CARE[fl.type];
-  if (fl.type === 'incident' && !fl.incident) { fl.step = 'kind'; return adaAskNext((lead ? lead + ' ' : '') + 'What happened?', INCIDENTS.map(([k, l]) => [l, 'incident:' + k])); }
-  if (!fl.note.trim() && fl.type !== 'incident') { fl.step = 'note'; return adaAskNext((lead ? lead + ' ' : '') + c.ask); }
-  if (!fl.note.trim() && !fl.askedNote) { fl.askedNote = true; fl.step = 'note'; return adaAskNext((lead ? lead + ' ' : '') + c.ask, [['Skip', 'care-skip']]); }
-  fl.step = 'ready';
-  const kindName = () => (INCIDENTS.find(([k]) => k === fl.incident) || [])[1];
-  adaSay((lead ? lead + ' ' : '') + 'Add a live photo if it helps, then tap Save. It goes in today’s report.', [adaReady({
-    tag: c.tag, title: () => fl.type === 'incident' ? kindName() : fl.type === 'symptom' ? 'Symptoms' : fl.note, photos: () => fl.photos,
-    rows: () => [['When', 'Today at ' + adaClock(fl.time)], [fl.type === 'activity' ? 'Note' : 'What happened', fl.type === 'activity' ? '' : fl.note], ['Witnesses', fl.witnesses]],
-    more: fl.photos.length < PLUS_PHOTOS ? [['Add a photo', 'photo:care']] : [], place: 'home',
-    save: async () => {
-      const photos = (await uploadPlus(fl.photos, fl.type)).filter(Boolean), by = markedBy(), at = new Date(fl.date + 'T' + fl.time).toISOString(), added = new Date().toISOString(), base = { id: crypto.randomUUID(), at, ...(photos.length ? { photos } : {}), ...(by ? { by } : {}), addedAt: added };
-      if (fl.type === 'activity') items.push({ ...base, activity: true, name: fl.note.trim() });
-      if (fl.type === 'symptom') items.push({ ...base, symptom: true, name: 'Symptoms', note: fl.note.trim() });
-      if (fl.type === 'incident') items.push({ ...base, incident: true, kind: fl.incident, name: kindName(), ...(fl.note.trim() ? { note: fl.note.trim() } : {}), ...(fl.witnesses.trim() ? { witnesses: fl.witnesses.split(',').map(w => w.trim()).filter(Boolean).join(', ') } : {}) });
-      reportTab = 'today';
-      return { say: fl.type === 'incident' ? 'Incident reported. Everyone on the care team is told, and it’s in today’s report.' : fl.type === 'symptom' ? 'Symptoms added to today’s report.' : 'Added to today’s report.', place: 'home' };
-    }
-  })]);
+  adaFlow(kind, { note: f.note || '', incident: f.incident || '', witnesses: f.witnesses || '', told: '', hurt: '', photos: f.photos || [], ...adaNowParts(), lead: kind === 'incident' ? 'I’m sorry. I’ll report it, and everyone on the care team is told. If anyone is hurt badly, call 911.' : '' });
+  adaNext();
 }
 
 /* What someone types while Ada is waiting on an answer. True when it was the answer. */
 function adaFlowText(s) {
   const fl = ada.flow; if (!fl) return false;
   if (/^(cancel|stop|never ?mind|no thanks|forget it|don.?t save)\b/i.test(s)) { adaStop(); return true; }
-  if (fl.type === 'med') {
-    if (fl.step === 'name') { fl.p.name = s.slice(0, 100); if (!howText(fl.p)) { fl.step = 'how'; adaAskNext('How is it taken? Type it as the label says, like “Take 1 tablet twice a day”.'); } else adaMedTimes(); return true; }
-    if (fl.step === 'how') { fl.p.instructions = s.slice(0, 600); adaMedTimes(); return true; }
-    if (fl.step === 'times') { if (/\b(as needed|when needed|if needed|prn|only when)\b/i.test(s)) { adaMedSetTimes([], true); return true; } const ts = adaTimes(s); if (!ts.length) { adaAskNext('I didn’t catch a time. Try like “8 am and 8 pm”.'); return true; } adaMedSetTimes(ts); return true; }
-    if (fl.step === 'ready' && /^(yes|save|ok|okay|looks good|correct)\b/i.test(s)) { adaAskNext('Tap Save on the card above and I’ll save it.'); return true; }
-  }
-  if (fl.type === 'doc') {
-    if (fl.step === 'name') { fl.name = s.slice(0, 120); fl.category = fl.category || adaDocCategory(s); adaDocNext(); return true; }
-    if (fl.step === 'category') { const k = DOC_CATEGORIES.find(([, l]) => l.toLowerCase().includes(s.toLowerCase()) || s.toLowerCase().includes(l.toLowerCase().split(' ')[0]))?.[0] || adaDocCategory(s); if (!k) { adaAskNext('Tap the part of Documents it goes in.', DOC_CATEGORIES.map(([k2, l]) => [l, 'cat:' + k2])); return true; } fl.category = k; adaDocNext(); return true; }
-  }
-  if (fl.type === 'task') {
-    if (fl.step === 'what') { fl.d.what = s.slice(0, 100); adaTaskReady(fl.d); return true; }
-    if (fl.step === 'time') { const ts = adaTimes(s); if (!ts.length) { adaAskNext('I didn’t catch the time. Try like “10 am”.'); return true; } fl.d.time = ts[0]; if (/\btomorrow\b/i.test(s)) fl.d.date = C.shift(today(), 1); if (/\bevery ?day|daily\b/i.test(s)) fl.d.repeat = 'daily'; adaTaskReady(fl.d); return true; }
-  }
-  if (fl.type === 'appt' && fl.step === 'with') { fl.d.with = s.slice(0, 100); adaApptReady(fl.d); return true; }
-  if (fl.type === 'vitals' && fl.step !== 'ready') { const v = adaVitalsFrom(s); if (!Object.keys(v).length) { adaAskNext('I didn’t catch a number. Try like “BP 128 over 82” or “temp 99.1”.', [['Take a photo of the monitor', 'photo:vitals', true]]); return true; } Object.assign(fl.v, v); adaVitalsReady(); return true; }
-  if (ADA_CARE[fl.type] && fl.step === 'note') { fl.note = s.slice(0, 500); if (fl.type === 'incident' && !fl.incident) fl.incident = adaIncidentKind(s); adaCareNext(); return true; }
+  if (fl.step === 'q') return adaAnswer(s);
+  if (fl.step === 'ready' && /^(yes|save( it)?|ok|okay|looks good|correct|that.?s right|done)[.! ]*$/i.test(s)) { adaAskNext('Tap Save on the card above and I’ll save it.'); return true; }
   return false;
 }
 
@@ -548,6 +641,8 @@ async function adaAsk(text) {
       if (local.open === 'med-add') return adaStartMed({});
       if (local.open === 'document-add') return adaStartDoc({}, '', s);
       if (local.open === 'vitals') return adaStartVitals(adaVitalsFrom(s));
+      if (local.open === 'task-new') { const what = s.replace(/^(please\s+)?(can you\s+)?(set (up )?(a )?reminder( for me)?( to| for)?|remind (me|us|everyone|the care team)( to)?|add (a )?(new )?(planned )?task( to)?|new task( to)?)\s*/i, '').replace(/[.!]+$/, '').trim(); return adaTaskReady({ what: what && !/^(a )?(reminder|task)$/i.test(what) ? what.charAt(0).toUpperCase() + what.slice(1) : '' }); }
+      if (local.open === 'appt-new') return adaApptReady({});
       if (local.open === 'incident-new' || local.open === 'symptom-new') { const asked = adaWords(s).length <= 4 && /\b(add|log|record|report|write|new|incident|symptoms?)\b/i.test(s); return adaStartCare(local.open === 'incident-new' ? 'incident' : 'symptom', { note: asked ? '' : s, incident: adaIncidentKind(s) }); }
       return adaPlace(local.open);
     }
@@ -589,21 +684,15 @@ async function adaSaveJob(n) {
 function adaAct(a) {
   const [what, arg = ''] = a.split(/:(.*)/s), fl = ada.flow;
   if (what === 'photo' || what === 'file') {
-    if (!fl || { med: 'med', doc: 'doc', vitals: 'vitals', activity: 'activity', care: fl.type }[arg] !== fl.type) {
-      if (arg === 'med') adaStartMed({}); else if (arg === 'doc') adaStartDoc({}); else if (arg === 'vitals') adaStartVitals({}); else if (arg === 'activity') { if (!mayReport()) return adaSay(ADA_NOT_ALLOWED); ada.flow = { type: 'activity', step: 'photo', note: '', incident: '', witnesses: '', photos: [], ...adaNowParts() }; }
-      if (!ada.flow) return;
+    const wants = { med: 'med', doc: 'doc', vitals: 'vitals', activity: 'activity', care: fl && ADA_CARE[fl.type] ? fl.type : '' }[arg];
+    if (!fl || wants !== fl.type) {
+      if (arg === 'med') adaStartMed({}); else if (arg === 'doc') adaStartDoc({}); else if (arg === 'vitals') adaStartVitals({}); else if (arg === 'activity') adaStartCare('activity', {});
+      if (!ada.flow || ada.flow.type !== (arg === 'care' ? '' : arg)) return;
     }
     ada.want = ada.flow.type; document.getElementById(what === 'file' ? 'ada-doc-file' : 'ada-camera')?.click(); return;
   }
-  if (what === 'med-typed') { if (!fl || fl.type !== 'med') adaStartMed({}); ada.flow.step = 'name'; ada.flow.p.photo = ''; adaAskNext('What is it called? Type the name and strength as on the label, like “Metoprolol tartrate 25 mg”.'); return; }
-  if (what === 'med-nobottle' && fl && fl.type === 'med') { fl.p.noBottle = true; adaMedReady('Okay, it’s marked to pick up from the pharmacy. Add the bottle photo from its card when you have it.'); return; }
-  if (what === 'times' && fl && fl.type === 'med') { adaMedSetTimes(arg === 'asneeded' ? [] : arg.split(','), arg === 'asneeded'); return; }
-  if (what === 'cat' && fl && fl.type === 'doc') { fl.category = arg; adaDocNext(); return; }
-  if (what === 'dose-med' && fl && fl.type === 'dose') { fl.med = arg; fl.slot = ''; adaDoseNext(); return; }
-  if (what === 'dose-slot' && fl && fl.type === 'dose') { fl.slot = arg; adaDoseNext(); return; }
-  if (what === 'dose-mark' && fl && fl.type === 'dose') { fl.mark = arg; adaDoseNext(); return; }
-  if (what === 'incident' && fl && fl.type === 'incident') { fl.incident = arg; adaCareNext(); return; }
-  if (what === 'care-skip' && fl && ADA_CARE[fl.type]) { adaCareNext(); return; }
+  if (what === 'set') { const [key, value = ''] = arg.split(/\|(.*)/s); if (fl && fl.step === 'q' && fl.q === key) adaAnswer(value); return; }
+  if (what === 'skip') { if (fl && fl.step === 'q' && fl.q === arg) { fl.done[arg] = true; adaNext(); } return; }
   if (what === 'go') { adaGoPlace(arg); return; }
 }
 /* A live photo (or, for a document, a file) taken from the chat, shown as the person's own message, then used by the task. */
@@ -622,7 +711,7 @@ async function adaGotFile(input) {
     ada.log.push({ who: 'me', photo: src }); adaPaint();
     if (want === 'med') return adaMedPhoto(src);
     if (want === 'vitals') return adaVitalsPhoto(src);
-    if (ADA_CARE[want]) { const fl = ada.flow; fl.photos = [...fl.photos, src].slice(0, PLUS_PHOTOS); if (fl.step === 'ready') return adaPaint(true); if (fl.step === 'photo') return adaCareNext('Got the photo.'); return; }
+    if (ADA_CARE[want]) { const fl = ada.flow; fl.photos = [...fl.photos, src].slice(0, PLUS_PHOTOS); if (fl.step === 'q' && fl.q === 'photo') { fl.done.photo = true; return adaNext('Got the photo.'); } return adaPaint(true); }
   } catch (err) { adaSay((err && err.message) || 'I couldn’t open that photo. Try again.'); }
 }
 /* The camera button: what's the photo of? Each choice starts that task here, with the live camera. */

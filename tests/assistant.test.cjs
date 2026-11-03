@@ -164,3 +164,16 @@ test('a dose given or skipped is understood in the app, for free', () => {
   assert.equal(a.adaLocal('she skipped the lisinopril').mark, 'skipped');
   assert.equal(a.adaLocal('she missed the lisinopril, can she take it now?').kind, 'medical');
 });
+
+test('days in plain words', () => {
+  const d = app().adaDate;
+  assert.equal(d('Friday', '2026-11-03'), '2026-11-06');
+  assert.equal(d('nov 12', '2026-11-03'), '2026-11-12');
+  assert.equal(d('Oct 2, 2026', '2026-11-03', 'past'), '2026-10-02');
+  assert.equal(d('Dec 1', '2026-11-03', 'past'), '2025-12-01');
+  assert.equal(d('11/20', '2026-11-03'), '2026-11-20');
+  assert.equal(d('tomorrow', '2026-11-03'), '2026-11-04');
+  assert.equal(d('the 2nd', '2026-11-03'), '2026-12-02');
+  assert.equal(d('Feb 30', '2026-11-03'), '');
+  assert.equal(d('whenever', '2026-11-03'), '');
+});
