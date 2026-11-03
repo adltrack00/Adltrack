@@ -120,3 +120,47 @@ test('the app loads the assistant and the offline copy keeps it', () => {
   assert.match(html, /assistant\.css/); assert.match(html, /assistant\.js/);
   assert.match(sw, /'assistant\.js'/); assert.match(sw, /'assistant\.css'/);
 });
+
+test('Ada reads what people type while she does a task: times, vital signs and which part of Documents', () => {
+  const a = app();
+  assert.deepEqual([...a.adaTimes('8am and 8pm')], ['08:00', '20:00']);
+  assert.deepEqual([...a.adaTimes('at 8:30 and 20:00')], ['08:30', '20:00']);
+  assert.deepEqual([...a.adaTimes('morning and bedtime')], ['08:00', '21:00']);
+  assert.deepEqual([...a.adaTimes('2 times a day at 9 and 3')], ['09:00', '15:00']);
+  assert.deepEqual([...a.adaTimes('12pm')], ['12:00']);
+  assert.deepEqual([...a.adaTimes('take 25 mg')], []);
+  assert.deepEqual([...a.adaSuggestTimes(2)], ['08:00', '20:00']);
+  assert.deepEqual({ ...a.adaVitalsFrom('BP is 128 over 82, pulse 70, temp 99.14, pain 3 out of 10') }, { sys: '128', dia: '82', pulse: '70', temp: '99.1', pain: '3' });
+  assert.deepEqual({ ...a.adaVitalsFrom('her blood pressure 140/90') }, { sys: '140', dia: '90' });
+  assert.deepEqual({ ...a.adaVitalsFrom('pain 15') }, {});
+  assert.equal(a.adaDocCategory('Medicare card'), 'insurance');
+  assert.equal(a.adaDocCategory('Blood work from October'), 'results');
+  assert.equal(a.adaDocCategory('Power of attorney'), 'legal');
+  assert.equal(a.adaDocCategory('Something'), '');
+});
+
+test('saying what happened is not a medical question, asking what to do is', () => {
+  const a = app();
+  for (const q of ['she missed her 8am dose', 'He missed a dose this morning, mark it skipped'])
+    assert.notEqual(a.adaLocal(q) && a.adaLocal(q).kind, 'medical', q);
+  for (const q of ['she missed her dose, what should I do?', 'He missed a dose. Can he take it now?'])
+    assert.equal(a.adaLocal(q).kind, 'medical', q);
+});
+
+test('the AI says which task it is, and only checked values come back', () => {
+  const plan = { medications: [{ id: 'm1', name: 'Metoprolol' }] };
+  const r = clean({ kind: 'dose', reply: 'Okay.', ids: [], open: '', fields: { med_id: 'm1', slot: '08:00', mark: 'taken', note: '', sys: '400' } }, plan);
+  assert.equal(r.fields.med_id, 'm1'); assert.equal(r.fields.slot, '08:00'); assert.equal(r.fields.mark, 'taken'); assert.equal(r.fields.sys, '');
+  assert.equal(clean({ kind: 'dose', fields: { med_id: 'zzz' } }, plan).fields.med_id, '');
+  assert.equal(clean({ kind: 'incident', fields: { incident: 'explosion' } }, plan).fields.incident, '');
+  assert.equal(clean({ kind: 'document', fields: { name: 'Medicare card', category: 'insurance' } }, plan).fields.category, 'insurance');
+  assert.equal(clean({ kind: 'find', fields: { name: 'x' } }, plan).fields, null);
+});
+
+test('a dose given or skipped is understood in the app, for free', () => {
+  const a = app();
+  const r = a.adaLocal('I gave her the metoprolol at 8am');
+  assert.equal(r.kind, 'dose'); assert.equal(r.med_id, 'm1'); assert.equal(r.mark, 'taken'); assert.equal(r.slot, '08:00');
+  assert.equal(a.adaLocal('she skipped the lisinopril').mark, 'skipped');
+  assert.equal(a.adaLocal('she missed the lisinopril, can she take it now?').kind, 'medical');
+});

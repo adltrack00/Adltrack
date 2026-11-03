@@ -2,7 +2,7 @@ const test = require('node:test'), assert = require('node:assert/strict'), fs = 
 
 /* Photos are taken live with the camera. Only documents, discharge papers (the scanner's Upload), the old purchase receipt and the
    return label, the CSV import, and the profile picture (picked from the phone's photos or taken then) pick files. */
-const FILES_OK = ['doc-file', 'csv-file', 'receipt-upload', 'plan-label-file', '${upload}', 'profile-photo'];
+const FILES_OK = ['doc-file', 'ada-doc-file', 'csv-file', 'receipt-upload', 'plan-label-file', '${upload}', 'profile-photo'];
 test('every photo input opens the camera; only documents, papers and the profile picture pick files', () => {
   for (const f of fs.readdirSync('.').filter(f => f.endsWith('.js'))) {
     for (const [tag] of fs.readFileSync(f, 'utf8').matchAll(/<input[^>]*type="file"[^>]*>/g)) {
