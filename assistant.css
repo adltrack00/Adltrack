@@ -74,3 +74,17 @@ body.ada-open .help-fab{display:none}
 .ada-tip button{background:none;border:0;font-size:22px;line-height:1;padding:4px 6px;color:#6b665c}
 @media(min-width:651px){.ada-hi{font-size:40px}.ada-body{padding:10px 40px 18px}}
 @media print{.ada-pop,.ada-tip{display:none!important}}
+/* Doing it for them: taps to answer with, the person's own photos, and the Ready to save card. */
+.ada-chips{display:flex;flex-wrap:wrap;gap:8px}
+.ada-chip{min-height:42px;border:1px solid #ddd6c8;border-radius:99px;padding:9px 16px;background:#fff;color:#111;font-size:14px;line-height:1.25;text-align:left}
+.ada-chip-dark{background:#151412;border-color:#151412;color:#fff;font-weight:500}
+.ada-chip:disabled{opacity:.45}
+.ada-me-shot{padding:4px;background:#151412;max-width:52%}
+.ada-me-shot img{display:block;width:100%;max-height:200px;object-fit:cover;border-radius:15px 15px 3px 15px}
+.ada-shots{display:flex;gap:8px;overflow-x:auto;margin:8px 0 4px}
+.ada-shots img,.ada-shots .ada-doc{width:84px;height:84px;flex-shrink:0;border-radius:12px;object-fit:cover;background:#f3ede3}
+.ada-ready.is-done{box-shadow:0 0 0 2px #7fbf6a55,0 1px 2px rgba(40,30,10,.06)}
+.ada-ready.is-stale{opacity:.6}
+.ada-saved{margin:10px 0 0;font-size:14px;font-weight:600;color:#3f7f35}
+.ada-cancel-job{display:block;margin:4px auto 0;padding:6px}
+.ada-done-where{padding:10px 16px 14px}.ada-done-where .ada-btns{margin-top:8px}

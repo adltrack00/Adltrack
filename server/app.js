@@ -657,8 +657,8 @@ function createApp({ store, data, production = false, policies = null, classifie
       return send(res, 200, reading ? { reading } : { reading: null, reason: 'failed' });
     }
     // The assistant: a request in the person's own words and a small list of the care plan, answered with a plan for the app
-    // (what to show, which page or form to open, a form filled in to check). Nothing is saved here: the app saves through its
-    // own forms, which the permission checks cover. Viewers may ask too, since it only finds and shows.
+    // (what to show, which page to open, or which task to do with what was said). Nothing is saved here: the app asks for the
+    // rest, and saves when the person taps Save, through the same data routes the permission checks cover. Viewers may ask too.
     if (route === '/api/assistant' && method === 'POST') {
       checkWrite(req);
       const body = await readBody(req, 200 * 1024);
