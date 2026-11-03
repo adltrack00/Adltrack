@@ -1,0 +1,76 @@
+/* The assistant (assistant.js) in the help pop-up's frame (help.css .help-pop: dark backdrop, 12px margin, 18px corners, the
+   white × at the top right, the cream page), with the assistant's picture and name at the top, the conversation, and the camera,
+   the message box and the mic at the bottom. Cards are the help pop-up's white rounded cards; buttons are the app's pills. */
+.ada-pop{position:fixed;inset:0;z-index:200;background:#000000b3;display:grid;place-items:center;padding:12px}
+.ada-card{position:relative;width:min(calc(100vw - 24px),640px);height:calc(100dvh - 24px);border-radius:18px;overflow:hidden;background:var(--cream,#fcf8f1);box-shadow:0 20px 60px #0000004d;outline:none;display:flex;flex-direction:column;color:#111}
+@media(max-width:650px){.ada-card{width:calc(100vw - 24px)}}
+.ada-x{z-index:2}
+.ada-head{display:flex;flex-direction:column;align-items:center;padding:18px 60px 6px;flex-shrink:0}
+.ada-av{display:block;border-radius:50%;overflow:hidden;flex-shrink:0}
+.ada-av svg{display:block;width:100%;height:100%}
+.ada-av-big{width:84px;height:84px;border:0;padding:0;cursor:pointer;box-shadow:0 6px 18px rgba(40,30,10,.18)}
+.ada-name{margin-top:-10px;position:relative;background:#fff;border-radius:99px;padding:4px 14px;font-size:15px;font-weight:600;box-shadow:0 2px 8px rgba(40,30,10,.12)}
+.ada-status{font-size:12px;color:#7b766d;margin-top:5px;display:flex;align-items:center;gap:5px}
+.ada-status::before{content:"";width:7px;height:7px;border-radius:50%;background:#7fbf6a}
+.ada-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 20px 16px;display:flex;flex-direction:column;gap:10px}
+.ada-body>*{flex-shrink:0}
+.ada-hi{font-family:var(--serif,Georgia,serif);font-weight:340;font-size:32px;line-height:1.08;letter-spacing:-.02em;text-align:center;margin:6px 0 0}
+.ada-intro{font-size:16px;line-height:1.45;color:#2b2a27;text-align:center;margin:0 0 6px}
+.ada-suggest{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.ada-suggest button{display:block;width:100%;text-align:left;position:relative;background:#fff;border-radius:18px;padding:14px 16px 14px 58px;box-shadow:0 1px 2px rgba(40,30,10,.05)}
+.ada-suggest i{position:absolute;left:16px;top:14px;width:28px;height:28px;border-radius:50%;background:#f3ede3;display:grid;place-items:center;font-style:normal;font-family:var(--mono,ui-monospace,monospace);font-size:11px;color:#111}
+.ada-suggest strong{display:block;font-size:16px;font-weight:600}
+.ada-suggest span{display:block;font-size:14px;line-height:1.4;color:#3a3833;margin-top:2px}
+.ada-note{font-size:13px;line-height:1.5;color:#6b665c;margin:6px 2px 0}
+.ada-link{align-self:center;background:none;border:0;font-size:14px;color:#6b665c;text-decoration:underline;padding:8px}
+.ada-me{align-self:flex-end;max-width:82%;background:#151412;color:#fff;border-radius:18px 18px 4px 18px;padding:10px 14px;font-size:15px;line-height:1.4;white-space:pre-wrap;overflow-wrap:anywhere}
+.ada-ai{align-self:stretch;display:flex;flex-direction:column;gap:8px;font-size:15px;line-height:1.45;color:#1e1d1a}
+.ada-ai>p{margin:0;max-width:92%}
+.ada-who{font-family:var(--mono,ui-monospace,monospace);font-size:10px;letter-spacing:.1em;color:#8a8478;text-transform:uppercase;margin-bottom:-6px}
+.ada-box{background:#fff;border-radius:16px;padding:14px 16px;box-shadow:0 1px 2px rgba(40,30,10,.06);font-size:14px;line-height:1.45}
+.ada-box b{display:block;font-size:17px;font-weight:600;margin:2px 0 2px}
+.ada-box small{display:block;color:#5d5952;font-size:13.5px}
+.ada-box dl{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin:6px 0 0}.ada-box dt{color:#7b766d}.ada-box dd{margin:0}
+.ada-tag{display:block;font-family:var(--mono,ui-monospace,monospace);font-size:10px;letter-spacing:.1em;color:#8a8478;text-transform:uppercase}
+.ada-thing-top{display:flex;gap:12px;align-items:flex-start;width:100%;text-align:left;background:none;border:0;padding:0}
+.ada-thumb{width:64px;height:64px;border-radius:12px;overflow:hidden;flex-shrink:0;background:#f3ede3;display:block}
+.ada-thumb>*{width:100%!important;height:100%!important;margin:0!important}
+.ada-thumb img{object-fit:cover}
+.ada-doc{display:grid;place-items:center;width:100%;height:100%;background-size:cover;background-position:center;font-family:var(--mono,ui-monospace,monospace);font-size:12px;color:#6b665c}
+.ada-btns{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.ada-btn{flex:1;min-width:120px;min-height:44px;border:1px solid #ddd6c8;border-radius:99px;padding:10px 14px;text-align:center;font-size:14px;background:#fff;color:#111;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.ada-btn:hover{text-decoration:none}
+.ada-btn-dark{background:#151412;border-color:#151412;color:#fff;font-weight:500}
+.ada-quote{background:#fff;border-left:3px solid #c9a46b;border-radius:10px;padding:10px 12px;font-size:14px;color:#3a3833}
+.ada-quote p{margin:4px 0 0;font-style:italic}
+.ada-dots{display:flex;gap:5px;padding:6px 0}.ada-dots span{width:7px;height:7px;border-radius:50%;background:#a9a399;animation:ada-dot 1s infinite ease-in-out}.ada-dots span:nth-child(2){animation-delay:.15s}.ada-dots span:nth-child(3){animation-delay:.3s}
+@keyframes ada-dot{0%,80%,100%{opacity:.3;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
+.ada-compose{display:flex;align-items:center;gap:8px;padding:10px 12px max(14px,env(safe-area-inset-bottom));border-top:1px solid rgba(21,20,18,.07);background:var(--cream,#fcf8f1);flex-shrink:0}
+.ada-compose input{flex:1;min-width:0;height:46px;border:0;border-radius:99px;padding:0 16px;background:#fff;font-size:16px;color:#111;box-shadow:0 1px 2px #0000000d}
+.ada-round{width:46px;height:46px;border-radius:50%;border:0;background:#fff;color:#111;display:grid;place-items:center;flex-shrink:0;box-shadow:0 1px 2px #0000001a;padding:0}
+.ada-round svg{width:22px;height:22px}
+.ada-round[hidden]{display:none}
+.ada-dark{background:#151412;color:#fff}
+.ada-dark.on{background:#c0392b;animation:ada-pulse 1.2s infinite}
+@keyframes ada-pulse{50%{box-shadow:0 0 0 8px #c0392b22}}
+.ada-edit{display:flex;flex-direction:column;gap:12px}
+.ada-edit h2{font-family:var(--serif,Georgia,serif);font-weight:340;font-size:30px;letter-spacing:-.02em;margin:6px 0 0;text-align:center}
+.ada-label{display:grid;gap:6px;font-size:14px;color:#5d5952}
+.ada-label input{height:48px;border:1px solid #e3dccf;border-radius:12px;padding:0 14px;font-size:16px;background:#fff;color:#111}
+.ada-looks{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.ada-look{background:#fff;border:2px solid transparent;border-radius:16px;padding:12px 6px 8px;display:flex;flex-direction:column;align-items:center;gap:6px;box-shadow:0 1px 2px rgba(40,30,10,.06)}
+.ada-look .ada-av{width:58px;height:58px}
+.ada-look small{font-size:13px;color:#3a3833}
+.ada-look.on{border-color:#151412}
+.ada-save{width:100%;min-height:52px}
+body.ada-open .help-fab{display:none}
+/* Show me where: the row softly glows, and a small note from the assistant says how to find it next time. */
+.ada-glow{position:relative;border-radius:14px;animation:ada-glow 1.6s ease-in-out 3;box-shadow:0 0 0 3px #f1c45c,0 0 22px 4px #f1c45c88!important}
+@keyframes ada-glow{50%{box-shadow:0 0 0 3px #f1c45c55,0 0 8px 1px #f1c45c44}}
+.ada-tip{position:fixed;left:50%;bottom:max(22px,env(safe-area-inset-bottom));transform:translate(-50%,20px);opacity:0;transition:opacity .25s,transform .25s;z-index:210;display:flex;align-items:center;gap:10px;width:min(calc(100vw - 32px),460px);background:#fff;border-radius:18px;padding:10px 12px;box-shadow:0 10px 30px rgba(40,30,10,.22);font-size:14px;line-height:1.4;color:#1e1d1a}
+.ada-tip.in{opacity:1;transform:translate(-50%,0)}
+.ada-tip .ada-av{width:40px;height:40px}
+.ada-tip>span:nth-child(2){flex:1}
+.ada-tip button{background:none;border:0;font-size:22px;line-height:1;padding:4px 6px;color:#6b665c}
+@media(min-width:651px){.ada-hi{font-size:40px}.ada-body{padding:10px 40px 18px}}
+@media print{.ada-pop,.ada-tip{display:none!important}}

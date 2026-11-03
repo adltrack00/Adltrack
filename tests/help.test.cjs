@@ -52,6 +52,6 @@ test('the pop-up shows the section help with its × and Got it, and closes', () 
 
 test('the app loads help and the offline copy keeps it', () => {
   const app = fs.readFileSync('app.html', 'utf8'), sw = fs.readFileSync('sw.js', 'utf8');
-  assert.match(app, /help\.css/); assert.match(app, /<script src="help\.js"><\/script><\/body>/);
+  assert.match(app, /help\.css/); assert.match(app, /<script src="help\.js"><\/script><script src="assistant\.js"><\/script><\/body>/);
   assert.match(sw, /'help\.js'/); assert.match(sw, /'help\.css'/);
 });

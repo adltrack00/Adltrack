@@ -137,7 +137,7 @@ function receiptDraft(receipt, policy) {
   };
 }
 
-function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, discharge = null, labels = null, vitals = null, places = null, review = null, push = null, reminders = null, email = null, supportEmail = '', inbox = null, oauth = null, publicUrl = '', inboundSecret = '', sms = null, team = null, billing = null }) {
+function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, discharge = null, labels = null, vitals = null, assistant = null, places = null, review = null, push = null, reminders = null, email = null, supportEmail = '', inbox = null, oauth = null, publicUrl = '', inboundSecret = '', sms = null, team = null, billing = null }) {
   billing = billing || createBilling({ store });
   team = team || createTeam({ store, email, sms, billing });
   const authLimit = limiter(20, 15 * 60 * 1000);
@@ -145,6 +145,8 @@ function createApp({ store, data, production = false, policies = null, classifie
   const classifyLimit = limiter(300, 60 * 60 * 1000);
   // Each receipt read is a larger AI call (images), so it has its own, lower limit.
   const receiptLimit = limiter(60, 60 * 60 * 1000);
+  // The assistant: plenty for a busy day of talking to it, and a stop on runaway use.
+  const assistantLimit = limiter(120, 60 * 60 * 1000);
   // Each drop-off lookup can be several paid places calls.
   const placesLimit = limiter(30, 60 * 60 * 1000);
   // Test notifications go through the push service.
@@ -653,6 +655,17 @@ function createApp({ store, data, production = false, policies = null, classifie
       if (!receiptLimit('user:' + user.id)) return send(res, 200, { reading: null, reason: 'limit' });
       const reading = await vitals.read(photos[0]);
       return send(res, 200, reading ? { reading } : { reading: null, reason: 'failed' });
+    }
+    // The assistant: a request in the person's own words and a small list of the care plan, answered with a plan for the app
+    // (what to show, which page or form to open, a form filled in to check). Nothing is saved here: the app saves through its
+    // own forms, which the permission checks cover. Viewers may ask too, since it only finds and shows.
+    if (route === '/api/assistant' && method === 'POST') {
+      checkWrite(req);
+      const body = await readBody(req, 200 * 1024);
+      if (!assistant || !assistant.available()) return send(res, 200, { answer: null, reason: 'unavailable' });
+      if (!assistantLimit('user:' + user.id)) return send(res, 200, { answer: null, reason: 'limit' });
+      const answer = await assistant.ask(body);
+      return send(res, 200, answer ? { answer } : { answer: null, reason: 'failed' });
     }
     // Web Push: the public key the browser subscribes with (null when push isn't set up), and this device's subscription.
     if (route === '/api/push/key' && method === 'GET') return send(res, 200, { key: push && push.available() ? push.publicKey() : null });
