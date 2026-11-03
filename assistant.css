@@ -88,3 +88,5 @@ body.ada-open .help-fab{display:none}
 .ada-saved{margin:10px 0 0;font-size:14px;font-weight:600;color:#3f7f35}
 .ada-cancel-job{display:block;margin:4px auto 0;padding:6px}
 .ada-done-where{padding:10px 16px 14px}.ada-done-where .ada-btns{margin-top:8px}
+.help-fab.ada-fab{overflow:hidden;border:2px solid #fff;background:#f3ead9}
+.help-fab.ada-fab svg{width:100%;height:100%;display:block}

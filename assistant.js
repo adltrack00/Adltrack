@@ -830,10 +830,11 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.q
 document.body.insertAdjacentHTML('beforeend', '<input type="file" id="ada-camera" accept="image/*" capture="environment" hidden><input type="file" id="ada-doc-file" accept="image/*,application/pdf" hidden>');
 document.addEventListener('change', e => { if (e.target.id === 'ada-camera' || e.target.id === 'ada-doc-file') adaGotFile(e.target); });
 
-/* The round button (its look unchanged) now says who it opens, and hides while Ada is open. */
+/* The round button shows Ada's face, in the look the person picked (George 2026-11-03), says who it opens, and hides while Ada
+   is open. Same size and place as before. */
 if (typeof placeHelp === 'function') {
   const placeHelpBeforeAda = placeHelp;
-  placeHelp = function () { placeHelpBeforeAda(); const b = document.getElementById('help-fab'); if (!b) return; if (document.querySelector('.ada-pop')) b.hidden = true; if (!b.hidden) b.setAttribute('aria-label', `Talk to ${adaName()}`); };
+  placeHelp = function () { placeHelpBeforeAda(); const b = document.getElementById('help-fab'); if (!b) return; if (document.querySelector('.ada-pop')) b.hidden = true; if (!b.hidden) b.setAttribute('aria-label', `Talk to ${adaName()}`); const look = adaLookKey(); if (b.dataset.adaLook !== look) { b.dataset.adaLook = look; b.classList.add('ada-fab'); b.innerHTML = adaFace(look); } };
   placeHelp();
 }
 }
