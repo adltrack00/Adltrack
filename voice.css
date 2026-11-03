@@ -1,0 +1,10 @@
+/* The mic in the corner of each note box (voice.js). The box keeps its own look; only room for the mic is added. */
+.voice-field{position:relative;display:block;width:100%}
+.voice-field>textarea{padding-right:54px!important}
+.voice-field>input{padding-right:52px!important}
+.voice-mic{position:absolute;right:8px;bottom:8px;width:38px;height:38px;border-radius:50%;border:0;padding:0;display:grid;place-items:center;background:#f3ede3;color:#151412;cursor:pointer;z-index:1}
+.voice-field:not(.is-area)>.voice-mic{top:50%;bottom:auto;transform:translateY(-50%)}
+.voice-mic svg{width:20px;height:20px}
+.voice-mic.on{background:#c0392b;color:#fff;animation:voice-pulse 1.2s infinite}
+@keyframes voice-pulse{50%{box-shadow:0 0 0 7px #c0392b26}}
+@media print{.voice-mic{display:none!important}}
