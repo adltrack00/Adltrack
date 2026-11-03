@@ -621,20 +621,43 @@ function adaStartCare(kind, f) {
   adaNext();
 }
 
-/* What someone types while Ada is waiting on an answer. True when it was the answer. */
+/* What someone types while Ada is waiting on an answer. True when it was the answer. A different question or request isn't
+   taken as the answer: Ada answers it, then comes back to the task where it was (adaAsk). */
+const ADA_TASK_NAME = { med: 'the medication', doc: 'the document', task: 'the reminder', appt: 'the appointment', vitals: 'the vital signs', dose: 'the dose', activity: 'what was done', symptom: 'the symptoms', incident: 'the incident report' };
+function adaAside(s, fl) {
+  if (!fl || (fl.step !== 'q' && fl.step !== 'ready')) return false;
+  if (fl.step === 'ready') return true;
+  const asked = /\?\s*$/.test(s) || /^(what|where|which|who|how|why|can|could|would|will|is|are|do|does|did|should|show|find|open|tell me|wait|hold on|before that|also)\b/i.test(s);
+  if (asked && !(fl.q === 'when' && /^when\b/i.test(s)) && !(fl.q === 'note' && !/\?\s*$/.test(s))) return true;
+  const l = adaLocal(s); return !!(l && (l.kind === 'medical' || l.kind === 'find' && ADA_LOOKUP.test(s) || l.kind === 'dose' && fl.type !== 'dose') || l && l.kind === 'open' && adaWords(s).length > 1 && /\b(add|new|show|open|where|find|book|remind|scan)\b/i.test(s));
+}
 function adaFlowText(s) {
   const fl = ada.flow; if (!fl) return false;
   if (/^(cancel|stop|never ?mind|no thanks|forget it|don.?t save)\b/i.test(s)) { adaStop(); return true; }
-  if (fl.step === 'q') return adaAnswer(s);
   if (fl.step === 'ready' && /^(yes|save( it)?|ok|okay|looks good|correct|that.?s right|done)[.! ]*$/i.test(s)) { adaAskNext('Tap Save on the card above and I’ll save it.'); return true; }
+  if (adaAside(s, fl)) return false;
+  if (fl.step === 'q') return adaAnswer(s);
   return false;
 }
-
+/* After answering something else, back to the task that was waiting, at the same question (or its Ready to save card). */
+function adaResume() {
+  const fl = ada.paused; ada.paused = null;
+  if (!fl || ada.flow || !ada.open) return;
+  ada.flow = fl;
+  if (fl.step === 'ready') return adaAskNext(`${ADA_TASK_NAME[fl.type].charAt(0).toUpperCase() + ADA_TASK_NAME[fl.type].slice(1)} is still ready to save on the card above. Tap Save when you’re ready.`);
+  adaNext(`Now, back to ${ADA_TASK_NAME[fl.type]}.`);
+}
 async function adaAsk(text) {
   const s = String(text || '').trim(); if (!s || ada.busy) return;
   ada.log.push({ who: 'me', text: s }); adaPaint();
   if (adaFlowText(s)) return;
-  ada.flow = null; for (const j of Object.values(adaJobs)) if (j.state === 'ready') j.state = 'stale';
+  const aside = !!ada.flow && adaAside(s, ada.flow);
+  if (aside) ada.paused = ada.flow; else for (const j of Object.values(adaJobs)) if (j.state === 'ready') j.state = 'stale';
+  ada.flow = null;
+  await adaReply(s);
+  if (aside) { if (ada.flow) { ada.paused = null; for (const j of Object.values(adaJobs)) if (j.state === 'ready' && j !== adaJobs[adaN]) j.state = 'stale'; } else adaResume(); }
+}
+async function adaReply(s) {
   const local = adaLocal(s);
   if (local) {
     if (local.kind === 'medical') return adaMedical();
