@@ -340,6 +340,8 @@ const ADA_QS = {
     { key: 'times', need: fl => dosesPerDay(fl.p) !== 0, ask: fl => { const n = dosesPerDay(fl.p); return `${n ? `The label says ${n === 1 ? 'once' : n === 2 ? 'twice' : n + ' times'} a day. ` : ''}What time${n === 1 ? '' : 's'} should it be given? Tell me, like “${n === 1 ? '9 pm' : '8 am and 8 pm'}”.`; },
       taps: fl => { const n = dosesPerDay(fl.p), said = adaTimes(howText(fl.p)), sug = said.length && (n == null || said.length === n) ? said : adaSuggestTimes(n); return [...(sug.length ? [[adaTimesText(sug), 'set:times|' + sug.join(','), true]] : []), ...(n == null ? [['Only when needed', 'set:times|asneeded']] : [])]; },
       set: (fl, s) => { if (s === 'asneeded' || /\b(as needed|when needed|if needed|prn|only when)\b/i.test(s)) { if (dosesPerDay(fl.p)) return `The label says ${dosesPerDay(fl.p) === 1 ? 'once' : dosesPerDay(fl.p) + ' times'} a day, not only when needed. Check the label, and tell me the time${dosesPerDay(fl.p) === 1 ? '' : 's'}. If the doctor changed it, call the pharmacy first.`; fl.asNeeded = true; fl.p.slots = []; return ''; } const ts = /^\d\d:\d\d(,\d\d:\d\d)*$/.test(s) ? s.split(',') : adaTimes(s), n = dosesPerDay(fl.p); if (!ts.length) return 'I didn’t catch a time. Try like “8 am and 8 pm”.'; if (n && ts.length !== n) return `The label says ${n} time${n === 1 ? '' : 's'} a day, but I got ${ts.length}. Tell me all ${n === 1 ? 'of it' : n + ' times'}, like “${adaTimesText(adaSuggestTimes(n))}”.`; fl.asNeeded = false; fl.p.slots = ts; return ''; } },
+    { key: 'warnings', need: fl => !(fl.p.warnings || []).length, ask: fl => fl.warnTried ? 'I couldn’t read any warnings on that photo. Type each one word for word as printed, like “May cause dizziness”, or take a clearer photo.' : 'Does the bottle have warnings, like an “Important information” box or a colored sticker (“May cause dizziness”, “Take with food”)? Take a photo of that side, or type them word for word.', taps: () => [['Take a photo of the warnings', 'photo:med', true]], skip: 'There are no warnings on it',
+      set: (fl, s) => { const w = String(s).split(/\n|;|•|(?<=\.)\s+(?=[A-Z-])|\s+-\s+/).map(x => x.replace(/^[-•\s]+/, '').trim()).filter(x => x.length > 2).slice(0, 12).map(x => x.slice(0, 300)); if (!w.length || adaNoneSaid(s)) return 'Type each warning word for word as printed, or tap There are no warnings on it.'; fl.p.warnings = w; return ''; } },
     { key: 'pharmacy', need: fl => !(fl.p.pharmacy && fl.p.pharmacy.name), ask: () => 'Which pharmacy filled it? The name is at the top of the label.', set: (fl, s) => { adaPharm(fl.p).name = s.slice(0, 100); return ''; } },
     { key: 'pharmacyWhere', need: fl => !fl.p.pharmacy.address, ask: fl => `Where is ${fl.p.pharmacy.name}? The street address, as on the label.`, skip: 'I don’t know it', set: (fl, s) => { adaPharm(fl.p).address = s.slice(0, 200); return ''; } },
     { key: 'pharmacyPhone', need: fl => !fl.p.pharmacy.phone, ask: fl => `What’s ${fl.p.pharmacy.name}’s phone number? It’s needed to call for refills.`, skip: 'I don’t have it', set: (fl, s) => { const ph = adaPhone(s); if (!ph) return 'That doesn’t look like a phone number. Type it like “555-010-0199”.'; adaPharm(fl.p).phone = ph; return ''; } },
@@ -443,6 +445,7 @@ function adaStartMed(f) {
 async function adaMedPhoto(src) {
   const fl = ada.flow; if (!fl || fl.type !== 'med') return;
   if (fl.q === 'bottle') { fl.p.photo = src; fl.done.bottle = true; return adaNext(); }
+  if (fl.q === 'warnings') fl.warnTried = true;
   const shots = [...(fl.p.labelPhotos || []), src].slice(-3);
   ada.busy = true; adaPaint();
   let r = {}; try { r = await Account.api('POST', '/api/label/read', { photos: shots, med: null }); } catch (err) { r = { error: err.message }; }
@@ -457,7 +460,7 @@ const ADA_READY = {
     const fl = ada.flow, p = fl.p, times = pickedTimes(p), ph = p.pharmacy || {}, dr = p.prescriber || {};
     adaSay((lead ? lead + ' ' : '') + 'That’s everything. Check it against the bottle and tap Save.', [adaReady({
       tag: 'Medication', title: p.name, photos: () => p.photo ? [p.photo] : [],
-      rows: () => [['How', howText(p)], ['Times', fl.asNeeded || dosesPerDay(p) === 0 ? 'Only when needed' : adaTimesText(times)], ['Pharmacy', [ph.name, ph.address, ph.phone].filter(Boolean).join(' · ')], ['Doctor', [dr.name, dr.phone].filter(Boolean).join(' · ')], ['Refills left', p.refills != null && p.refills !== '' ? String(p.refills) : ''], ['Quantity', p.quantity ? String(p.quantity) : ''], ['Bottle', p.noBottle ? 'To pick up from the pharmacy' : '']],
+      rows: () => [['How', howText(p)], ['Times', fl.asNeeded || dosesPerDay(p) === 0 ? 'Only when needed' : adaTimesText(times)], ['Pharmacy', [ph.name, ph.address, ph.phone].filter(Boolean).join(' · ')], ['Doctor', [dr.name, dr.phone].filter(Boolean).join(' · ')], ['Refills left', p.refills != null && p.refills !== '' ? String(p.refills) : ''], ['Quantity', p.quantity ? String(p.quantity) : ''], ['Warnings', (p.warnings || []).join(' · ') || (fl.done.warnings ? 'None on the bottle' : '')], ['Bottle', p.noBottle ? 'To pick up from the pharmacy' : '']],
       place: 'purchases',
       save: async () => {
         const { labelReading, labelNote, scanned, fixing, slots, ...i } = p, day = today();
@@ -618,20 +621,43 @@ function adaStartCare(kind, f) {
   adaNext();
 }
 
-/* What someone types while Ada is waiting on an answer. True when it was the answer. */
+/* What someone types while Ada is waiting on an answer. True when it was the answer. A different question or request isn't
+   taken as the answer: Ada answers it, then comes back to the task where it was (adaAsk). */
+const ADA_TASK_NAME = { med: 'the medication', doc: 'the document', task: 'the reminder', appt: 'the appointment', vitals: 'the vital signs', dose: 'the dose', activity: 'what was done', symptom: 'the symptoms', incident: 'the incident report' };
+function adaAside(s, fl) {
+  if (!fl || (fl.step !== 'q' && fl.step !== 'ready')) return false;
+  if (fl.step === 'ready') return true;
+  const asked = /\?\s*$/.test(s) || /^(what|where|which|who|how|why|can|could|would|will|is|are|do|does|did|should|show|find|open|tell me|wait|hold on|before that|also)\b/i.test(s);
+  if (asked && !(fl.q === 'when' && /^when\b/i.test(s)) && !(fl.q === 'note' && !/\?\s*$/.test(s))) return true;
+  const l = adaLocal(s); return !!(l && (l.kind === 'medical' || l.kind === 'find' && ADA_LOOKUP.test(s) || l.kind === 'dose' && fl.type !== 'dose') || l && l.kind === 'open' && adaWords(s).length > 1 && /\b(add|new|show|open|where|find|book|remind|scan)\b/i.test(s));
+}
 function adaFlowText(s) {
   const fl = ada.flow; if (!fl) return false;
   if (/^(cancel|stop|never ?mind|no thanks|forget it|don.?t save)\b/i.test(s)) { adaStop(); return true; }
-  if (fl.step === 'q') return adaAnswer(s);
   if (fl.step === 'ready' && /^(yes|save( it)?|ok|okay|looks good|correct|that.?s right|done)[.! ]*$/i.test(s)) { adaAskNext('Tap Save on the card above and I’ll save it.'); return true; }
+  if (adaAside(s, fl)) return false;
+  if (fl.step === 'q') return adaAnswer(s);
   return false;
 }
-
+/* After answering something else, back to the task that was waiting, at the same question (or its Ready to save card). */
+function adaResume() {
+  const fl = ada.paused; ada.paused = null;
+  if (!fl || ada.flow || !ada.open) return;
+  ada.flow = fl;
+  if (fl.step === 'ready') return adaAskNext(`${ADA_TASK_NAME[fl.type].charAt(0).toUpperCase() + ADA_TASK_NAME[fl.type].slice(1)} is still ready to save on the card above. Tap Save when you’re ready.`);
+  adaNext(`Now, back to ${ADA_TASK_NAME[fl.type]}.`);
+}
 async function adaAsk(text) {
   const s = String(text || '').trim(); if (!s || ada.busy) return;
   ada.log.push({ who: 'me', text: s }); adaPaint();
   if (adaFlowText(s)) return;
-  ada.flow = null; for (const j of Object.values(adaJobs)) if (j.state === 'ready') j.state = 'stale';
+  const aside = !!ada.flow && adaAside(s, ada.flow);
+  if (aside) ada.paused = ada.flow; else for (const j of Object.values(adaJobs)) if (j.state === 'ready') j.state = 'stale';
+  ada.flow = null;
+  await adaReply(s);
+  if (aside) { if (ada.flow) { ada.paused = null; for (const j of Object.values(adaJobs)) if (j.state === 'ready' && j !== adaJobs[adaN]) j.state = 'stale'; } else adaResume(); }
+}
+async function adaReply(s) {
   const local = adaLocal(s);
   if (local) {
     if (local.kind === 'medical') return adaMedical();
