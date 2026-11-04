@@ -90,3 +90,32 @@ body.ada-open .help-fab{display:none}
 .ada-done-where{padding:10px 16px 14px}.ada-done-where .ada-btns{margin-top:8px}
 .help-fab.ada-fab{overflow:hidden;border:2px solid #fff;background:#f3ead9}
 .help-fab.ada-fab svg{width:100%;height:100%;display:block}
+/* Full screen (George 2026-11-04, from the Muse chat he liked, kept in Adltrack's colours): the chat fills the whole screen,
+   a round back button top left, the assistant's face and name pill in the middle, How it works top right, the talk running
+   under a soft frosted top and bottom, the assistant's words in white rounded bubbles, and one full-width message bar with
+   + on the left and the mic on the right. */
+.ada-pop{padding:0;background:var(--cream,#fcf8f1)}
+.ada-card{width:100vw!important;height:100dvh;border-radius:0;box-shadow:none}
+.ada-head{position:absolute;top:0;left:0;right:0;z-index:3;padding:max(14px,env(safe-area-inset-top)) 16px 10px;background:linear-gradient(var(--cream,#fcf8f1) 55%,#fcf8f100);pointer-events:none}
+.ada-head>*{pointer-events:auto}
+.ada-x{position:absolute;left:16px;top:max(22px,calc(env(safe-area-inset-top) + 8px));width:48px;height:48px;border-radius:50%;border:0;padding:0;background:#fff;color:#111;display:grid;place-items:center;box-shadow:0 2px 10px rgba(40,30,10,.12);cursor:pointer}
+.ada-x svg{width:24px;height:24px}
+.ada-how{position:absolute;right:16px;top:max(24px,calc(env(safe-area-inset-top) + 10px));height:44px;border:0;border-radius:99px;padding:0 16px;background:#fff;color:#111;font-size:15px;font-weight:500;box-shadow:0 2px 10px rgba(40,30,10,.12);cursor:pointer}
+.ada-av-big{width:80px;height:80px;border:3px solid #fff}
+.ada-name{font-size:16px;padding:5px 16px}
+.ada-body{padding:calc(max(14px,env(safe-area-inset-top)) + 128px) 16px 104px;gap:12px}
+.ada-ai{font-size:17px;line-height:1.45}
+.ada-ai>p{max-width:none;background:#fff;border-radius:24px;padding:14px 18px;box-shadow:0 1px 2px rgba(40,30,10,.06)}
+.ada-who{display:none}
+.ada-me{max-width:84%;border-radius:24px 24px 6px 24px;padding:12px 18px;font-size:17px;line-height:1.45}
+.ada-me-shot{padding:4px}
+.ada-me-shot img{border-radius:20px 20px 4px 20px}
+.ada-compose{position:absolute;left:0;right:0;bottom:0;z-index:3;border-top:0;padding:18px 16px max(16px,env(safe-area-inset-bottom));background:linear-gradient(#fcf8f100,var(--cream,#fcf8f1) 40%);gap:0}
+.ada-compose::before{content:"";position:absolute;left:16px;right:16px;top:18px;bottom:max(16px,env(safe-area-inset-bottom));border-radius:99px;background:#fff;box-shadow:0 2px 14px rgba(40,30,10,.12);z-index:-1}
+.ada-compose input{height:56px;background:none;box-shadow:none;padding:0 6px;font-size:17px}
+.ada-compose .ada-round{width:44px;height:44px;margin:6px;box-shadow:none;background:none}
+.ada-compose .ada-dark{background:#151412;color:#fff}
+.ada-compose [data-ada-mic]:not(.on){background:none;color:#111}
+.ada-plus svg{width:26px;height:26px}
+.ada-edit,.ada-hi{margin-top:4px}
+@media(min-width:651px){.ada-body,.ada-compose{padding-left:max(16px,calc(50vw - 340px));padding-right:max(16px,calc(50vw - 340px))}.ada-compose::before{left:max(16px,calc(50vw - 340px));right:max(16px,calc(50vw - 340px))}}
