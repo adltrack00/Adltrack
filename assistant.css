@@ -100,7 +100,6 @@ body.ada-open .help-fab{display:none}
 .ada-head>*{pointer-events:auto}
 .ada-x{position:absolute;left:16px;top:max(22px,calc(env(safe-area-inset-top) + 8px));width:48px;height:48px;border-radius:50%;border:0;padding:0;background:#fff;color:#111;display:grid;place-items:center;box-shadow:0 2px 10px rgba(40,30,10,.12);cursor:pointer}
 .ada-x svg{width:24px;height:24px}
-.ada-how{position:absolute;right:16px;top:max(24px,calc(env(safe-area-inset-top) + 10px));height:44px;border:0;border-radius:99px;padding:0 16px;background:#fff;color:#111;font-size:15px;font-weight:500;box-shadow:0 2px 10px rgba(40,30,10,.12);cursor:pointer}
 .ada-av-big{width:80px;height:80px;border:3px solid #fff}
 .ada-name{font-size:16px;padding:5px 16px}
 .ada-body{padding:calc(max(14px,env(safe-area-inset-top)) + 128px) 16px 104px;gap:12px}
