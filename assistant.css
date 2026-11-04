@@ -125,3 +125,17 @@ body.ada-open .help-fab{display:none}
 .ada-compose:focus-within::before{box-shadow:0 0 0 1.5px #15141233,0 2px 14px rgba(40,30,10,.12)}
 .ada-compose .ada-send{width:40px;height:40px;margin:8px}
 .ada-compose .ada-send svg{width:20px;height:20px}
+/* George 2026-11-04: an exact copy of Muse's message bar. One pill with a thin outline and no shadow, on the page's own colour,
+   a thin + at the left, "Message", the mic at the right; once something is typed the mic becomes a blue round arrow. */
+.ada-compose{padding:10px 16px max(10px,env(safe-area-inset-bottom));background:var(--cream,#fcf8f1)}
+.ada-compose::before{top:10px;bottom:max(10px,env(safe-area-inset-bottom));left:16px;right:16px;background:var(--cream,#fcf8f1);border:1px solid #15141229;box-shadow:none}
+.ada-compose:focus-within::before{box-shadow:none}
+.ada-compose input{height:50px;font-size:17px;padding:0 4px}
+.ada-compose input::placeholder{color:#8e8a82}
+.ada-compose .ada-round{width:38px;height:38px;margin:6px}
+.ada-compose .ada-plus{margin-left:10px}.ada-plus svg{width:24px;height:24px;stroke-width:1.5}
+.ada-compose [data-ada-mic]:not(.on){margin-right:10px}.ada-compose [data-ada-mic] svg{width:23px;height:23px;stroke-width:1.5}
+.ada-compose .ada-send{width:38px;height:38px;margin:6px;background:#0a84ff;color:#fff}
+.ada-compose .ada-send svg{width:22px;height:22px;stroke-width:2.2}
+.ada-body{padding-bottom:84px}
+@media(min-width:651px){.ada-compose::before{left:max(16px,calc(50vw - 340px));right:max(16px,calc(50vw - 340px))}}
