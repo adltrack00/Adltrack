@@ -139,3 +139,11 @@ body.ada-open .help-fab{display:none}
 .ada-compose .ada-send svg{width:22px;height:22px;stroke-width:2.2}
 .ada-body{padding-bottom:84px}
 @media(min-width:651px){.ada-compose::before{left:max(16px,calc(50vw - 340px));right:max(16px,calc(50vw - 340px))}}
+/* George 2026-11-04: a floating chat, like Muse. Nothing solid behind the message bar or the top: the talk scrolls right
+   under them and shows through softly, the bar and the round buttons are frosted glass that float over it. */
+.ada-compose{background:none;pointer-events:none}
+.ada-compose>*{pointer-events:auto}
+.ada-compose::before{background:#fcf8f19e;-webkit-backdrop-filter:blur(18px) saturate(1.5);backdrop-filter:blur(18px) saturate(1.5);border-color:#1514121f}
+.ada-head{background:linear-gradient(#fcf8f1cc,#fcf8f100 70%);padding-bottom:28px}
+.ada-x,.ada-name{background:#ffffffa8;-webkit-backdrop-filter:blur(18px) saturate(1.5);backdrop-filter:blur(18px) saturate(1.5)}
+.ada-body{padding-bottom:calc(max(10px,env(safe-area-inset-bottom)) + 92px);scroll-padding-bottom:100px}
