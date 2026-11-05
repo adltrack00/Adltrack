@@ -51,3 +51,8 @@ body.not-home #main>.info-page>.info-top .sub-title,.info-top .sub-title{margin:
   body.ems-printing .ems-sheet{box-shadow:none;margin:0;padding:0}body.ems-printing .ems-page{padding:0;max-width:none}
   body.ems-printing .ems-head{flex-direction:row}body.ems-printing .ems-alerts{grid-template-columns:1fr 1fr}body.ems-printing .ems-row{grid-template-columns:170px 1fr}
   body.ems-printing .ems-row,body.ems-printing .ems-alert{break-inside:avoid}body.ems-printing a{color:#111;text-decoration:none}}
+/* For doctors (the doctor record), under For EMS: the words, the On/Off switch (meds.css), then when it is on, its rows. */
+.info-record-words p{margin:4px 0 0;font-size:14px;color:#666;line-height:1.45}
+.info-record .med-switch{margin:14px 0 4px}
+.info-record dl{margin-top:8px}
+.info-record .info-record-new{display:block;width:auto;margin:14px 0 6px;padding:10px 18px;font-size:13px}

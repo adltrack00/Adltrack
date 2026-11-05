@@ -518,7 +518,7 @@ const ADA_READY = {
         const photos = (await Promise.all(fl.photos.map(saveProof))).filter(Boolean), by = markedBy(), at = new Date().toISOString(), log = [];
         const saved = ADA_VITALS.filter(([, , show]) => show(fl.v));
         saved.forEach(([k], n) => { const val = k === 'bp' ? fl.v.sys + '/' + fl.v.dia : fl.v[k === 'heart' ? 'pulse' : k]; settings.vitals = { ...(settings.vitals || {}), [k]: val, at }; log.push({ [k]: val, at, ...(n === 0 && photos.length ? { photos } : {}), ...(by ? { by } : {}) }); });
-        settings.vitalsLog = [...(settings.vitalsLog || []), ...log].slice(-60);
+        settings.vitalsLog = [...(settings.vitalsLog || []), ...log].slice(-400);
         return { say: `${saved.map(([, name]) => name).join(', ').replace(/, ([^,]*)$/, ' and $1')} saved.`, place: 'vitals' };
       }
     })]);

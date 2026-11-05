@@ -24,6 +24,7 @@ if(typeof module!=='undefined')module.exports={DOC_CATEGORIES,docCategory,docLis
 
 if(typeof document!=='undefined'){
 let docFilter='all',docOpen='',docDraft=null;
+const docForDoctor=id=>Array.isArray(settings.recordDocs)&&settings.recordDocs.includes(id);
 const DOC_VIEWS=['documents','document','document-add'];
 menuIcons.documents='<path d="M3.5 7.5a2 2 0 0 1 2-2h4.2l2 2.3h6.8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>';
 menuItems.splice(menuItems.findIndex(([v])=>v==='purchases')+1,0,['documents','Documents','documents']);
@@ -32,7 +33,7 @@ const isPdf=f=>/pdf/i.test(f.type||'')||/^data:application\/pdf/i.test(f.data||f
 const docThumb=(f,tag='span',attrs='')=>`<${tag} class="doc-thumb"${attrs}${f&&!isPdf(f)?` style="background-image:url('${esc(f.data||f.url)}'),var(--doc-icon)"`:''}></${tag}>`;
 const docDate=d=>/^\d{4}-\d{2}-\d{2}$/.test(d||'')?new Date(d+'T12:00').toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'}):'';
 const pagesText=n=>n===1?'1 page':n+' pages';
-const docRow=d=>`<li><button data-doc-open="${esc(d.id)}">${docThumb(d.files[0])}<span><strong>${esc(d.name)}</strong><small>${esc([docDate(d.date),d.files.length?pagesText(d.files.length):''].filter(Boolean).join(' · '))}</small></span>${menuIcon(menuIcons.chevron)}</button></li>`;
+const docRow=d=>`<li><button data-doc-open="${esc(d.id)}">${docThumb(d.files[0])}<span><strong>${esc(d.name)}</strong><small>${esc([docDate(d.date),d.files.length?pagesText(d.files.length):'',docForDoctor(d.id)?'Visible to doctor':''].filter(Boolean).join(' · '))}</small></span>${menuIcon(menuIcons.chevron)}</button></li>`;
 
 function documentsPage(){const docs=docList(items),groups=docGroups(docs),shown=docFilter==='all'?groups:groups.filter(g=>g.key===docFilter),edit=mayDo('meds');
 const chips=groups.length>1?`<div class="doc-chips" role="group" aria-label="Show">${[['all','All',docs.length],...groups.map(g=>[g.key,g.name,g.docs.length])].map(([k,l,n])=>`<button data-doc-filter="${k}" class="${docFilter===k?'active':''}" aria-pressed="${docFilter===k}">${esc(l)} <span>${n}</span></button>`).join('')}</div>`:'';
@@ -43,9 +44,14 @@ ${edit?'':'<p class="sub-note">Only admins and people who can scan papers can ad
 function documentPage(){const d=docList(items).find(x=>x.id===docOpen);if(!d)return documentsPage();const edit=mayDo('meds')&&!d.scanned;
 const pages=d.files.map((f,n)=>`<figure>${docThumb(f,'a',` href="${esc(f.url)}" target="_blank" rel="noopener" aria-label="Open page ${n+1} of ${esc(d.name)}"`)}<figcaption>${isPdf(f)?'PDF':'Page '+(n+1)} ↗</figcaption></figure>`).join('');
 return `<section class="sub-page doc-page">${subHeader(esc(d.name),'documents')}<section class="info-card"><dl><div class="info-row"><dt>Category</dt><dd>${esc(docCategoryName(d.category))}</dd></div>${d.date?`<div class="info-row"><dt>${d.scanned?'Discharged':'Date'}</dt><dd>${esc(docDate(d.date))}</dd></div>`:''}${d.meds?`<div class="info-row"><dt>Medications read from it</dt><dd>${esc(d.meds.join(', '))}</dd></div>`:''}${d.note?`<div class="info-row"><dt>Note</dt><dd>${esc(d.note)}</dd></div>`:''}</dl></section>
-<div class="doc-pages">${pages||'<p class="info-none">No pages saved with this document.</p>'}</div>
+${docDoctorRow(d)}<div class="doc-pages">${pages||'<p class="info-none">No pages saved with this document.</p>'}</div>
 ${edit?`<section class="info-card"><form id="doc-move-form" class="guided-form"><label>Move to<select name="category">${DOC_CATEGORIES.map(([k,l])=>`<option value="${k}"${k===d.category?' selected':''}>${esc(l)}</option>`).join('')}</select></label></form></section><button class="danger-button" data-doc-remove="${esc(d.id)}">Remove this document</button>`:d.scanned?'<p class="sub-note">Scanned with the medications. Their pages stay with them.</p>':''}</section>`}
 
+/* Visible to doctor: the documents a doctor sees when they scan the EMS code and the doctor record is on (server/record.js).
+   Kept in the plan's settings by document id (scanned discharge papers too), so changing it needs the medications tick. Off
+   until the family turns it on. */
+function docDoctorRow(d){const on=docForDoctor(d.id);if(!mayDo('meds'))return `<p class="sub-note">${on?'Visible to doctor when they scan the EMS code.':'Not visible to doctors.'}</p>`;
+return `<section class="info-card"><button type="button" class="med-switch" role="switch" aria-checked="${on}" data-doc-doctor="${esc(d.id)}"><span class="med-switch-words"><strong>${on?'Visible to doctor':'Not visible to doctor'}</strong><span class="med-sub">${on?'A doctor who scans the EMS code can open it.':'Turn on so a doctor who scans the EMS code can open it.'}</span></span><span class="med-switch-knob" aria-hidden="true"></span></button></section>`}
 const blankDocDraft=()=>({name:'',category:docFilter!=='all'?docFilter:'',date:'',note:'',files:[],busy:false});
 function documentAddPage(){const d=docDraft;
 return `<section class="sub-page take-page plus-page">${subHeader('Add a document','documents')}<form id="doc-add-form" class="plus-form" novalidate>
@@ -68,7 +74,8 @@ document.addEventListener('change',async e=>{
   if(e.target.id==='doc-file'&&docDraft){const all=[...e.target.files],files=all.slice(0,DOC_PAGES-docDraft.files.length);try{for(const file of files){if(file.size>10000000)throw Error('Choose a file smaller than 10 MB.');if(!/^image\/|^application\/pdf$/.test(file.type))throw Error('Use a photo or a PDF.');docDraft.files.push({data:await readingCopy(file),type:/^image\//.test(file.type)?'image/jpeg':file.type})}if(all.length>files.length)toast(`Up to ${DOC_PAGES} pages.`)}catch(err){toast(err.message)}render();return}
   if(e.target.closest('#doc-add-form')&&docDraft){readDocForm(e.target.closest('#doc-add-form'));return}
   const f=e.target.closest('#doc-move-form');if(f&&mayDo('meds')){const i=find(docOpen);if(!i||!i.doc)return;i.category=docCategory(f.elements.category.value);save();render();toast(`Moved to ${docCategoryName(i.category)}.`)}});
-document.addEventListener('click',e=>{const b=e.target.closest('[data-doc-open],[data-doc-filter],[data-doc-unpage],[data-doc-remove]');if(!b)return;
+document.addEventListener('click',e=>{const b=e.target.closest('[data-doc-open],[data-doc-filter],[data-doc-unpage],[data-doc-remove],[data-doc-doctor]');if(!b)return;
+  if(b.dataset.docDoctor&&mayDo('meds')){const id=b.dataset.docDoctor,on=!docForDoctor(id),list=(Array.isArray(settings.recordDocs)?settings.recordDocs:[]).filter(x=>x!==id);settings.recordDocs=on?[...list,id]:list;save();render();toast(on?'Visible to doctor when they scan the EMS code.':'No longer visible to doctors.');return}
   if(b.dataset.docOpen){docOpen=b.dataset.docOpen;go('document');return}
   if(b.dataset.docFilter){docFilter=b.dataset.docFilter;render();return}
   if(b.dataset.docUnpage&&docDraft){docDraft.files.splice(Number(b.dataset.docUnpage),1);render();return}

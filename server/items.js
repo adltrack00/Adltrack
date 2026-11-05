@@ -106,7 +106,7 @@ function mergeVitals(saved, incoming, seen) {
   const known = new Set(seen), mine = Array.isArray(incoming.vitalsLog) ? incoming.vitalsLog : [], have = new Set(mine.map(v => v && v.at));
   const extra = saved.vitalsLog.filter(v => v && v.at && !have.has(v.at) && !known.has(v.at));
   if (!extra.length) return incoming;
-  const log = [...mine, ...extra].sort((a, b) => String(a.at).localeCompare(String(b.at))).slice(-60);
+  const log = [...mine, ...extra].sort((a, b) => String(a.at).localeCompare(String(b.at))).slice(-400);
   // Each vital sign is saved on its own, so the latest readings are each one's last entry.
   const vitals = log.reduce((v, e) => ({ ...v, ...Object.fromEntries(['bp', 'heart', 'temp', 'pain'].filter(k => e[k]).map(k => [k, e[k]])), at: e.at }), {});
   return { ...incoming, vitalsLog: log, vitals };

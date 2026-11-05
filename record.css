@@ -1,0 +1,31 @@
+/* record.html: the home care record a doctor opens by scanning the For EMS code, in the EMS sheet's design (info.css). */
+.record-view .ems-sheet+.ems-sheet{margin-top:0}
+.record-view .ems-sheet h3{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#777;margin:0 0 6px}
+.record-view .ems-sheet .ems-row:last-child{border-bottom:0}
+.record-photo{flex:none;width:84px;height:84px;border-radius:50%;object-fit:cover;background:#efeeec}
+.record-meds li,.record-notes li{padding:10px 0;border-bottom:1px solid #eee;font-size:14px;line-height:1.45}
+.record-meds,.record-notes{list-style:none;margin:0;padding:0}.record-meds li:last-child,.record-notes li:last-child{border-bottom:0}
+.record-meds strong,.record-notes strong{display:block;font-size:15px}
+.record-meds small,.record-notes small{display:block;color:#666;font-size:13px}
+.record-vitals{width:100%;border-collapse:collapse;font-size:14px}
+.record-vitals th{text-align:left;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#777;padding:6px 8px 6px 0;border-bottom:2px solid #111}
+.record-vitals td{padding:8px 8px 8px 0;border-bottom:1px solid #eee;white-space:nowrap}
+.record-vitals td:first-child{white-space:normal;color:#555}
+.record-scroll{overflow-x:auto;margin:0 -4px;padding:0 4px}
+.record-none{color:#777;font-size:14px;margin:4px 0}
+.record-docs{list-style:none;margin:0;padding:0}
+.record-docs li{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #eee}
+.record-docs li:last-child{border-bottom:0}
+.record-docs strong{display:block;font-size:15px}.record-docs small{color:#666;font-size:13px}
+.record-docs .record-pages{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.record-docs button,.record-pin button{border:0;border-radius:999px;background:#111;color:#fff;font:inherit;font-size:13px;font-weight:600;padding:8px 14px;cursor:pointer}
+.record-pin{display:grid;gap:12px;max-width:320px}.record-pin input,.record-pin button{box-sizing:border-box;width:100%}.record-pin-title{font-size:24px;margin:6px 0 4px}
+.record-pin input{font:inherit;font-size:22px;letter-spacing:.3em;text-align:center;padding:12px;border-radius:14px;border:1px solid #ddd;background:#fff}
+.record-pin button{font-size:15px;padding:13px}
+.record-error{color:#b3261e;font-size:14px;margin:0}
+.record-page-dialog{border:0;padding:0;width:min(96vw,900px);max-height:94vh;border-radius:16px;background:#fff}
+.record-page-dialog::backdrop{background:rgba(0,0,0,.7)}
+.record-page-dialog img{display:block;width:100%;height:auto}
+.record-page-dialog iframe{display:block;width:100%;height:85vh;border:0}
+.record-x{position:sticky;top:8px;float:right;margin:8px;width:36px;height:36px;border-radius:50%;border:0;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.25);font-size:22px;line-height:1;cursor:pointer;z-index:1}
+@media(max-width:650px){.record-photo{width:64px;height:64px}.record-docs li{flex-direction:column;align-items:flex-start}.record-docs .record-pages{justify-content:flex-start}}
