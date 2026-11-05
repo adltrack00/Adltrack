@@ -4,6 +4,10 @@
 const galleryBeforeHome=gallery;
 const hmNow=(now=new Date())=>String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
 const dayOf=d=>d.day||String(d.at||'').slice(0,10);
+/* Who added something and who did it, as one small line: "Added by Maria · Done by James". A task, an incident, symptoms
+   or something done now keep their adder in by; a medication in addedBy. */
+const addedOf=i=>i.task||i.incident||i.symptom||i.activity?i.by||'':i.addedBy||'';
+const whoLine=(added,done,word='Done')=>[added&&'Added by '+added,done&&word+' by '+done].filter(Boolean).join(' · ');
 const activeMed=i=>i.med&&i.status==='deciding';
 const markOf=(i,day,key)=>(i.marks||[]).find(m=>m.day===day&&m.key===key);
 const refillWho=(i,day=today())=>C.refillFrom(i,day)==='pharmacy'?(i.pharmacy&&i.pharmacy.name||'the pharmacy'):(i.prescriber&&i.prescriber.name||'the doctor');
@@ -47,8 +51,11 @@ function whenToCallHTML(){const groups=whenToCall();return `<h2 class="call-head
 function todayThumb(x){if(x.item.appt)return apptPhoto(x.item);if(x.key==='task'||x.key==='incident')return taskPhoto(x.item,x.key==='task'?markOf(x.item,today(),'task'):null);return x.slot||x.key==='pickup'||x.key.startsWith('refill:')?medPhoto(x.item):`<div class="product-photo today-icon">${icon('clock')}</div>`}
 /* No Start button: a blue arrow at the end, like a list of rows. A marked dose says so on its second line. */
 const TODAY_ARROW='<svg class="today-arrow" viewBox="0 0 10 18" aria-hidden="true"><path d="m1.5 1.5 7 7.5-7 7.5"/></svg>';
-function todayRow(x){const mark=x.state==='done'?'✓ Done':x.state==='skipped'?'Skipped':'',line=[x.slot?x.item.dose:'',x.time?clockText(x.time):'',mark].filter(Boolean).join(' · ');
-return `<li class="today-row${x.state?' is-'+x.state:''}"><button class="today-card" data-today-start="${esc(x.item.id+'|'+x.key)}"><span class="today-thumb">${todayThumb(x)}</span><span class="today-what"><strong>${esc(x.title)}</strong>${line?`<small>${esc(line)}</small>`:''}</span>${TODAY_ARROW}</button></li>`}
+/* Under it, one small line: who added it and, once marked, who did it ("Added by Maria · Done by James"). */
+function todayWho(x){const marked=x.state&&(x.slot||x.key==='task'||x.key.startsWith('refill:'))&&typeof takeDose==='function'?takeDose(x):null;
+return whoLine(x.slot||x.key==='task'||x.key==='incident'?addedOf(x.item):'',marked&&marked.by,x.state==='skipped'?'Skipped':'Done')}
+function todayRow(x){const mark=x.state==='done'?'✓ Done':x.state==='skipped'?'Skipped':'',line=[x.slot?x.item.dose:'',x.time?clockText(x.time):'',mark].filter(Boolean).join(' · '),who=todayWho(x);
+return `<li class="today-row${x.state?' is-'+x.state:''}"><button class="today-card" data-today-start="${esc(x.item.id+'|'+x.key)}"><span class="today-thumb">${todayThumb(x)}</span><span class="today-what"><strong>${esc(x.title)}</strong>${line?`<small>${esc(line)}</small>`:''}${who?`<small class="today-who">${esc(who)}</small>`:''}</span>${TODAY_ARROW}</button></li>`}
 /* My Tasks: doses, visits, tasks, incidents, and a refill from the day it's time to call (7 days before it runs out), each day
    until it's done: call, then pick it up. */
 const homeTasks=(day=today())=>todayTasks(items,day).filter(x=>x.slot||['appt','task','incident'].includes(x.key)||x.key.startsWith('refill:'));

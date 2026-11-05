@@ -464,7 +464,7 @@ const ADA_READY = {
       place: 'purchases',
       save: async () => {
         const { labelReading, labelNote, scanned, fixing, slots, ...i } = p, day = today();
-        const med = { ...i, med: true, id: crypto.randomUUID(), purchaseId: crypto.randomUUID(), name: p.name.trim(), times, asNeeded: !!fl.asNeeded || dosesPerDay(p) === 0, pickup: !!p.noBottle, price: 0, retailer: '', purchased: day, delivered: '', channel: 'store', basis: 'purchase', window: 30, outcome: 'unknown', requirement: 'unknown', confirmed: !!p.photo, url: '', next: 'Take it as written on the bottle label.', status: 'deciding', intent: 'return', doses: [], policySource: p.label ? 'From the bottle label' : 'Entered by you' };
+        const med = { ...i, ...(markedBy() ? { addedBy: markedBy() } : {}), med: true, id: crypto.randomUUID(), purchaseId: crypto.randomUUID(), name: p.name.trim(), times, asNeeded: !!fl.asNeeded || dosesPerDay(p) === 0, pickup: !!p.noBottle, price: 0, retailer: '', purchased: day, delivered: '', channel: 'store', basis: 'purchase', window: 30, outcome: 'unknown', requirement: 'unknown', confirmed: !!p.photo, url: '', next: 'Take it as written on the bottle label.', status: 'deciding', intent: 'return', doses: [], policySource: p.label ? 'From the bottle label' : 'Entered by you' };
         items.push(med); settings.daily = true;
         return { say: `${med.name} is saved.${times.length ? ` It’s in My Tasks at ${adaTimesText(times)}.` : ''}`, place: 'purchases' };
       }
