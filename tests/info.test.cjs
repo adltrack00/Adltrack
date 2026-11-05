@@ -60,3 +60,18 @@ test('everyone on the care team sees the patient information; a family viewer ca
     assert.deepEqual((await ann('GET', '/api/data')).body.data.profile.info.allergies, []);
   } finally { await new Promise(r => server.close(r)); }
 });
+
+test('the EMS code is a link to ems.html with the sheet packed after #, so a phone camera opens the whole sheet', async () => {
+  const { emsPack, emsUnpack, emsLink } = require('../ems-code.js');
+  const text = emsText(ROSE, [], { day: '2026-10-23' });
+  const link = await emsLink('https://adltrack.example/ems.html', text);
+  assert.match(link, /^https:\/\/adltrack\.example\/ems\.html#z\.[A-Za-z0-9_-]+$/);
+  assert.equal(await emsUnpack(new URL(link).hash), text);
+  assert.equal(await emsUnpack('#t.' + Buffer.from('Name: Rose').toString('base64url')), 'Name: Rose');
+  assert.equal(await emsUnpack('#nonsense'), '');
+  // A very long sheet is cut so the code stays small enough to scan.
+  const long = await emsLink('https://adltrack.example/ems.html', text + '\n' + Array.from({ length: 400 }, (_, i) => `Note ${i}: ${Math.random().toString(36)}`).join('\n'));
+  assert.ok(long.length <= 2300);
+  assert.match(await emsUnpack(new URL(long).hash), /\(More on the printed sheet\)$/);
+  assert.ok((await emsPack(text)).length < Buffer.from(text).toString('base64').length);
+});

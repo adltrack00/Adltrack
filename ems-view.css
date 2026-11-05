@@ -1,0 +1,8 @@
+/* ems.html: the For EMS sheet opened from its code, on any phone, in the app's own sheet design (info.css). */
+body.ems-view{margin:0;background:#f7f6f4;color:#111;font-family:var(--font-sf,-apple-system,BlinkMacSystemFont,'Inter',sans-serif)}
+.ems-view .ems-page{max-width:640px;margin:0 auto;padding:20px 16px 48px}
+.ems-view .ems-sheet{margin:0 0 14px}
+.ems-view-brand{display:block;font-weight:700;font-size:17px;margin:4px 4px 14px}
+.ems-view-note{font-size:14px;color:#666;line-height:1.5;margin:6px 4px}
+.ems-view .ems-row dd a{color:#0a63c9}
+@media(max-width:650px){.ems-view .ems-sheet{margin:0 0 14px}}
