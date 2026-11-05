@@ -36,7 +36,7 @@ body.not-home #main>.info-page>.info-top .sub-title,.info-top .sub-title{margin:
 .ems-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding-bottom:16px;border-bottom:2px solid #111}
 .ems-eyebrow{display:block;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#777}
 .ems-head h2{font-size:26px;margin:6px 0 4px}.ems-head p{margin:0;font-size:14px;color:#444}
-.ems-code{flex:none;width:210px;text-align:center}.ems-code svg{width:210px;height:210px;display:block}.ems-code small{display:block;font-size:11px;color:#777;margin-top:4px}
+.ems-code{flex:none;width:250px;text-align:center}.ems-code-wait{width:250px;aspect-ratio:1;border-radius:8px;background:#f3f2f0}.ems-code svg{width:250px;height:250px;display:block;shape-rendering:crispEdges}.ems-code small{display:block;font-size:11px;color:#777;margin-top:4px}
 .ems-alerts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0 6px}
 .ems-alert{border:2px solid #111;border-radius:12px;padding:12px 14px}
 .ems-alert span{display:block;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#777;margin-bottom:4px}
@@ -46,8 +46,13 @@ body.not-home #main>.info-page>.info-top .sub-title,.info-top .sub-title{margin:
 .ems-row dt{color:#777}.ems-row dd{margin:0;color:#111;overflow-wrap:anywhere}
 .ems-foot{margin:14px 0 0;font-size:12px;color:#777}
 .ems-page #ems-print{margin-top:0;width:100%}
-@media(max-width:650px){.ems-sheet{margin:0 -8px 14px;padding:18px}.ems-head{flex-direction:column-reverse;align-items:stretch}.ems-code{align-self:center;width:100%;max-width:300px}.ems-code svg{width:100%;height:auto}.ems-alerts{grid-template-columns:1fr}.ems-row{grid-template-columns:1fr;gap:2px}}
+@media(max-width:650px){.ems-sheet{margin:0 -8px 14px;padding:18px}.ems-head{flex-direction:column-reverse;align-items:stretch}.ems-code{align-self:center;width:100%;max-width:300px}.ems-code svg,.ems-code-wait{width:100%;height:auto}.ems-alerts{grid-template-columns:1fr}.ems-row{grid-template-columns:1fr;gap:2px}}
 @media print{body.ems-printing .global-header,body.ems-printing #ems-print,body.ems-printing .sub-top,body.ems-printing .sub-title,body.ems-printing #toast,body.ems-printing .app-footer{display:none!important}
   body.ems-printing .ems-sheet{box-shadow:none;margin:0;padding:0}body.ems-printing .ems-page{padding:0;max-width:none}
   body.ems-printing .ems-head{flex-direction:row}body.ems-printing .ems-alerts{grid-template-columns:1fr 1fr}body.ems-printing .ems-row{grid-template-columns:170px 1fr}
   body.ems-printing .ems-row,body.ems-printing .ems-alert{break-inside:avoid}body.ems-printing a{color:#111;text-decoration:none}}
+/* For doctors (the doctor record), under For EMS: the words, the On/Off switch (meds.css), then when it is on, its rows. */
+.info-record-words p{margin:4px 0 0;font-size:14px;color:#666;line-height:1.45}
+.info-record .med-switch{margin:14px 0 4px}
+.info-record dl{margin-top:8px}
+.info-record .info-record-new{display:block;width:auto;margin:14px 0 6px;padding:10px 18px;font-size:13px}

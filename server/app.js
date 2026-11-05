@@ -10,6 +10,7 @@ const { cleanSubscription, validTimeZone, quiet, notification } = require('./rem
 const { mergeMarks, mergeVitals } = require('./items');
 const { ACTIONS, KINDS } = require('./email');
 const { createTeam } = require('./team');
+const { createRecord } = require('./record');
 const { createPermissions } = require('./permissions');
 const { createBilling } = require('./billing');
 const { printedWindow } = require('./receipts');
@@ -141,6 +142,9 @@ function createApp({ store, data, production = false, policies = null, classifie
   billing = billing || createBilling({ store });
   team = team || createTeam({ store, email, sms, billing });
   const authLimit = limiter(20, 15 * 60 * 1000);
+  const record = createRecord({ store, data, hashPassword, verifyPassword });
+  // Scans of the doctor record: per address, and wrong PINs per link, so a PIN can't be guessed.
+  const recordLimit = limiter(120, 15 * 60 * 1000), pinLimit = limiter(10, 15 * 60 * 1000);
   // Each classification is an AI call, so it's limited per account.
   const classifyLimit = limiter(300, 60 * 60 * 1000);
   // Each receipt read is a larger AI call (images), so it has its own, lower limit.
@@ -433,6 +437,19 @@ function createApp({ store, data, production = false, policies = null, classifie
       if (token !== null) { res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end(token.slice(0, 1000)); }
       if (inbox) await inbox.outlookNotify(await readBody(req, 1024 * 1024));
       return send(res, 202, { ok: true });
+    }
+
+    // The doctor record (server/record.js), opened by scanning the For EMS code: no sign-in, just the link's token (sent in the
+    // body, as the page reads it after the #, so it never shows in a server log) and the PIN when the family set one.
+    if ((route === '/api/record/open' || route === '/api/record/file') && method === 'POST') {
+      checkWrite(req);
+      if (!recordLimit('ip:' + clientIp(req))) throw new HttpError(429, 'Too many tries. Wait a few minutes and scan again.');
+      const body = await readBody(req, 2_000), token = typeof body.token === 'string' ? body.token.slice(0, 100) : '';
+      if (body.pin && !pinLimit('pin:' + token)) throw new HttpError(429, 'Too many PIN tries. Wait 15 minutes and try again.');
+      if (route === '/api/record/open') return send(res, 200, await record.open(token, body.pin));
+      const f = await record.file(token, body.pin, { doc: body.doc, page: body.page, photo: body.photo === true });
+      res.writeHead(200, { 'Content-Type': f.contentType, 'Content-Length': f.body.length, 'Cache-Control': 'no-store', 'Content-Disposition': 'inline', 'Content-Security-Policy': FILE_CSP });
+      return res.end(f.body);
     }
 
     const user = await currentUser(req);
@@ -760,6 +777,11 @@ function createApp({ store, data, production = false, policies = null, classifie
       const off = await store.emailOptouts(user.id);
       return send(res, 200, { available: !!(email && email.available()), ...Object.fromEntries(KINDS.map(k => [k, !off.includes(k)])) });
     }
+    // The doctor record's link for this family: everyone on the care team sees it (it is the code on the EMS sheet); only an
+    // admin turns it on, makes a new code (the old one stops working) or turns it off.
+    if (route === '/api/record' && method === 'GET') return send(res, 200, await record.status(owner, baseUrl(req)));
+    if (route === '/api/record' && method === 'PUT') { checkWrite(req); may.need('admin'); return send(res, 200, await record.turnOn(owner, await readBody(req, 1_000), baseUrl(req))); }
+    if (route === '/api/record' && method === 'DELETE') { checkWrite(req); may.need('admin'); return send(res, 200, await record.turnOff(owner)); }
     if (route === '/api/data' && method === 'GET') return send(res, 200, { data: await data.getData(owner), space: spaceOf(owner) });
     // The whole account in one document, kept for older versions of the app.
     if (route === '/api/data' && method === 'PUT') {
@@ -902,7 +924,7 @@ function createApp({ store, data, production = false, policies = null, classifie
       const status = err.status || 500;
       if (status === 500) console.error(err);
       if (res.headersSent) return res.end();
-      if (url.pathname.startsWith('/api/')) return send(res, status, { error: status === 500 ? 'Something went wrong. Please try again.' : err.message });
+      if (url.pathname.startsWith('/api/')) return send(res, status, { error: status === 500 ? 'Something went wrong. Please try again.' : err.message, ...(err.needPin ? { needPin: true } : {}) });
       res.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end(status === 404 ? 'Not found' : 'Error');
     }

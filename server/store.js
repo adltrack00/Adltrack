@@ -295,6 +295,15 @@ create table if not exists oauth_identities (
   created_at timestamptz not null default now(),
   primary key (provider, subject)
 );
+-- The doctor record (server/record.js): one private link per family, opened by scanning the For EMS code. A new token
+-- replaces the old one, so printed codes stop working; pin_hash is a scrypt hash of the optional PIN; views = when it was opened.
+create table if not exists record_links (
+  owner_id uuid primary key references users(id) on delete cascade,
+  token text not null unique,
+  pin_hash text,
+  views jsonb not null default '[]',
+  created_at timestamptz not null default now()
+);
 -- Care teams: the people who share one account's care plan (its items, settings and photos). owner_id is the account whose
 -- plan it is; the owner has a row too once anyone is added. user_id is set when the person joins from their invite link. Only a SHA-256 of each invite token is kept.
 create table if not exists team_members (
@@ -665,6 +674,12 @@ function pgStore(connectionString) {
       try { return await one(`update team_members set user_id=$2, joined_at=now(), invite_hash=null where id=$1 and user_id is null returning ${MEMBER_COLUMNS}`, [id, userId]); }
       catch (err) { if (err.code === '23505') throw Object.assign(new Error('exists'), { code: 'EXISTS' }); throw err; }
     },
+    getRecordLink: ownerId => one('select owner_id as "ownerId", token, pin_hash as "pinHash", views, created_at as "createdAt" from record_links where owner_id=$1', [ownerId]),
+    findRecordLink: token => one('select owner_id as "ownerId", token, pin_hash as "pinHash", views, created_at as "createdAt" from record_links where token=$1', [token]),
+    async setRecordLink(ownerId, l) {
+      if (!l) { await pool.query('delete from record_links where owner_id=$1', [ownerId]); return; }
+      await pool.query('insert into record_links (owner_id, token, pin_hash, views, created_at) values ($1,$2,$3,$4,$5) on conflict (owner_id) do update set token=excluded.token, pin_hash=excluded.pin_hash, views=excluded.views, created_at=excluded.created_at', [ownerId, l.token, l.pinHash, JSON.stringify(l.views || []), l.createdAt]);
+    },
     async close() { await pool.end(); }
   };
 }
@@ -675,7 +690,7 @@ function fileStore(file) {
     if (db) return db;
     try { db = JSON.parse(await fs.readFile(file, 'utf8')); } catch { db = {}; }
     // Files written before the data foundation only have users, sessions and data.
-    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, places: {}, lookups: {}, reports: {}, approved: [], snapshots: {}, flags: {}, notices: {}, push: {}, reminderDays: {}, doseReminders: {}, optouts: {}, alertPrefs: {}, resets: {}, inboxAddresses: {}, inboxConnections: {}, inboxMessages: {}, emailOrders: {}, oauthStates: {}, identities: {}, members: {}, plans: {}, ...db };
+    db = { users: {}, sessions: {}, data: {}, purchases: {}, items: {}, files: {}, jobs: {}, jobSeq: 0, policies: {}, places: {}, lookups: {}, reports: {}, approved: [], snapshots: {}, flags: {}, notices: {}, push: {}, reminderDays: {}, doseReminders: {}, optouts: {}, alertPrefs: {}, resets: {}, inboxAddresses: {}, inboxConnections: {}, inboxMessages: {}, emailOrders: {}, oauthStates: {}, identities: {}, members: {}, plans: {}, recordLinks: {}, ...db };
     return db;
   };
   // Serialise writes so concurrent requests can't interleave partial files.
@@ -724,7 +739,7 @@ function fileStore(file) {
       for (const [k, r] of Object.entries(db.reports)) if (r.userId === userId) delete db.reports[k];
       for (const [k, n] of Object.entries(db.notices)) if (n.userId === userId) delete db.notices[k];
       for (const l of Object.values(db.lookups)) l.users = l.users.filter(u => u !== userId);
-      delete db.inboxAddresses[userId]; delete db.inboxMessages[userId]; delete db.emailOrders[userId];
+      delete db.recordLinks[userId]; delete db.inboxAddresses[userId]; delete db.inboxMessages[userId]; delete db.emailOrders[userId];
       for (const [k, c] of Object.entries(db.inboxConnections)) if (c.userId === userId) delete db.inboxConnections[k];
       for (const [k, st] of Object.entries(db.oauthStates)) if (st.userId === userId) delete db.oauthStates[k];
       for (const [k, i] of Object.entries(db.identities)) if (i.userId === userId) delete db.identities[k];
@@ -1089,6 +1104,9 @@ function fileStore(file) {
       Object.assign(m, { userId, joinedAt: now(), inviteHash: null }); await persist();
       return memberOut(m);
     },
+    async getRecordLink(ownerId) { await load(); const l = db.recordLinks[ownerId]; return l ? copy({ ownerId, ...l }) : null; },
+    async findRecordLink(token) { await load(); const e = Object.entries(db.recordLinks).find(([, l]) => l.token === token); return e ? copy({ ownerId: e[0], ...e[1] }) : null; },
+    async setRecordLink(ownerId, l) { await load(); if (l) db.recordLinks[ownerId] = { token: l.token, pinHash: l.pinHash || null, views: copy(l.views || []), createdAt: l.createdAt }; else delete db.recordLinks[ownerId]; await persist(); },
     async close() { await queue; }
   };
 }
