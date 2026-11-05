@@ -15,7 +15,7 @@ log:[{at:at('10:30'),kind:'refill-called',by:'Ana'},{at:y('09:00'),kind:'refill-
 const plain=x=>JSON.parse(JSON.stringify(x));
 test('today: every thing done, in time order, each with a subhead, its time, the note from the task and the details',()=>{const e=plain(report(meds()).reportEntries(undefined,'2026-10-14',[{bp:'120/76',heart:'72',at:at('09:00')},{bp:'130/80',at:y('09:00')}]));
   assert.deepEqual(e.map(x=>x.title),['Lisinopril 10 mg (8am dose)','Metoprolol 25 mg (8am dose) skipped','Blood pressure: 120/76 mmHg','Heart rate: 72 bpm','Lisinopril 10 mg: called for a refill','Follow-up visit with Dr. Patel: went','Amoxicillin 500 mg finished']);
-  assert.deepEqual(e[0],{title:'Lisinopril 10 mg (8am dose)',at:at('08:05'),note:'Took it with breakfast.',details:['1 tablet'],name:'Lisinopril 10 mg',photos:['/api/files/x','/api/files/y'],by:'Ana'});
+  assert.deepEqual(e[0],{title:'Lisinopril 10 mg (8am dose)',at:at('08:05'),note:'Took it with breakfast.',details:['1 tablet'],name:'Lisinopril 10 mg',photos:['/api/files/x','/api/files/y'],by:'Ana',who:'Done by Ana'});
   assert.equal(e[1].note,'Felt dizzy.');assert.equal(e[2].at,at('09:00'));assert.deepEqual(e[2].details,[]);assert.deepEqual(e[4].details,['CVS']);assert.deepEqual(e[6].details,['No more reminders for it']);assert.deepEqual(e[5].details,['Heart Clinic'])});
 test('the previous day shows only what was done that day',()=>{const e=plain(report(meds()).reportEntries(undefined,'2026-10-13',[{bp:'130/80',at:y('09:00')}]));
   assert.deepEqual(e.map(x=>x.title),['Lisinopril 10 mg (8am dose)','Blood pressure: 130/80 mmHg','Lisinopril 10 mg: needs a refill'])});
@@ -45,3 +45,6 @@ assert.ok(e.slice(1).every(x=>x.missed&&!x.by));assert.equal(e[3].untimed,true);
 assert.deepEqual(plain(r.pastDayPeople('2026-10-13')).map(p=>p.name),['Ana'],'missed entries add no one to the people list');
 assert.equal(r.reportEntries(undefined,'2026-10-14',[]).filter(x=>x.missed).length,0,'today is not over yet');
 assert.equal(r.reportEntries(undefined,'2026-10-11',[]).filter(x=>/refill/.test(x.title)).length,0,'no refill missed before it was due')});
+test('each entry says who added it and who did it in one small line under its title',()=>{const r=report([{id:'m',med:true,status:'deciding',name:'Lisinopril 10 mg',dose:'1 tablet',times:['08:00','20:00'],purchased:'2026-10-10',addedBy:'George',doses:[{at:at('08:05'),day:'2026-10-14',slot:'08:00',kind:'taken',by:'Maria'},{at:at('20:10'),day:'2026-10-14',slot:'20:00',kind:'skipped',by:'James'}]}]);
+  const e=plain(r.reportEntries(undefined,'2026-10-14',[{bp:'120/76',at:at('09:00'),by:'Maria'}]));
+  assert.deepEqual(e.map(x=>x.who),['Added by George · Done by Maria','Done by Maria','Added by George · Skipped by James'])});

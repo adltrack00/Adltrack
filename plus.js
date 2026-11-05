@@ -40,21 +40,21 @@ const taskPhoto=(i,mark)=>{const src=(mark&&mark.photos||[])[0]||(i.photos||[])[
 
 /* The Take page for a task: its photo, what to do with its note and photos, then the same photo, note and Done, Skipped, Need help. */
 function taskTakePage(x,d,full){const i=x.item;
-const top=`<div class="take-hero">${taskPhoto(i)}<h1>${esc(i.name)}</h1><p>${esc('Today'+(x.time?' at '+clockText(x.time):''))}</p></div>`;
+const top=`<div class="take-hero">${taskPhoto(i)}<h1>${esc(i.name)}</h1><p>${esc(['Today'+(x.time?' at '+clockText(x.time):''),whoLine(i.by,'')].filter(Boolean).join(' · '))}</p></div>`;
 const how=`<section class="take-block"><h2>What to do</h2><p>${esc(i.note||i.name)}</p>${proofRow(i.photos||[],false)}<p class="take-sub">${esc(repeatText(i))}</p></section>`;
 const details=`<details class="take-more" id="take-help"${takeDraft.help?' open':''}><summary>Instructions</summary>${helpNote(i)}</details>`;
 return `<section class="sub-page take-page"><div class="sub-top"><button class="sub-back" data-menu-go="overview" aria-label="Back">${menuIcon(menuIcons.back)}</button></div>${top}${how}${takeBody(d,full,true)}${details}</section>`}
 
 /* In the daily care report: a task on the day it was added and each day it was done or skipped, and an incident at the time
-   it happened. Like the other entries, it doesn't say who added it. */
+   it happened. Like the other entries, a small line says who added it and who did it. */
 const reportEntriesBeforePlus=reportEntries;
 reportEntries=function(list=items,day=today(),vitalsLog){const out=reportEntriesBeforePlus(list,day,vitalsLog);
 for(const t of list.filter(i=>i.task)){
-if(onDay(t.addedAt,day))out.push({title:'New task: '+t.name,at:t.addedAt,note:t.note||'',details:[repeatText(t)],name:t.name,photos:t.photos||[],by:t.by});
-for(const m of (t.marks||[]).filter(m=>m.key==='task'&&m.day===day&&m.at))out.push({title:`${t.name} (${t.time?shortClock(t.time)+' task':'task'})${m.kind==='skipped'?' skipped':''}`,at:m.at,note:m.note||'',details:[],name:t.name,photos:m.photos||[],by:m.by})}
-for(const i of list.filter(i=>i.activity&&onDay(i.at,day)))out.push({title:i.name,at:i.at,note:i.note||'',details:[],name:i.name,photos:i.photos||[],by:i.by});
-for(const i of list.filter(i=>i.symptom&&onDay(i.at,day)))out.push({title:'Symptoms',at:i.at,note:i.note||'',details:[],name:'Symptoms',photos:i.photos||[],by:i.by});
-for(const i of list.filter(i=>i.incident&&onDay(i.at,day)))out.push({title:'Incident: '+i.name,at:i.at,note:i.note||'',details:[i.witnesses?'Witnesses: '+i.witnesses:'',i.told?'Told: '+i.told:''].filter(Boolean),name:'Incident: '+i.name,photos:i.photos||[],by:i.by});
+if(onDay(t.addedAt,day))out.push({title:'New task: '+t.name,at:t.addedAt,note:t.note||'',details:[repeatText(t)],name:t.name,photos:t.photos||[],by:t.by,...reportWhoLine(t.by,'')});
+for(const m of (t.marks||[]).filter(m=>m.key==='task'&&m.day===day&&m.at))out.push({title:`${t.name} (${t.time?shortClock(t.time)+' task':'task'})${m.kind==='skipped'?' skipped':''}`,at:m.at,note:m.note||'',details:[],name:t.name,photos:m.photos||[],by:m.by,...reportWhoLine(t.by,m.by,m.kind==='skipped'?'Skipped':'Done')})}
+for(const i of list.filter(i=>i.activity&&onDay(i.at,day)))out.push({title:i.name,at:i.at,note:i.note||'',details:[],name:i.name,photos:i.photos||[],by:i.by,...reportWhoLine(i.by,'')});
+for(const i of list.filter(i=>i.symptom&&onDay(i.at,day)))out.push({title:'Symptoms',at:i.at,note:i.note||'',details:[],name:'Symptoms',photos:i.photos||[],by:i.by,...reportWhoLine(i.by,'')});
+for(const i of list.filter(i=>i.incident&&onDay(i.at,day)))out.push({title:'Incident: '+i.name,at:i.at,note:i.note||'',details:[i.witnesses?'Witnesses: '+i.witnesses:'',i.told?'Told: '+i.told:''].filter(Boolean),name:'Incident: '+i.name,photos:i.photos||[],by:i.by,...reportWhoLine(i.by,'')});
 return out.sort((x,y)=>new Date(x.at)-new Date(y.at))};
 
 /* The + itself, at the top right across from the My Tasks title: the round white back button from the other pages, with a plus the size of

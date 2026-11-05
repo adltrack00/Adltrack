@@ -158,6 +158,7 @@
 .report-section p,.report-section li{margin:0;font-size:18px;line-height:var(--line);color:var(--pencil)}
 .report-section ul{list-style:none;margin:0;padding:0}
 .report-section p.report-note-text{color:var(--ink)}
+.report-section p.report-who{font-size:16px}
 .report-empty{text-align:center;padding:48px 20px;border:1px solid #e6e6e6;border-radius:18px}
 .report-empty svg{width:30px;height:30px;fill:none;stroke:#111;stroke-width:1.5;stroke-linejoin:round}
 .report-empty h2{font-size:18px;margin:10px 0 6px}
