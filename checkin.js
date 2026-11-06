@@ -29,13 +29,13 @@ function checkinBpOut(bp) {
 window.checkinBpOut = checkinBpOut;
 
 const signedIn = () => { try { return !!Account.user(); } catch { return false; } };
-async function ckLoad() {
+async function ckLoad(force = '') {
   if (!signedIn() || document.hidden) return;
   const was = JSON.stringify(ckList);
   try { const r = await Account.api('GET', '/api/checkins'); ckList = Array.isArray(r && r.checkins) ? r.checkins : []; } catch { return; }
   // The daily report shows the answers straight away.
   if (JSON.stringify(ckList) !== was && typeof render === 'function' && !(B() && B().ada.open)) render();
-  ckTell(); ckMaybeOpen();
+  ckTell(); ckMaybeOpen(force);
 }
 const ckPut = c => { if (c) ckList = [...ckList.filter(x => x.id !== c.id), c]; return c; };
 
@@ -62,7 +62,9 @@ function ckAskHelp(c) {
   ckOpen(); ck = { id: c.id, step: 'help' };
   const who = c.self ? ckFirst(c.name) || 'Someone' : c.patient || ckFirst(c.name) || 'Someone';
   const score = c.help.score ? ` (${c.help.score} out of 10)` : '';
-  ckSay(`${who} needs help getting to the ER. ${ckFirst(c.name) || 'They'} says it’s really bad${score} and can’t get there: ${ckWhat(c)}. Can you take ${c.self ? 'them' : who}? If it’s an emergency, call 911.`, [['I’m on my way', 'ck:coming|' + c.id, true], ['I can’t right now', 'ck:cant|' + c.id]]);
+  const b = B(), them = c.self ? 'them' : who, taps = b.adaTaps([['I’m on my way', 'ck:coming|' + c.id, true], ['I can’t right now', 'ck:cant|' + c.id]]);
+  if (c.help.again) return b.adaSay(`${who} needs help and no one has said they’re on the way. ${ckFirst(c.name) || 'They'} says it’s really bad${score} and can’t get to the ER: ${ckWhat(c)}. If you can’t go, please call 911 for ${them}.`, [{ type: '911', note: `Opens your phone to call 911 for ${them}.` }, taps]);
+  ckSay(`${who} needs help getting to the ER. ${ckFirst(c.name) || 'They'} says it’s really bad${score} and can’t get there: ${ckWhat(c)}. Can you take ${them}? If it’s an emergency, call 911.`, [['I’m on my way', 'ck:coming|' + c.id, true], ['I can’t right now', 'ck:cant|' + c.id]]);
 }
 async function ckPost(id, body, reply = false) {
   try { const r = await Account.api('POST', `/api/checkins/${id}${reply ? '/reply' : ''}`, body); return ckPut(r && r.checkin); }
@@ -104,14 +106,27 @@ window.checkinText = function (s) {
   return false;
 };
 
+/* Ten minutes after asking for help and nobody has said they're coming: a big Call 911 button for the person, and the care
+   team is asked to call 911 for them (the server sends that). Nothing dials 911 by itself. */
+const CK_WAIT_MIN = 10;
+const ckNoOne = c => c.mine && c.help && !c.end && !(c.help.replies || []).some(r => r.coming) && (c.help.again || Date.now() - Date.parse(c.help.at) >= CK_WAIT_MIN * 60e3);
+function ckCall911(c) {
+  ckOpen(); ck = { id: c.id, step: '' };
+  const b = B();
+  b.adaSay('No one on the care team has said they’re on the way yet. I asked them to call 911 for you. If you can, call 911 now.', [{ type: '911', note: 'Opens your phone to call 911. Tell them where you are.' }, b.adaTaps(ckEnds(c).slice(0, 2))]);
+}
 /* Opens Ada with a check-in that's due, or a request for help, once each, when nothing else is going on. */
 function ckBusy() { const b = B(), a = document.activeElement; return !b || b.ada.busy || (b.ada.open && (b.ada.flow || b.ada.edit)) || (!!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.id !== 'ada-input') || !!document.querySelector('dialog[open]'); }
 function ckMaybeOpen(force = '') {
   if (!B()) return;
   for (const c of ckList) {
+    if (ckNoOne(c)) {
+      const key = 'ck-911-' + c.id + '-' + c.help.at;
+      if (c.id === force || (!ckStore(key) && !ckBusy())) { ckStore(key, '1'); return ckCall911(c); }
+    }
     const due = ckDue(c), help = ckHelpForMe(c);
     if (!due && !help && c.id !== force) continue;
-    const key = 'ck-shown-' + c.id + (help ? '-help-' + c.help.at : '-' + (c.askedAt || c.next));
+    const key = 'ck-shown-' + c.id + (help ? '-help-' + c.help.at + (c.help.again ? '-again' : '') : '-' + (c.askedAt || c.next));
     if (c.id !== force && (ckStore(key) || ckBusy())) continue;
     if (c.end) continue;
     ckStore(key, '1');
@@ -134,8 +149,8 @@ function ckTell() {
 
 /* A tapped notification opens the app with ?checkin=…, or tells the open app. */
 const ckParam = new URLSearchParams(location.search).get('checkin');
-document.addEventListener('DOMContentLoaded', () => setTimeout(async () => { await ckLoad(); if (ckParam) { ckMaybeOpen(ckParam); history.replaceState(null, '', location.pathname); } }, 600));
-if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => { const d = e.data || {}; if (d.type === 'returnly-open-item' && d.checkin) ckLoad().then(() => ckMaybeOpen(d.checkin)); });
+document.addEventListener('DOMContentLoaded', () => setTimeout(async () => { await ckLoad(ckParam || ''); if (ckParam) history.replaceState(null, '', location.pathname); }, 600));
+if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => { const d = e.data || {}; if (d.type === 'returnly-open-item' && d.checkin) ckLoad(d.checkin); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) ckLoad(); });
 setInterval(ckLoad, 30 * 1000);
 

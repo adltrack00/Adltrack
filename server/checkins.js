@@ -44,8 +44,14 @@ function helpNotification(c, ownerId, again = false) {
   const score = c.help && c.help.score ? ` (${c.help.score} out of 10)` : '';
   const who = c.self ? first(c.name) || 'Someone' : c.patient || first(c.name) || 'Someone';
   const what = c.kind === 'bp' ? `blood pressure ${c.bp}` : `“${c.about.slice(0, 60)}”`;
+  // Ten minutes and nobody is coming (George 2026-11-06): everyone is asked to call 911 for them.
+  if (again) return {
+    title: `No one is coming for ${who}: please call 911`.slice(0, 200),
+    body: `${first(c.name) || 'They'} says it’s really bad${score} and can’t get to the ER: ${what}. No one has said they’re on the way. If you can’t go, please call 911 for ${c.self ? 'them' : who}. Tap to answer.`.slice(0, 500),
+    itemId: null, url: `app.html?patient=${encodeURIComponent(ownerId)}&checkin=${encodeURIComponent(c.id)}`, actions: [], tag: 'checkin-help ' + c.id
+  };
   return {
-    title: `${again ? 'Still no answer: ' : ''}${who} needs help getting to the ER`.slice(0, 200),
+    title: `${who} needs help getting to the ER`.slice(0, 200),
     body: `${first(c.name) || 'They'} says it’s really bad${score} and can’t get to the ER: ${what}. Can you take ${c.self ? 'them' : who}? Tap to answer.`.slice(0, 500),
     itemId: null, url: `app.html?patient=${encodeURIComponent(ownerId)}&checkin=${encodeURIComponent(c.id)}`, actions: [], tag: 'checkin-help ' + c.id
   };
@@ -174,13 +180,14 @@ function createCheckins({ store, data, reminders = null, sms = null, now = () =>
     if (!c || !c.help || c.help.at !== when || c.end || !reminders) return;
     await tellTeam(ownerId, c, false);
   }
-  /* Ten minutes on and nobody has said they're coming: the team is asked again, and the person is told. */
+  /* Ten minutes on and nobody has said they're coming: the team is asked to call 911 for them (push and text), and the person
+     gets a one-tap Call 911 button in Ada. Nothing dials 911 by itself. */
   async function sendHelpAgain({ ownerId, id, at: when }) {
     const c = (await list(ownerId)).find(x => x.id === id);
     if (!c || !c.help || c.help.at !== when || c.end || c.help.again || (c.help.replies || []).some(r => r.coming) || !reminders) return;
     await change(ownerId, all => { const x = all.find(y => y.id === id); if (x && x.help) x.help.again = at(); });
     await tellTeam(ownerId, c, true);
-    await reminders.deliverTo([{ userId: c.userId }], { title: 'No one has answered yet', body: 'I asked the care team again. If it’s an emergency, call 911.', itemId: null, url: `app.html?patient=${encodeURIComponent(ownerId)}&checkin=${encodeURIComponent(c.id)}`, actions: [], tag: 'checkin-again ' + c.id }, { topic: 'checkin', ttl: 6 * 60 * 60, urgency: 'high' }, { always: true });
+    await reminders.deliverTo([{ userId: c.userId }], { title: 'No one has answered yet', body: 'I asked the care team to call 911 for you. Tap to call 911 yourself.', itemId: null, url: `app.html?patient=${encodeURIComponent(ownerId)}&checkin=${encodeURIComponent(c.id)}`, actions: [], tag: 'checkin-again ' + c.id }, { topic: 'checkin', ttl: 6 * 60 * 60, urgency: 'high' }, { always: true });
   }
 
   /* Every minute: each check-in whose time has come is sent once to the person it's for (outside their quiet hours), and the

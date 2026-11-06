@@ -242,6 +242,9 @@ function adaCard(c) {
     return `<div class="ada-box"><span class="ada-tag">${esc(p.path)}</span><b>${esc(p.title)}</b><small>${esc(p.sub)}</small><div class="ada-btns"><button class="ada-btn ada-btn-dark" data-ada-go="${esc(c.open)}">Open it</button><button class="ada-btn" data-ada-where-place="${esc(c.open)}">Show me where</button></div></div>`; }
   if (c.type === 'form') { const d = c.draft, task = c.form === 'task-new', when = [adaDay(d.date), d.time && typeof clockText === 'function' ? clockText(d.time) : d.time].filter(Boolean).join(' at ') || 'Pick the day and time in the form';
     return `<div class="ada-box"><span class="ada-tag">${task ? 'Planned task' : 'Appointment'} · ready to check</span><b>${esc(task ? d.what || 'New task' : d.with || 'New appointment')}</b><dl><dt>When</dt><dd>${esc(when)}</dd>${task ? `<dt>Repeats</dt><dd>${esc({ once: 'Once', daily: 'Every day', weekly: 'Every week' }[d.repeat] || 'Once')}</dd>` : d.place ? `<dt>Where</dt><dd>${esc(d.place)}</dd>` : ''}${d.note ? `<dt>Note</dt><dd>${esc(d.note)}</dd>` : ''}</dl><div class="ada-btns"><button class="ada-btn ada-btn-dark" data-ada-form="${c.n}">Check and save</button><button class="ada-btn" data-ada-where-place="${esc(c.form)}">Show me where</button></div></div>`; }
+  // One tap to call 911 when nobody on the care team has said they're coming (checkin.js). It opens the phone's dialer; the
+  // person makes the call.
+  if (c.type === '911') return `<div class="ada-box ada-911"><a class="ada-911-btn" href="tel:911">Call 911</a><small>${esc(c.note || 'Opens your phone to call 911.')}</small></div>`;
   if (c.type === 'call') { const groups = typeof whenToCall === 'function' ? whenToCall() : [], g = groups.find(x => !x.urgent) || groups[0], docs = typeof careContacts === 'function' ? careContacts() : { doctors: [], pharmacies: [] }, d = docs.doctors.find(x => x.phone), p = docs.pharmacies.find(x => x.phone);
     return `${g && g.signs.length ? `<div class="ada-quote"><span class="ada-tag">What the papers say · ${esc(g.head)}</span>${g.signs.slice(0, 4).map(x => `<p>“${esc(x)}”</p>`).join('')}</div>` : ''}<div class="ada-box"><b>Who to call</b><div class="ada-btns">${d ? adaCall('Call ' + d.name, d.phone) : ''}${p ? adaCall('Call ' + p.name, p.phone) : ''}${!d && !p ? '<button class="ada-btn" data-ada-go="doctors">My doctors</button>' : ''}</div><small>In an emergency, call <a href="tel:911">911</a>.</small></div>`; }
   return '';
@@ -837,7 +840,7 @@ document.addEventListener('change', e => { if (e.target.id === 'ada-camera' || e
 /* The round button shows Ada's face, in the look the person picked (George 2026-11-03), says who it opens, and hides while Ada
    is open. Same size and place as before. */
 /* For Ada's check-ins after symptoms (checkin.js): the chat, so she asks and answers in it like every other task. */
-window.adaBridge = { ada, adaSay, adaTaps, openAda, adaName };
+window.adaBridge = { ada, adaSay, adaTaps, openAda, adaName, adaPaint };
 
 if (typeof placeHelp === 'function') {
   const placeHelpBeforeAda = placeHelp;

@@ -149,7 +149,8 @@ test('"really bad, can\'t get to the ER" tells the rest of the care team, who ca
     // Ten minutes, nobody coming: everyone is asked again and George is told.
     app.sent.length = 0;
     await app.at(new Date(t0.getTime() + 11 * MIN));
-    assert.deepEqual(app.to(app.sent, ann).map(m => m.title), ['Still no answer: George needs help getting to the ER']);
+    assert.deepEqual(app.to(app.sent, ann).map(m => m.title), ['No one is coming for George: please call 911']);
+    assert.match(app.to(app.sent, ann)[0].body, /please call 911 for them/);
     assert.ok(app.to(app.sent, george).some(m => m.title === 'No one has answered yet'));
 
     // Ann (a viewer) says she's coming: George hears it, by name.
