@@ -98,7 +98,7 @@ document.addEventListener('submit',async e=>{if(e.target.id!=='vitals-form')retu
 const val=k==='bp'?(x('sys')||x('dia')?(x('sys')&&x('dia')?x('sys')+'/'+x('dia'):null):''):x(VITAL_FORMS[k][1][0][0]);if(val===null){toast('Enter both blood pressure numbers.');return}
 vitalsBusy=true;const photos=(await Promise.all(vitalsShots.map(saveProof))).filter(Boolean);vitalsBusy=false;const at=new Date().toISOString(),{[k]:_,...rest}=settings.vitals||{};
 settings.vitals={...rest,...(val?{[k]:val}:{}),at};if(val||photos.length)settings.vitalsLog=[...(settings.vitalsLog||[]),{...(val?{[k]:val}:{}),at,...(photos.length?{photos}:{}),...(markedBy()?{by:markedBy()}:{})}].slice(-400);
-vitalsOpen='';vitalsClear();save();render();toast(`${VITAL_FORMS[k][0]} saved.`)});
+vitalsOpen='';vitalsClear();save();render();toast(`${VITAL_FORMS[k][0]} saved.`);if(k==='bp'&&val&&typeof checkinAfterBp==='function')checkinAfterBp(val)});
 
 /* Home: the profile picture on top, the vital signs, how many of today's tasks are done as a line, then the task cards. */
 function todayHTML(){const has=items.some(i=>(i.med||i.appt)&&i.status!=='received');if(!has)return `<section class="home-today">${vitalsHTML()}</section>`;const day=today(),tasks=homeTasks(day),done=tasks.filter(x=>x.state==='done').length,pct=tasks.length?Math.round(done/tasks.length*100):0;

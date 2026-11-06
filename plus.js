@@ -159,7 +159,9 @@ items.push(a);plusDraft=null;save();go('appointments');toast(`Appointment added 
 function symptomProblem(d){if(!d.feel.trim())return 'Write what they’re feeling.';if(!dayOk(d.date)||d.date>today()||!clockOk(d.time))return 'Check the date and time.';if(new Date(d.date+'T'+d.time)>new Date())return 'That time hasn’t happened yet.';return ''}
 document.addEventListener('submit',async e=>{const f=e.target;if(f.id!=='symptom-form'||!plusDraft)return;e.preventDefault();if(plusDraft.busy)return;readPlusForm(f);const d=plusDraft,problem=symptomProblem(d);if(problem){toast(problem);return}
 d.busy=true;render();const photos=(await uploadPlus(d.photos,'symptom')).filter(Boolean),by=markedBy();
-items.push({id:crypto.randomUUID(),symptom:true,name:'Symptoms',note:d.feel.trim(),at:new Date(d.date+'T'+d.time).toISOString(),...(photos.length?{photos}:{}),...(by?{by}:{}),addedAt:new Date().toISOString()});
+const symptomId=crypto.randomUUID();items.push({id:symptomId,symptom:true,name:'Symptoms',note:d.feel.trim(),at:new Date(d.date+'T'+d.time).toISOString(),...(photos.length?{photos}:{}),...(by?{by}:{}),addedAt:new Date().toISOString()});
+/* Ada checks in on symptoms logged today, in 30 minutes and then every 30 minutes (checkin.js). */
+if(d.date===today()&&typeof checkinStart==='function')checkinStart({about:d.feel.trim(),symptomId});
 plusDraft=null;reportTab=d.date===today()?'today':d.date===C.shift(today(),-1)?'previous':reportTab;view='overview';tasksOpen=false;save();render();window.scrollTo(0,0);toast('Symptoms added to the daily care report.')});
 function activityProblem(d){if(!d.done.trim())return 'Write what was done.';if(!dayOk(d.date)||d.date>today()||!clockOk(d.time))return 'Check the date and time.';if(new Date(d.date+'T'+d.time)>new Date())return 'That time hasn’t happened yet.';return ''}
 document.addEventListener('submit',async e=>{const f=e.target;if(f.id!=='activity-form'||!plusDraft)return;e.preventDefault();if(plusDraft.busy)return;readPlusForm(f);const d=plusDraft,problem=activityProblem(d);if(problem){toast(problem);return}

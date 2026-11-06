@@ -80,7 +80,7 @@ const Push = (() => {
     });
     if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => {
       if (!e.data || e.data.type !== 'returnly-open-item') return;
-      if (otherPatient(e.data.patient)) { history.replaceState(null, '', location.pathname + (e.data.itemId ? '?remind=' + encodeURIComponent(e.data.itemId) : '')); Account.switchPatient(e.data.patient).catch(() => {}); return; }
+      if (otherPatient(e.data.patient)) { history.replaceState(null, '', location.pathname + (e.data.itemId ? '?remind=' + encodeURIComponent(e.data.itemId) : e.data.checkin ? '?checkin=' + encodeURIComponent(e.data.checkin) : '')); Account.switchPatient(e.data.patient).catch(() => {}); return; }
       if (e.data.itemId) openItem(e.data.itemId);
     });
   }

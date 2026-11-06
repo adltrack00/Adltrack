@@ -1,8 +1,8 @@
 /* Adltrack service worker: keeps the app shell for offline starts, shows daily reminders sent by Web Push while the app is
    closed with their action buttons, and opens the item's Return step when one is tapped. Account data (/api/) is never cached here. */
-const SHELL = 'returnly-shell-v57';
+const SHELL = 'returnly-shell-v58';
 const SHELL_FILES = ['app.html', 'index.html', 'signin.html', 'signup.html', 'forgot.html', 'reset.html', 'email.html', 'join.html', 'style.css', 'on.css', 'klarna.css', 'precision.css', 'guided.css', 'home.css', 'menu.css', 'mobile.css', 'type.css', 'dashboard.css',
-  'core.js', 'nudge.js', 'account.js', 'auth.js', 'app.js', 'features.js', 'klarna.js', 'precision.js', 'guided.js', 'scan.js', 'scan.css', 'home.js', 'schedule.js', 'refills.js', 'menu.js', 'push.js', 'remind.js', 'today.js', 'report.js', 'team.js', 'plan.js', 'patients.js', 'plus.js', 'can.js', 'info.js', 'info.css', 'documents.js', 'documents.css', 'planner.js', 'meds.js', 'meds.css', 'pastday.js', 'crop.js', 'help.js', 'assistant.js', 'help.css', 'assistant.css', 'voice.js', 'voice.css', 'assets/qrcode.js', 'ems-code.js', 'ems.html', 'ems-view.js', 'ems-view.css', 'record.html', 'record.js', 'record.css', 'oracle.woff2', 'assets/roboto-serif-light.woff2', 'assets/inter-var.woff2', 'assets/caveat-var.woff2', 'assets/newsreader-var.woff2', 'assets/fragment-mono.woff2',
+  'core.js', 'nudge.js', 'account.js', 'auth.js', 'app.js', 'features.js', 'klarna.js', 'precision.js', 'guided.js', 'scan.js', 'scan.css', 'home.js', 'schedule.js', 'refills.js', 'menu.js', 'push.js', 'remind.js', 'today.js', 'report.js', 'team.js', 'plan.js', 'patients.js', 'plus.js', 'can.js', 'info.js', 'info.css', 'documents.js', 'documents.css', 'planner.js', 'meds.js', 'meds.css', 'pastday.js', 'crop.js', 'help.js', 'assistant.js', 'checkin.js', 'help.css', 'assistant.css', 'voice.js', 'voice.css', 'assets/qrcode.js', 'ems-code.js', 'ems.html', 'ems-view.js', 'ems-view.css', 'record.html', 'record.js', 'record.css', 'oracle.woff2', 'assets/roboto-serif-light.woff2', 'assets/inter-var.woff2', 'assets/caveat-var.woff2', 'assets/newsreader-var.woff2', 'assets/fragment-mono.woff2',
   'manifest.webmanifest', 'assets/icon-192.png', 'assets/icon-512.png', 'assets/apple-touch-icon.png'];
 
 self.addEventListener('install', event => {
@@ -76,7 +76,9 @@ self.addEventListener('notificationclick', event => {
     const target = new URL(url + (action === 'show-qr' ? '&show=label' : ''), self.registration.scope).href;
     if (open) {
       await open.focus();
-      if (itemId || patient) open.postMessage({ type: 'returnly-open-item', itemId, patient, show: action === 'show-qr' ? 'label' : '' });
+      // An Ada check-in (or a request for help) opens in her chat.
+      const checkin = (() => { try { return new URL(url, self.registration.scope).searchParams.get('checkin'); } catch { return null; } })();
+      if (itemId || patient || checkin) open.postMessage({ type: 'returnly-open-item', itemId, patient, checkin, show: action === 'show-qr' ? 'label' : '' });
       return;
     }
     await self.clients.openWindow(target);

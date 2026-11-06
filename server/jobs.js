@@ -60,7 +60,7 @@ function createJobs({ store, intervalMs = 5000, staleMs = 10 * 60 * 1000, log = 
 }
 
 /* The jobs this server runs. */
-function defineJobs(jobs, { store, storage, data = null, reminders = null }) {
+function defineJobs(jobs, { store, storage, data = null, reminders = null, checkins = null }) {
   // Example recurring job: clears expired sign-in sessions and old finished jobs.
   jobs.define('maintenance.cleanup', async () => {
     await store.deleteExpiredSessions();
@@ -89,6 +89,14 @@ function defineJobs(jobs, { store, storage, data = null, reminders = null }) {
     jobs.define('alerts.missed', payload => reminders.sendMissed(payload));
     jobs.define('alerts.endOfDay', payload => reminders.sendEndOfDay(payload));
     jobs.define('alerts.incident', payload => reminders.sendIncident(payload));
+    // Ada's check-ins after symptoms: each one at its time, and a request for help to the rest of the care team (again in 10 minutes
+    // if nobody has said they're coming).
+    if (checkins) {
+      jobs.define('checkins.dispatch', () => checkins.dispatch(), { every: 60 * 1000 });
+      jobs.define('checkins.ask', payload => checkins.sendAsk(payload));
+      jobs.define('checkins.help', payload => checkins.sendHelp(payload));
+      jobs.define('checkins.helpAgain', payload => checkins.sendHelpAgain(payload));
+    }
   }
   // Retries deleting stored files that couldn't be removed straight away (for example, after "Delete my account").
   jobs.define('files.delete', async ({ keys }) => {
