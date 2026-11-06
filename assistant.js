@@ -45,7 +45,7 @@ const ADA_ACTIONS = [
   ['med-add', /\b(add|new|scan|upload|put in|enter|save)\b.*\b(meds?|medications?|medicines?|pills?|prescriptions?|bottles?|tablets?|capsules?|inhaler|label)\b/i],
   ['document-add', /\b(add|save|upload|scan|keep|file|store|take a photo of|photo of)\b.*\b(documents?|cards?|papers?|insurance|results?|letters?|forms?|id|licen[cs]e|poa|power of attorney|dnr|polst|will|bill|report)\b/i],
   ['incident-new', /\b(fell|fall(en)?|incident|accident|injur(y|ed)|hurt (her|him|them)self|bruise|cut (her|him)self)\b/i],
-  ['symptom-new', /\b(symptoms?|feels? (sick|dizzy|tired|weak|unwell)|nause|vomit|fever|cough|rash|swelling|short of breath)\b/i],
+  ['symptom-new', /\b(symptoms?|feels? (sick|dizzy|tired|weak|unwell)|nause|vomit|fever|cough|rash|swelling|short of breath|(stomach|chest|back|belly|tummy|neck|leg|arm|knee|hip|joint) ?(pain|ache)|headaches?|stomach ?aches?|cramps?|cramping|bloat(ing|ed)?|dizzy|(having|have|feel|feeling|got|in) (some |a lot of |bad |a little )?pain)\b/i],
   ['vitals', /\b(blood pressure|bp|pulse|heart rate|temperature|temp|vitals?|pain (level|score))\b/i],
   ['appt-new', /\b(add|new|book|make|set( up)?|schedule)\b.*\b(appointments?|visits?|check ?ups?|follow ?ups?)\b/i],
   ['task-new', /\b(remind( me)?|reminder|planned task|add (a )?task|new task|set (a )?(task|reminder))\b/i]
@@ -242,6 +242,9 @@ function adaCard(c) {
     return `<div class="ada-box"><span class="ada-tag">${esc(p.path)}</span><b>${esc(p.title)}</b><small>${esc(p.sub)}</small><div class="ada-btns"><button class="ada-btn ada-btn-dark" data-ada-go="${esc(c.open)}">Open it</button><button class="ada-btn" data-ada-where-place="${esc(c.open)}">Show me where</button></div></div>`; }
   if (c.type === 'form') { const d = c.draft, task = c.form === 'task-new', when = [adaDay(d.date), d.time && typeof clockText === 'function' ? clockText(d.time) : d.time].filter(Boolean).join(' at ') || 'Pick the day and time in the form';
     return `<div class="ada-box"><span class="ada-tag">${task ? 'Planned task' : 'Appointment'} · ready to check</span><b>${esc(task ? d.what || 'New task' : d.with || 'New appointment')}</b><dl><dt>When</dt><dd>${esc(when)}</dd>${task ? `<dt>Repeats</dt><dd>${esc({ once: 'Once', daily: 'Every day', weekly: 'Every week' }[d.repeat] || 'Once')}</dd>` : d.place ? `<dt>Where</dt><dd>${esc(d.place)}</dd>` : ''}${d.note ? `<dt>Note</dt><dd>${esc(d.note)}</dd>` : ''}</dl><div class="ada-btns"><button class="ada-btn ada-btn-dark" data-ada-form="${c.n}">Check and save</button><button class="ada-btn" data-ada-where-place="${esc(c.form)}">Show me where</button></div></div>`; }
+  // One tap to call 911 when nobody on the care team has said they're coming (checkin.js). It opens the phone's dialer; the
+  // person makes the call.
+  if (c.type === '911') return `<div class="ada-box ada-911"><a class="ada-911-btn" href="tel:911">Call 911</a><small>${esc(c.note || 'Opens your phone to call 911.')}</small></div>`;
   if (c.type === 'call') { const groups = typeof whenToCall === 'function' ? whenToCall() : [], g = groups.find(x => !x.urgent) || groups[0], docs = typeof careContacts === 'function' ? careContacts() : { doctors: [], pharmacies: [] }, d = docs.doctors.find(x => x.phone), p = docs.pharmacies.find(x => x.phone);
     return `${g && g.signs.length ? `<div class="ada-quote"><span class="ada-tag">What the papers say · ${esc(g.head)}</span>${g.signs.slice(0, 4).map(x => `<p>“${esc(x)}”</p>`).join('')}</div>` : ''}<div class="ada-box"><b>Who to call</b><div class="ada-btns">${d ? adaCall('Call ' + d.name, d.phone) : ''}${p ? adaCall('Call ' + p.name, p.phone) : ''}${!d && !p ? '<button class="ada-btn" data-ada-go="doctors">My doctors</button>' : ''}</div><small>In an emergency, call <a href="tel:911">911</a>.</small></div>`; }
   return '';
@@ -519,6 +522,7 @@ const ADA_READY = {
         const saved = ADA_VITALS.filter(([, , show]) => show(fl.v));
         saved.forEach(([k], n) => { const val = k === 'bp' ? fl.v.sys + '/' + fl.v.dia : fl.v[k === 'heart' ? 'pulse' : k]; settings.vitals = { ...(settings.vitals || {}), [k]: val, at }; log.push({ [k]: val, at, ...(n === 0 && photos.length ? { photos } : {}), ...(by ? { by } : {}) }); });
         settings.vitalsLog = [...(settings.vitalsLog || []), ...log].slice(-400);
+        const bp = log.find(e => e.bp); if (bp && typeof checkinAfterBp === 'function') checkinAfterBp(bp.bp);
         return { say: `${saved.map(([, name]) => name).join(', ').replace(/, ([^,]*)$/, ' and $1')} saved.`, place: 'vitals' };
       }
     })]);
@@ -546,10 +550,10 @@ ADA_READY.activity = ADA_READY.symptom = ADA_READY.incident = function (lead) {
     save: async () => {
       const photos = (await uploadPlus(fl.photos, fl.type)).filter(Boolean), by = markedBy(), at = new Date(fl.date + 'T' + fl.time).toISOString(), added = new Date().toISOString(), base = { id: crypto.randomUUID(), at, ...(photos.length ? { photos } : {}), ...(by ? { by } : {}), addedAt: added };
       if (fl.type === 'activity') items.push({ ...base, activity: true, name: fl.note.trim() });
-      if (fl.type === 'symptom') items.push({ ...base, symptom: true, name: 'Symptoms', note: fl.note.trim() });
+      if (fl.type === 'symptom') { items.push({ ...base, symptom: true, name: 'Symptoms', note: fl.note.trim() }); if (fl.date === today() && typeof checkinStart === 'function') checkinStart({ about: fl.note.trim(), symptomId: base.id }); }
       if (fl.type === 'incident') items.push({ ...base, incident: true, kind: fl.incident, name: kindName(), ...(fl.note.trim() ? { note: fl.note.trim() } : {}), ...(fl.told.trim() ? { told: fl.told.trim() } : {}), ...(fl.witnesses.trim() ? { witnesses: fl.witnesses.split(',').map(w => w.trim()).filter(Boolean).join(', ') } : {}) });
       reportTab = fl.date === today() ? 'today' : 'previous';
-      return { say: fl.type === 'incident' ? 'Incident reported. Everyone on the care team is told, and it’s in the daily report.' : fl.type === 'symptom' ? 'Symptoms added to the daily report.' : 'Added to the daily report.', place: 'home' };
+      return { say: fl.type === 'incident' ? 'Incident reported. Everyone on the care team is told, and it’s in the daily report.' : fl.type === 'symptom' ? 'Symptoms added to the daily report.' + (fl.date === today() ? ' I’ll check in on you in 30 minutes.' : '') : 'Added to the daily report.', place: 'home' };
     }
   })]);
 };
@@ -650,6 +654,8 @@ function adaResume() {
 async function adaAsk(text) {
   const s = String(text || '').trim(); if (!s || ada.busy) return;
   ada.log.push({ who: 'me', text: s }); adaPaint();
+  // Answering one of Ada's check-ins (checkin.js) by typing or talking: "yes", "no", or how bad from 1 to 10.
+  if (typeof checkinText === 'function' && checkinText(s)) return;
   if (adaFlowText(s)) return;
   const aside = !!ada.flow && adaAside(s, ada.flow);
   if (aside) ada.paused = ada.flow; else for (const j of Object.values(adaJobs)) if (j.state === 'ready') j.state = 'stale';
@@ -709,6 +715,7 @@ async function adaSaveJob(n) {
 }
 function adaAct(a) {
   const [what, arg = ''] = a.split(/:(.*)/s), fl = ada.flow;
+  if (what === 'ck') { if (typeof checkinAct === 'function') checkinAct(arg); return; }
   if (what === 'photo' || what === 'file') {
     const wants = { med: 'med', doc: 'doc', vitals: 'vitals', activity: 'activity', care: fl && ADA_CARE[fl.type] ? fl.type : '' }[arg];
     if (!fl || wants !== fl.type) {
@@ -832,6 +839,9 @@ document.addEventListener('change', e => { if (e.target.id === 'ada-camera' || e
 
 /* The round button shows Ada's face, in the look the person picked (George 2026-11-03), says who it opens, and hides while Ada
    is open. Same size and place as before. */
+/* For Ada's check-ins after symptoms (checkin.js): the chat, so she asks and answers in it like every other task. */
+window.adaBridge = { ada, adaSay, adaTaps, openAda, adaName, adaPaint };
+
 if (typeof placeHelp === 'function') {
   const placeHelpBeforeAda = placeHelp;
   placeHelp = function () { placeHelpBeforeAda(); const b = document.getElementById('help-fab'); if (!b) return; if (document.querySelector('.ada-pop')) b.hidden = true; if (!b.hidden) b.setAttribute('aria-label', `Talk to ${adaName()}`); const look = adaLookKey(); if (b.dataset.adaLook !== look) { b.dataset.adaLook = look; b.classList.add('ada-fab'); b.innerHTML = adaFace(look); } };

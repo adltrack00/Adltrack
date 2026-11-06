@@ -12,6 +12,7 @@ const { ACTIONS, KINDS } = require('./email');
 const { createTeam } = require('./team');
 const { createRecord } = require('./record');
 const { createPermissions } = require('./permissions');
+const { createCheckins, CheckinError } = require('./checkins');
 const { createBilling } = require('./billing');
 const { printedWindow } = require('./receipts');
 const { dischargeDraft, MAX_PAGES: MAX_DISCHARGE_PAGES } = require('./discharge');
@@ -138,9 +139,10 @@ function receiptDraft(receipt, policy) {
   };
 }
 
-function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, discharge = null, labels = null, vitals = null, assistant = null, places = null, review = null, push = null, reminders = null, email = null, supportEmail = '', inbox = null, oauth = null, publicUrl = '', inboundSecret = '', sms = null, team = null, billing = null }) {
+function createApp({ store, data, production = false, policies = null, classifier = null, receipts = null, discharge = null, labels = null, vitals = null, assistant = null, places = null, review = null, push = null, reminders = null, email = null, supportEmail = '', inbox = null, oauth = null, publicUrl = '', inboundSecret = '', sms = null, team = null, billing = null, checkins = null }) {
   billing = billing || createBilling({ store });
   team = team || createTeam({ store, email, sms, billing });
+  checkins = checkins || createCheckins({ store, data, reminders, sms });
   const authLimit = limiter(20, 15 * 60 * 1000);
   const record = createRecord({ store, data, hashPassword, verifyPassword });
   // Scans of the doctor record: per address, and wrong PINs per link, so a PIN can't be guessed.
@@ -265,6 +267,11 @@ function createApp({ store, data, production = false, policies = null, classifie
     if (settings !== undefined && (typeof settings !== 'object' || settings === null || Array.isArray(settings))) throw new HttpError(400, 'Invalid settings.');
     if (profile !== undefined && (typeof profile !== 'object' || profile === null || Array.isArray(profile))) throw new HttpError(400, 'Invalid profile.');
     return { purchases, settings: settings || {}, profile: profile || {} };
+  }
+
+  async function checkinSend(res, status, fn) {
+    try { return send(res, status, { checkin: await fn() }); }
+    catch (err) { if (err instanceof CheckinError) throw new HttpError(err.status, err.message); throw err; }
   }
 
   async function api(req, res, route) {
@@ -762,6 +769,17 @@ function createApp({ store, data, production = false, policies = null, classifie
       checkWrite(req);
       if (!reminders) throw new HttpError(503, 'Reminders aren’t available right now.');
       return send(res, 200, { prefs: await reminders.savePrefs(user.id, await readBody(req, 2_000)) });
+    }
+    // Ada's check-ins after symptoms (server/checkins.js). Each person sees the family's check-ins, which are theirs to answer,
+    // and the requests for help they can answer. Starting one needs what logging symptoms needs; answering is only for the
+    // person it's for; anyone on the care team, viewers too, can say they're coming to help.
+    if (route === '/api/checkins' && method === 'GET') return send(res, 200, { checkins: await checkins.mine(owner, user.id) });
+    if (route === '/api/checkins' && method === 'POST') { checkWrite(req); may.need('care'); const body = await readBody(req, 4_000); return checkinSend(res, 201, () => checkins.start(owner, user, body)); }
+    const checkinMatch = /^\/api\/checkins\/([0-9a-f-]{36})(\/reply)?$/i.exec(route);
+    if (checkinMatch && method === 'POST') {
+      checkWrite(req);
+      const id = checkinMatch[1].toLowerCase(), body = await readBody(req, 2_000);
+      return checkinSend(res, 200, checkinMatch[2] ? () => checkins.reply(owner, user, id, body) : () => checkins.answer(owner, user, id, body));
     }
     // When the care plan on screen last changed: open apps ask every few seconds, and load what someone else saved.
     if (route === '/api/changes' && method === 'GET') return send(res, 200, { updatedAt: await store.dataVersion(owner), space: spaceOf(owner) });

@@ -141,9 +141,12 @@ function createData({ store, storage, jobs = null }) {
   }
 
   /* Settings and profile. The profile photo is a file like item photos. */
-  async function putSettings(userId, { settings, profile }) {
+  /* Ada's check-ins (settings.checkins) are written only by server/checkins.js (`own.checkins`); every other save keeps them. */
+  async function putSettings(userId, { settings, profile }, own = {}) {
     const raw = await store.getRawData(userId);
     const current = raw?.payload?.profile || {};
+    settings = { ...(settings || {}) };
+    if (!own.checkins) { const kept = raw?.payload?.settings?.checkins; if (Array.isArray(kept)) settings.checkins = kept; else delete settings.checkins; }
     const nextProfile = { ...(profile || {}) };
     const { fileId, keep } = await photoFile(userId, 'profile', nextProfile.photo, fileIdFromUrl(current.photo));
     if (fileId) nextProfile.photo = fileUrl(fileId); else if (!keep) delete nextProfile.photo;

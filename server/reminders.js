@@ -566,7 +566,7 @@ function createReminders({ store, push, email = null, sms = null, data = null, n
   /* Reminders: this person's choices, saved as they change them. */
   const savePrefs = async (userId, body) => { await store.setAlertPrefs(userId, { ...((await store.alertPrefs(userId)) || {}), ...cleanPrefs(body) }); return prefsOf(userId); };
 
-  return { claim, dispatch, send, sendDose, sendTask, sendAppointment, sendMissed, sendEndOfDay, incidentReported, sendIncident, sendTo, followup, opened, act, actDose, testDose, localNow, settingsOf, prefsOf, savePrefs, teamOf };
+  return { deliverTo: deliver, patientOf, claim, dispatch, send, sendDose, sendTask, sendAppointment, sendMissed, sendEndOfDay, incidentReported, sendIncident, sendTo, followup, opened, act, actDose, testDose, localNow, settingsOf, prefsOf, savePrefs, teamOf };
 }
 
 module.exports = { pick, notification, dosesDue, doseNotification, unmarked, DOSE_ACTIONS, appointmentsDue, appointmentNotification, taskOn, tasksDue, taskNotification, missedAt, missedNotification, incidentNotification, daySummary, endOfDayNotification, MISSED_MIN, ALERT_MIN, cleanPrefs, daysLabel, localParts, validTimeZone, reminderTime, quiet, sendTime, isDue, cleanSubscription, vapidConfig, createPush, createReminders, PUSH_HOSTS };
