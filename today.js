@@ -30,7 +30,9 @@ const how=`<section class="take-block"><h2>${call?'Who to call':'Where to pick i
 return `<section class="sub-page take-page"><div class="sub-top"><button class="sub-back" data-menu-go="overview" aria-label="Back">${menuIcon(menuIcons.back)}</button></div>${top}${how}${takeBody(d,full,true)}<details class="take-more" id="take-help"${takeDraft.help?' open':''}><summary>Instructions</summary>${helpNote(i)}</details></section>`}
 /* What was marked, or the photo, note and Done, Skipped, Need help to mark it. */
 function takeBody(d,full,task=false){const photos=d?(d.photos||[]):[],word=d&&d.kind==='taken'?task?'Done':'Taken':'Skipped';
-return d?`<section class="take-block"><h2>${word}</h2><p>${word} at ${esc(takeAt(d.at))}${d.by?' by '+esc(d.by):''}.</p>${proofRow(photos,false)}${d.note?`<p class="take-note-text">${esc(d.note)}</p>`:''}</section>`
+/* Once marked, more photos (up to 3 in all) can still be taken with the same + on its line, for when it was done first. */
+const more=d&&d.kind==='taken'&&photos.length<TAKE_PHOTOS&&(typeof mayDo!=='function'||mayDo('tasks'));
+return d?`<section class="take-block"><div class="take-line"><h2>${word}</h2>${more?`<label class="take-add" for="take-later" aria-label="Add a photo">+</label>`:''}</div>${more?'<input type="file" id="take-later" accept="image/*" capture="environment" hidden>':''}<p>${word} at ${esc(takeAt(d.at))}${d.by?' by '+esc(d.by):''}.</p>${proofRow(photos,false)}${d.note?`<p class="take-note-text">${esc(d.note)}</p>`:''}</section>`
 :`<section class="take-block"><div class="take-line"><h2>Photo <span>${takeDraft.photos.length} of ${TAKE_PHOTOS}</span></h2>${full?'':`<label class="take-add" for="take-photo" aria-label="Add a photo">+</label>`}</div><input type="file" id="take-photo" accept="image/*" capture="environment" hidden>${proofRow(takeDraft.photos,true)}<p class="take-muted">Up to ${TAKE_PHOTOS} photos showing ${task?'it was done':'the dose was taken'}.</p></section>
 <section class="take-block"><h2>Note</h2><textarea id="take-note" maxlength="500" placeholder="How did it go?">${esc(takeDraft.note)}</textarea></section>
 <div class="take-actions"><button class="today-pill" data-take="done"${takeDraft.busy?' disabled':''}>Done</button><button class="today-pill is-light" data-take="skipped"${takeDraft.busy?' disabled':''}>Skipped</button><button class="today-pill is-light" data-take="help">Need help</button></div>`}
@@ -41,7 +43,9 @@ const saveProof=async src=>{try{return (await Account.api('POST','/api/files/pro
 
 /* Done or Skipped: the dose goes into the same record as the reminder buttons and the Take tab, with its photos and note. */
 async function finishTake(kind){const x=takeTask();if(!x||takeDose(x)||takeDraft.busy)return;takeDraft.busy=true;render();
-const photos=(await Promise.all(takeDraft.photos.map(saveProof))).filter(Boolean),i=x.item,note=takeDraft.note.trim();
+const photos=(await Promise.all(takeDraft.photos.map(saveProof))).filter(Boolean),note=takeDraft.note.trim();
+/* The upload takes a moment, and the plan may have been redrawn from the account meanwhile: mark the copy on screen now. */
+const i=find(x.item.id)||x.item;
 if(x.key==='task'||isRefill(x)){if(isRefill(x)&&kind==='done'){if(x.key==='refill:call'){i.refill={...(i.refill||{}),step:'called'};logCare(i,'refill-called')}else{pickedUp(i);logCare(i,'refilled')}}
 i.marks=[...(i.marks||[]),{day:today(),key:x.key,kind:kind==='done'?'done':'skipped',at:new Date().toISOString(),...(markedBy()?{by:markedBy()}:{}),...(note?{note}:{}),...(photos.length?{photos}:{})}].slice(-400);
 takeRef='';takeDraft=blankTake();view='overview';save();render();window.scrollTo(0,0);toast(kind==='skipped'?'Marked skipped.':'Marked done.');return}
@@ -56,6 +60,12 @@ if(view!=='take')return;if(b.dataset.takeRemove){takeDraft.photos.splice(Number(
 if(!b.dataset.take)return;if(b.dataset.take==='help'){takeDraft.help=true;const h=$('#take-help');if(h){h.open=true;h.scrollIntoView({behavior:'smooth',block:'start'})}return}finishTake(b.dataset.take)});
 document.addEventListener('toggle',e=>{if(e.target.id==='take-help')takeDraft.help=e.target.open},true);
 document.addEventListener('input',e=>{if(e.target.id==='take-note')takeDraft.note=e.target.value});
+/* A photo taken after it was marked: saved straight onto that dose or task, so it shows in My Tasks, the report and Photos. */
+let laterBusy=false;
+document.addEventListener('change',async e=>{if(e.target.id!=='take-later'||laterBusy)return;const f=e.target.files[0];if(!f)return;laterBusy=true;
+try{const url=await saveProof(await readPhoto(f));const x=takeTask();if(!url||!x)throw Error('The photo couldn’t be added. Try again.');
+const rec=x.key==='task'||isRefill(x)?markOf(find(x.item.id)||x.item,today(),x.key):takeDose({...x,item:find(x.item.id)||x.item});if(!rec)throw Error('The photo couldn’t be added. Try again.');
+rec.photos=[...(rec.photos||[]),url].slice(0,TAKE_PHOTOS);save();toast('Photo added.')}catch(err){toast(err.message)}finally{laterBusy=false;render()}});
 document.addEventListener('change',async e=>{if(e.target.id!=='take-photo')return;const files=[...e.target.files].slice(0,TAKE_PHOTOS-takeDraft.photos.length);
 try{for(const f of files)takeDraft.photos.push(await readPhoto(f));if(e.target.files.length>files.length)toast(`Up to ${TAKE_PHOTOS} photos.`)}catch(err){toast(err.message)}render()});
 
