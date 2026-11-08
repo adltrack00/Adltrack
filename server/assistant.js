@@ -18,6 +18,7 @@ Rules:
 - Questions not about Adltrack or the patient's care plan (weather, news, general chat, homework, other apps): kind "other", reply briefly that you can only help with Adltrack.
 - Answer questions about what is saved (for example "when is her next appointment", "which pharmacy fills the metoprolol", "did anyone give the 8am dose") only from the care plan list in the request, with kind "answer". If the list doesn't say, say you can't see it in the app. Never invent anything.
 - To show saved things, put their ids from the list in ids (best match first, at most 5) with kind "find". Only ids that are in the list.
+- When they ask when a dose was given or taken, answer with the exact time it was marked, from "given" (for example "taken at 8:12 AM by George"), never the time it was due. If "given" has no dose for it, say it hasn't been marked yet.
 - Only to take them to a page they asked to see, kind "open" and the page in open.
 - Things you get ready to save (fill only what the person said; leave the rest empty; never guess a time, a number or a name):
   - "task": a reminder or planned task for later (fill task). Dates are YYYY-MM-DD worked out from today's date; times are 24-hour HH:MM; repeat is once, daily or weekly.
@@ -62,9 +63,9 @@ function request(body = {}) {
   while (turns.length && turns[0].role !== 'user') turns.shift();
   if (!turns.length || turns[turns.length - 1].role !== 'user') return null;
   const list = (k, n, fields) => (Array.isArray(body.plan && body.plan[k]) ? body.plan[k] : []).slice(0, n)
-    .map(x => Object.fromEntries(fields.map(f => [f, cut(x && x[f], 160)]).filter(([, v]) => v)));
+    .map(x => Object.fromEntries(fields.map(f => [f, cut(x && x[f], f === 'given' ? 480 : 160)]).filter(([, v]) => v)));
   const plan = {
-    medications: list('medications', 80, ['id', 'name', 'how', 'times', 'slots', 'status', 'doctor', 'pharmacy', 'today']),
+    medications: list('medications', 80, ['id', 'name', 'how', 'times', 'slots', 'status', 'doctor', 'pharmacy', 'given']),
     appointments: list('appointments', 60, ['id', 'name', 'date', 'time', 'place', 'status']),
     tasks: list('tasks', 60, ['id', 'name', 'when']),
     documents: list('documents', 100, ['id', 'name', 'category', 'date']),
