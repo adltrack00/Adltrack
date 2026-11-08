@@ -40,7 +40,7 @@ const taskPhoto=(i,mark)=>{const src=(mark&&mark.photos||[])[0]||(i.photos||[])[
 
 /* The Take page for a task: its photo, what to do with its note and photos, then the same photo, note and Done, Skipped, Need help. */
 function taskTakePage(x,d,full){const i=x.item;
-const top=`<div class="take-hero">${taskPhoto(i)}<h1>${esc(i.name)}</h1><p>${esc(['Today'+(x.time?' at '+clockText(x.time):''),whoLine(i.by,'')].filter(Boolean).join(' · '))}</p></div>`;
+const top=`<div class="take-hero">${taskPhoto(i,markOf(i,today(),x.key))}<h1>${esc(i.name)}</h1><p>${esc(['Today'+(x.time?' at '+clockText(x.time):''),whoLine(i.by,'')].filter(Boolean).join(' · '))}</p></div>`;
 const how=`<section class="take-block"><h2>What to do</h2><p>${esc(i.note||i.name)}</p>${proofRow(i.photos||[],false)}<p class="take-sub">${esc(repeatText(i))}</p></section>`;
 const details=`<details class="take-more" id="take-help"${takeDraft.help?' open':''}><summary>Instructions</summary>${helpNote(i)}</details>`;
 return `<section class="sub-page take-page"><div class="sub-top"><button class="sub-back" data-menu-go="overview" aria-label="Back">${menuIcon(menuIcons.back)}</button></div>${top}${how}${takeBody(d,full,true)}${details}</section>`}
