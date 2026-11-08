@@ -130,11 +130,21 @@ function adaLocal(text, list = items) {
   return null;
 }
 
+/* George 2026-11-08: asked when a dose was given, Ada says the exact time it was marked, not the time it was due. So each
+   medication carries its last few doses (3 days, newest first) as "today: 8 AM dose taken at 8:12 AM by George". */
+function adaGiven(doses, now = new Date()) {
+  const clock = at => { const d = new Date(at); return isNaN(d) ? '' : d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); };
+  const dayName = at => { const d = new Date(at), a = new Date(now); a.setHours(0, 0, 0, 0); const b = new Date(d); b.setHours(0, 0, 0, 0); const n = Math.round((a - b) / 864e5); return n === 0 ? 'today' : n === 1 ? 'yesterday' : d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }); };
+  const slot = t => { const [h, m] = String(t).split(':').map(Number); if (isNaN(h)) return ''; return `${h % 12 || 12}${m ? ':' + String(m).padStart(2, '0') : ''} ${h < 12 ? 'AM' : 'PM'}`; };
+  return (doses || []).filter(d => d && d.at && now - new Date(d.at) < 3 * 864e5 && now - new Date(d.at) >= -6e4).sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 6)
+    .map(d => `${dayName(d.at)}: ${d.slot ? slot(d.slot) + ' dose' : 'dose'} ${d.kind === 'skipped' ? 'marked skipped' : 'taken'} at ${clock(d.at)}${d.by ? ' by ' + d.by : ''}`).join('; ');
+}
+
 /* The small list of the care plan the AI may answer from: names, dates and ids only, never photos or record numbers. */
 function adaPlan(list = items) {
   const day = today(), shortTime = t => typeof clockText === 'function' ? clockText(t) : t;
   return {
-    medications: list.filter(i => i.med && !i.demo).map(i => ({ id: i.id, name: i.name, how: i.instructions || '', times: (i.times || []).map(shortTime).join(', '), status: i.status === 'received' ? 'finished' : i.refill ? 'needs refill' : 'open', doctor: i.prescriber && i.prescriber.name || '', pharmacy: i.pharmacy && i.pharmacy.name || '', today: (i.doses || []).filter(d => String(d.at || '').startsWith(day)).map(d => `${d.slot ? shortTime(d.slot) + ' ' : ''}${d.kind}${d.by ? ' by ' + d.by : ''}`).join('; ') })),
+    medications: list.filter(i => i.med && !i.demo).map(i => ({ id: i.id, name: i.name, how: i.instructions || '', times: (i.times || []).map(shortTime).join(', '), status: i.status === 'received' ? 'finished' : i.refill ? 'needs refill' : 'open', doctor: i.prescriber && i.prescriber.name || '', pharmacy: i.pharmacy && i.pharmacy.name || '', given: adaGiven(i.doses) })),
     appointments: list.filter(i => i.appt && !i.demo).map(a => ({ id: a.id, name: a.name, date: a.date || '', time: a.time || '', place: a.place || '', status: a.status === 'received' ? 'went' : '' })),
     tasks: list.filter(i => i.task && !i.demo).map(t => ({ id: t.id, name: t.name, when: typeof repeatText === 'function' ? repeatText(t) : '' })),
     documents: (typeof docList === 'function' ? docList(list) : []).map(d => ({ id: d.id, name: d.name, category: typeof docCategoryName === 'function' ? docCategoryName(d.category) : d.category, date: d.date || '' })),
@@ -204,7 +214,7 @@ function adaDate(text, base, want = 'future') {
   if (m) { let x = make(b.getFullYear(), b.getMonth(), +m[1]); if (x && want === 'future' && iso(x) < base) x = make(b.getFullYear(), b.getMonth() + 1, +m[1]); return x ? iso(x) : ''; }
   return '';
 }
-if (typeof module !== 'undefined') module.exports = { ADA_LOOKS, adaFace, adaWords, adaFind, adaLocal, adaPlan, adaThings, ADA_PLACES, ADA_MEDICAL, adaTimes, adaSuggestTimes, adaDocCategory, adaVitalsFrom, adaDate };
+if (typeof module !== 'undefined') module.exports = { ADA_LOOKS, adaFace, adaWords, adaFind, adaLocal, adaPlan, adaGiven, adaThings, ADA_PLACES, ADA_MEDICAL, adaTimes, adaSuggestTimes, adaDocCategory, adaVitalsFrom, adaDate };
 
 if (typeof document !== 'undefined') {
 /* ---- The pop-up ---- */

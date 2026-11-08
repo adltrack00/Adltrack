@@ -64,7 +64,7 @@ test('medical questions are never sent anywhere: they get who to call', () => {
 test('the list the AI may answer from holds names, times and ids, never photos, and no examples', () => {
   const plan = app().adaPlan();
   assert.deepEqual([...plan.medications.map(m => m.id)], ['m1', 'm2']);
-  assert.equal(plan.medications[0].times, '08:00, 20:00'); assert.match(plan.medications[0].today, /taken by George/);
+  assert.equal(plan.medications[0].times, '08:00, 20:00'); assert.ok('given' in plan.medications[0] && !('today' in plan.medications[0]));
   assert.deepEqual([...plan.documents.map(d => d.id)], ['d1', 'd2']);
   assert.ok(!JSON.stringify(plan).includes('/f/1'), 'no files');
   assert.ok(plan.contacts.some(c => c.kind === 'pharmacy'));
@@ -176,4 +176,13 @@ test('days in plain words', () => {
   assert.equal(d('the 2nd', '2026-11-03'), '2026-12-02');
   assert.equal(d('Feb 30', '2026-11-03'), '');
   assert.equal(d('whenever', '2026-11-03'), '');
+});
+
+test('asked when a dose was given, Ada has the exact time it was marked, not the time it was due (George 2026-11-08)', () => {
+  const a = app(), now = new Date('2026-11-03T21:00');
+  const said = a.adaGiven([{ slot: '08:00', kind: 'taken', at: '2026-11-03T08:12', by: 'George' }, { slot: '20:00', kind: 'skipped', at: '2026-11-02T20:40' }, { slot: '08:00', kind: 'taken', at: '2026-10-20T08:00' }], now);
+  assert.match(said, /^today: 8 AM dose taken at 8:12\sAM by George; yesterday: 8 PM dose marked skipped at 8:40\sPM$/);
+  assert.equal(a.adaGiven([], now), '');
+  const SYS = require('fs').readFileSync(require('path').join(__dirname, '../server/assistant.js'), 'utf8');
+  assert.match(SYS, /exact time it was marked/);
 });
