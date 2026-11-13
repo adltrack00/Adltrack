@@ -26,6 +26,8 @@ const KIND_FIELDS = new Set(['med', 'appt', 'task', 'incident', 'symptom', 'acti
 const VITAL_KEYS = new Set(['vitals', 'vitalsLog']);
 // Turned on by anyone who allows notifications on their phone, viewers too, so alerts reach everyone.
 const ANYONE_KEYS = new Set(['notifications']);
+// Ada's check-ins are written only by server/checkins.js; the copy the app sends back is ignored on save (server/data.js), so it changes nothing.
+const SERVER_KEYS = new Set(['checkins']);
 
 /* JSON with object keys sorted, so a value saved and read back (where the database may reorder keys) compares equal. */
 const stable = v => JSON.stringify(v, (k, x) => x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) : x);
@@ -73,7 +75,7 @@ function createPermissions(access) {
 
   /* The plan's settings and the Home profile, saved together. */
   function settings(before, after) {
-    const keys = changed(before.settings || {}, after.settings || {}).filter(k => !ANYONE_KEYS.has(k));
+    const keys = changed(before.settings || {}, after.settings || {}).filter(k => !ANYONE_KEYS.has(k) && !SERVER_KEYS.has(k));
     if (!keys.length && !changed(before.profile || {}, after.profile || {}).length) return;
     if (viewer) throw new PermissionError(SAY.viewer);
     if (keys.some(k => VITAL_KEYS.has(k))) need('tasks');

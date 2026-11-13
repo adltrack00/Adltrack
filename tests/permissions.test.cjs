@@ -102,6 +102,8 @@ test('a caregiver without the medications tick does the tasks but can’t change
     assert.equal((await maria('PUT', '/api/items/med-1', { ...(await app.med()), status: 'received', returnedOn: day, finishedAt: new Date().toISOString(), finishedBy: 'Maria' })).status, 200);
     assert.equal((await maria('PUT', '/api/items/med-1', { ...(await app.med()), status: 'deciding' })).status, 200);
     assert.equal((await maria('PUT', '/api/settings', { settings: { quietStart: '22:00', vitals: { bp: '120/80', at: day } }, profile: { name: 'Dad' } })).status, 200);
+    // An app holding an older copy of Ada's check-ins (only the server writes them) can still save vital signs.
+    assert.equal((await maria('PUT', '/api/settings', { settings: { quietStart: '22:00', vitals: { bp: '124/80', at: day }, checkins: [{ id: 'stale-copy', kind: 'symptom' }] }, profile: { name: 'Dad' } })).status, 200);
 
     // Can't change the medication itself, add or remove one, scan papers, or change the plan's settings.
     const med = await app.med();
