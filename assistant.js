@@ -111,7 +111,8 @@ function adaLocal(text, list = items) {
   if (ADA_MEDICAL.test(s)) return { kind: 'medical' };
   if (/\bnext (appointment|visit)\b/i.test(s)) { const day = today(), next = list.filter(i => i.appt && !i.demo && i.status !== 'received' && i.date && i.date >= day).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')))[0]; return next ? { kind: 'find', things: adaThings(list).filter(t => t.id === next.id), say: 'Here’s the next one.' } : { kind: 'say', say: 'There’s no appointment coming up in the app.', open: 'appointments' }; }
   const gave = s.match(/\b(gave|given|took|taken|skipped|skip|missed)\b/i);
-  if (gave && !/\?\s*$/.test(s)) { const m = adaFind(s, list).find(t => t.kind === 'med'); if (m) return { kind: 'dose', med_id: m.id, mark: /skip|missed/i.test(gave[1]) ? 'skipped' : 'taken', slot: adaTimes(s).find(t => (m.item.times || []).includes(t)) || '' }; }
+  // A question (a ? or, spoken without one, starting with when/was/did/has…) is answered, not marked as a dose.
+  if (gave && !/\?\s*$/.test(s) && !/^(when|what time|was|were|did|has|have|is|who|how)\b/i.test(s)) { const m = adaFind(s, list).find(t => t.kind === 'med'); if (m) return { kind: 'dose', med_id: m.id, mark: /skip|missed/i.test(gave[1]) ? 'skipped' : 'taken', slot: adaTimes(s).find(t => (m.item.times || []).includes(t)) || '' }; }
   const dated = /\b\d{1,2}(:\d{2})?\s*(am|pm)\b|\b(today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|morning|evening|noon|night|every|daily|weekly|next week|on the \d|\d{1,2}(st|nd|rd|th))\b/i.test(s);
   if (ADA_LOOKUP.test(s) || adaWords(s).length <= 3) {
     const found = adaFind(s, list);

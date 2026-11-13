@@ -163,6 +163,9 @@ test('a dose given or skipped is understood in the app, for free', () => {
   assert.equal(r.kind, 'dose'); assert.equal(r.med_id, 'm1'); assert.equal(r.mark, 'taken'); assert.equal(r.slot, '08:00');
   assert.equal(a.adaLocal('she skipped the lisinopril').mark, 'skipped');
   assert.equal(a.adaLocal('she missed the lisinopril, can she take it now?').kind, 'medical');
+  // Asked out loud with no question mark, it's still a question, not a dose to mark.
+  assert.notEqual((a.adaLocal('when was the metoprolol given') || {}).kind, 'dose');
+  assert.notEqual((a.adaLocal('was the metoprolol taken today') || {}).kind, 'dose');
 });
 
 test('days in plain words', () => {

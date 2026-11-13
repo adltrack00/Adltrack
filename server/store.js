@@ -676,6 +676,8 @@ function pgStore(connectionString) {
     },
     getRecordLink: ownerId => one('select owner_id as "ownerId", token, pin_hash as "pinHash", views, created_at as "createdAt" from record_links where owner_id=$1', [ownerId]),
     findRecordLink: token => one('select owner_id as "ownerId", token, pin_hash as "pinHash", views, created_at as "createdAt" from record_links where token=$1', [token]),
+    // Only the views of the link with this token: a link turned off or replaced meanwhile stays off or replaced.
+    async setRecordViews(token, views) { await pool.query('update record_links set views=$2 where token=$1', [token, JSON.stringify(views)]); },
     async setRecordLink(ownerId, l) {
       if (!l) { await pool.query('delete from record_links where owner_id=$1', [ownerId]); return; }
       await pool.query('insert into record_links (owner_id, token, pin_hash, views, created_at) values ($1,$2,$3,$4,$5) on conflict (owner_id) do update set token=excluded.token, pin_hash=excluded.pin_hash, views=excluded.views, created_at=excluded.created_at', [ownerId, l.token, l.pinHash, JSON.stringify(l.views || []), l.createdAt]);
@@ -1106,6 +1108,7 @@ function fileStore(file) {
     },
     async getRecordLink(ownerId) { await load(); const l = db.recordLinks[ownerId]; return l ? copy({ ownerId, ...l }) : null; },
     async findRecordLink(token) { await load(); const e = Object.entries(db.recordLinks).find(([, l]) => l.token === token); return e ? copy({ ownerId: e[0], ...e[1] }) : null; },
+    async setRecordViews(token, views) { await load(); const l = Object.values(db.recordLinks).find(x => x.token === token); if (l) { l.views = copy(views); await persist(); } },
     async setRecordLink(ownerId, l) { await load(); if (l) db.recordLinks[ownerId] = { token: l.token, pinHash: l.pinHash || null, views: copy(l.views || []), createdAt: l.createdAt }; else delete db.recordLinks[ownerId]; await persist(); },
     async close() { await queue; }
   };
