@@ -87,7 +87,10 @@ function createCheckins({ store, data, reminders = null, sms = null, now = () =>
 
   async function patientName(ownerId) {
     const profile = (await store.getRawData(ownerId))?.payload?.profile || {};
-    const n = typeof profile.name === 'string' ? profile.name.trim() : '';
+    // The patient's own name from Patient information (what they go by first), else the Home profile's name.
+    const info = profile.info && typeof profile.info === 'object' ? profile.info : {};
+    const pick = v => typeof v === 'string' ? v.trim() : '';
+    const n = pick(info.preferred) || pick(info.name).split(/\s+/)[0] || pick(profile.name);
     return n && n.toLowerCase() !== 'you' ? n.slice(0, 40) : '';
   }
 
