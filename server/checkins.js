@@ -87,7 +87,10 @@ function createCheckins({ store, data, reminders = null, sms = null, now = () =>
 
   async function patientName(ownerId) {
     const profile = (await store.getRawData(ownerId))?.payload?.profile || {};
-    const n = typeof profile.name === 'string' ? profile.name.trim() : '';
+    // The patient's own name from Patient information (what they go by first), else the Home profile's name.
+    const info = profile.info && typeof profile.info === 'object' ? profile.info : {};
+    const pick = v => typeof v === 'string' ? v.trim() : '';
+    const n = pick(info.preferred) || pick(info.name).split(/\s+/)[0] || pick(profile.name);
     return n && n.toLowerCase() !== 'you' ? n.slice(0, 40) : '';
   }
 
@@ -185,8 +188,9 @@ function createCheckins({ store, data, reminders = null, sms = null, now = () =>
   async function sendHelpAgain({ ownerId, id, at: when }) {
     const c = (await list(ownerId)).find(x => x.id === id);
     if (!c || !c.help || c.help.at !== when || c.end || c.help.again || (c.help.replies || []).some(r => r.coming) || !reminders) return;
-    await change(ownerId, all => { const x = all.find(y => y.id === id); if (x && x.help) x.help.again = at(); });
+    // The team is told first: if that fails the job runs again, as "again" isn't saved yet.
     await tellTeam(ownerId, c, true);
+    await change(ownerId, all => { const x = all.find(y => y.id === id); if (x && x.help) x.help.again = at(); });
     await reminders.deliverTo([{ userId: c.userId }], { title: 'No one has answered yet', body: 'I asked the care team to call 911 for you. Tap to call 911 yourself.', itemId: null, url: `app.html?patient=${encodeURIComponent(ownerId)}&checkin=${encodeURIComponent(c.id)}`, actions: [], tag: 'checkin-again ' + c.id }, { topic: 'checkin', ttl: 6 * 60 * 60, urgency: 'high' }, { always: true });
   }
 

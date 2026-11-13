@@ -146,7 +146,7 @@ function createApp({ store, data, production = false, policies = null, classifie
   const authLimit = limiter(20, 15 * 60 * 1000);
   const record = createRecord({ store, data, hashPassword, verifyPassword });
   // Scans of the doctor record: per address, and wrong PINs per link, so a PIN can't be guessed.
-  const recordLimit = limiter(120, 15 * 60 * 1000), pinLimit = limiter(10, 15 * 60 * 1000);
+  const recordLimit = limiter(120, 15 * 60 * 1000);
   // Each classification is an AI call, so it's limited per account.
   const classifyLimit = limiter(300, 60 * 60 * 1000);
   // Each receipt read is a larger AI call (images), so it has its own, lower limit.
@@ -165,7 +165,8 @@ function createApp({ store, data, production = false, policies = null, classifie
   // Email links (actions and unsubscribes) work without signing in, so they're limited per IP.
   const linkLimit = limiter(60, 15 * 60 * 1000);
   // Locks an email for 15 minutes after 10 wrong passwords, checked before the password is tried.
-  const loginFailures = (() => {
+  // Wrong passwords per email, and wrong doctor-record PINs per link: 10 in 15 minutes locks it for the rest of that time.
+  const failures = () => {
     const fails = new Map(), WINDOW = 15 * 60 * 1000, MAX = 10;
     const get = e => { const f = fails.get(e); if (f && f.reset < Date.now()) { fails.delete(e); return null; } return f; };
     return {
@@ -173,7 +174,8 @@ function createApp({ store, data, production = false, policies = null, classifie
       fail: e => { const f = get(e); if (f) f.count++; else fails.set(e, { count: 1, reset: Date.now() + WINDOW }); },
       clear: e => fails.delete(e)
     };
-  })();
+  };
+  const loginFailures = failures(), pinFailures = failures();
 
   const isSecure = req => production || req.headers['x-forwarded-proto'] === 'https';
   const cookie = (req, value, maxAge) => `${COOKIE}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${isSecure(req) ? '; Secure' : ''}`;
@@ -452,9 +454,11 @@ function createApp({ store, data, production = false, policies = null, classifie
       checkWrite(req);
       if (!recordLimit('ip:' + clientIp(req))) throw new HttpError(429, 'Too many tries. Wait a few minutes and scan again.');
       const body = await readBody(req, 2_000), token = typeof body.token === 'string' ? body.token.slice(0, 100) : '';
-      if (body.pin && !pinLimit('pin:' + token)) throw new HttpError(429, 'Too many PIN tries. Wait 15 minutes and try again.');
-      if (route === '/api/record/open') return send(res, 200, await record.open(token, body.pin));
-      const f = await record.file(token, body.pin, { doc: body.doc, page: body.page, photo: body.photo === true });
+      // Only wrong PINs count, so a doctor with the right PIN can open every page of the record.
+      if (body.pin && pinFailures.locked(token)) throw new HttpError(429, 'Too many PIN tries. Wait 15 minutes and try again.');
+      const pinChecked = async run => { try { return await run(); } catch (err) { if (body.pin && err.status === 401) pinFailures.fail(token); throw err; } };
+      if (route === '/api/record/open') return send(res, 200, await pinChecked(() => record.open(token, body.pin)));
+      const f = await pinChecked(() => record.file(token, body.pin, { doc: body.doc, page: body.page, photo: body.photo === true }));
       res.writeHead(200, { 'Content-Type': f.contentType, 'Content-Length': f.body.length, 'Cache-Control': 'no-store', 'Content-Disposition': 'inline', 'Content-Security-Policy': FILE_CSP });
       return res.end(f.body);
     }

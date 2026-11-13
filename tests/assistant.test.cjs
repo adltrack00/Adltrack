@@ -163,6 +163,9 @@ test('a dose given or skipped is understood in the app, for free', () => {
   assert.equal(r.kind, 'dose'); assert.equal(r.med_id, 'm1'); assert.equal(r.mark, 'taken'); assert.equal(r.slot, '08:00');
   assert.equal(a.adaLocal('she skipped the lisinopril').mark, 'skipped');
   assert.equal(a.adaLocal('she missed the lisinopril, can she take it now?').kind, 'medical');
+  // Asked out loud with no question mark, it's still a question, not a dose to mark.
+  assert.notEqual((a.adaLocal('when was the metoprolol given') || {}).kind, 'dose');
+  assert.notEqual((a.adaLocal('was the metoprolol taken today') || {}).kind, 'dose');
 });
 
 test('days in plain words', () => {
@@ -183,6 +186,8 @@ test('asked when a dose was given, Ada has the exact time it was marked, not the
   const said = a.adaGiven([{ slot: '08:00', kind: 'taken', at: '2026-11-03T08:12', by: 'George' }, { slot: '20:00', kind: 'skipped', at: '2026-11-02T20:40' }, { slot: '08:00', kind: 'taken', at: '2026-10-20T08:00' }], now);
   assert.match(said, /^today: 8 AM dose taken at 8:12\sAM by George; yesterday: 8 PM dose marked skipped at 8:40\sPM$/);
   assert.equal(a.adaGiven([], now), '');
+  // A late dose marked after midnight belongs to the day it was for.
+  assert.match(a.adaGiven([{ day: '2026-11-02', slot: '23:00', kind: 'taken', at: '2026-11-03T00:20' }], now), /^yesterday: 11 PM dose taken at 12:20\sAM$/);
   const SYS = require('fs').readFileSync(require('path').join(__dirname, '../server/assistant.js'), 'utf8');
   assert.match(SYS, /exact time it was marked/);
 });

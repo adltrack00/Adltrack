@@ -80,7 +80,7 @@ function createRecord({ store, data, hashPassword, verifyPassword }) {
       .filter(v => Object.keys(v).length > 1).sort((a, b) => b.at.localeCompare(a.at));
     const notes = kind => items.filter(i => i[kind] && within(i.at, since)).map(i => ({ at: i.at, name: str(i.name), note: str(i.note) })).sort((a, b) => b.at.localeCompare(a.at));
     const views = [...(l.views || []), now.toISOString()].slice(-VIEWS_KEPT);
-    await store.setRecordLink(l.ownerId, { ...l, views });
+    await store.setRecordViews(l.token, views);
     return {
       record: {
         name: info.name || (profile.name && profile.name.toLowerCase() !== 'you' ? profile.name : '') || '',

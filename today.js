@@ -63,7 +63,8 @@ document.addEventListener('input',e=>{if(e.target.id==='take-note')takeDraft.not
 /* A photo taken after it was marked: saved straight onto that dose or task, so it shows in My Tasks, the report and Photos. */
 let laterBusy=false;
 document.addEventListener('change',async e=>{if(e.target.id!=='take-later'||laterBusy)return;const f=e.target.files[0];if(!f)return;laterBusy=true;
-try{const url=await saveProof(await readPhoto(f));const x=takeTask();if(!url||!x)throw Error('The photo couldn’t be added. Try again.');
+/* The task is the one open when the photo was taken, even if another is opened while it uploads. */
+const x=takeTask();try{const url=await saveProof(await readPhoto(f));if(!url||!x)throw Error('The photo couldn’t be added. Try again.');
 const rec=x.key==='task'||isRefill(x)?markOf(find(x.item.id)||x.item,today(),x.key):takeDose({...x,item:find(x.item.id)||x.item});if(!rec)throw Error('The photo couldn’t be added. Try again.');
 rec.photos=[...(rec.photos||[]),url].slice(0,TAKE_PHOTOS);save();toast('Photo added.')}catch(err){toast(err.message)}finally{laterBusy=false;render()}});
 document.addEventListener('change',async e=>{if(e.target.id!=='take-photo')return;const files=[...e.target.files].slice(0,TAKE_PHOTOS-takeDraft.photos.length);
