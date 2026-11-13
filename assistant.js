@@ -131,13 +131,14 @@ function adaLocal(text, list = items) {
 }
 
 /* George 2026-11-08: asked when a dose was given, Ada says the exact time it was marked, not the time it was due. So each
-   medication carries its last few doses (3 days, newest first) as "today: 8 AM dose taken at 8:12 AM by George". */
+   medication carries its last few doses (3 days, newest first) as "today: 8 AM dose taken at 8:12 AM by George". The day is the
+   day the dose was for (a late 11 PM dose marked after midnight still belongs to the night before). */
 function adaGiven(doses, now = new Date()) {
   const clock = at => { const d = new Date(at); return isNaN(d) ? '' : d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); };
   const dayName = at => { const d = new Date(at), a = new Date(now); a.setHours(0, 0, 0, 0); const b = new Date(d); b.setHours(0, 0, 0, 0); const n = Math.round((a - b) / 864e5); return n === 0 ? 'today' : n === 1 ? 'yesterday' : d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }); };
   const slot = t => { const [h, m] = String(t).split(':').map(Number); if (isNaN(h)) return ''; return `${h % 12 || 12}${m ? ':' + String(m).padStart(2, '0') : ''} ${h < 12 ? 'AM' : 'PM'}`; };
-  return (doses || []).filter(d => d && d.at && now - new Date(d.at) < 3 * 864e5 && now - new Date(d.at) >= -6e4).sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 6)
-    .map(d => `${dayName(d.at)}: ${d.slot ? slot(d.slot) + ' dose' : 'dose'} ${d.kind === 'skipped' ? 'marked skipped' : 'taken'} at ${clock(d.at)}${d.by ? ' by ' + d.by : ''}`).join('; ');
+  return (doses || []).filter(d => d && d.at && now - new Date(d.at) < 3 * 864e5 && now - new Date(d.at) >= -6e4).sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 12)
+    .map(d => `${dayName(d.day ? d.day + 'T12:00' : d.at)}: ${d.slot ? slot(d.slot) + ' dose' : 'dose'} ${d.kind === 'skipped' ? 'marked skipped' : 'taken'} at ${clock(d.at)}${d.by ? ' by ' + d.by : ''}`).join('; ');
 }
 
 /* The small list of the care plan the AI may answer from: names, dates and ids only, never photos or record numbers. */
