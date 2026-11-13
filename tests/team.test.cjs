@@ -27,7 +27,7 @@ async function boot({ texts = true } = {}) {
       return { status: res.status, body: await res.json().catch(() => null) };
     };
   };
-  const signUp = async (name, address) => { const c = client(); assert.equal((await c('POST', '/api/signup', { name, email: address, password: 'password123' })).status, 201); return c; };
+  const signUp = async (name, address) => { const c = client(); assert.equal((await c('POST', '/api/signup', { name, email: address, password: 'Care-plan-2026' })).status, 201); return c; };
   const token = link => link.split('#t=')[1];
   return { client, signUp, token, mails, sent, close: () => new Promise(r => server.close(r)) };
 }
@@ -74,7 +74,7 @@ test('an admin adds a caregiver by email and phone, who joins and shares the sam
     assert.deepEqual(info.body, { inviter: 'George', name: 'Maria', email: 'maria@example.com', role: 'caregiver' });
 
     const maria = await app.signUp('Maria', 'maria.r@example.com');
-    const joined = await maria('POST', '/api/invite/accept', { token: t });
+    const joined = await maria('POST', '/api/invite/accept', { consent: true, token: t });
     assert.equal(joined.status, 200);
     assert.equal(joined.body.me.role, 'caregiver');
 
@@ -118,7 +118,7 @@ test('admins change what a person may do, resend invites and remove people, but 
     const again = await george('POST', `/api/team/members/${id}/invite`, {});
     assert.equal((await app.client()('POST', '/api/invite/info', { token: old })).status, 400);
     const sam = await app.signUp('Sam', 'sam@example.com');
-    await sam('POST', '/api/invite/accept', { token: app.token(again.body.invite.link) });
+    await sam('POST', '/api/invite/accept', { consent: true, token: app.token(again.body.invite.link) });
 
     // A second admin can add people too.
     assert.equal((await sam('POST', '/api/team/members', { name: 'Lee', email: 'lee@example.com', role: 'caregiver' })).status, 201);
@@ -140,8 +140,8 @@ test('someone on one care team can join another family’s too, and leaves one w
     const inviteA = await a('POST', '/api/team/members', { name: 'Cy', email: 'cy@example.com', role: 'viewer' });
     const inviteB = await b('POST', '/api/team/members', { name: 'Cy', email: 'cy@example.com', role: 'viewer' });
     const cy = await app.signUp('Cy', 'cy@example.com');
-    assert.equal((await cy('POST', '/api/invite/accept', { token: app.token(inviteA.body.invite.link) })).status, 200);
-    assert.equal((await cy('POST', '/api/invite/accept', { token: app.token(inviteB.body.invite.link) })).status, 200);
+    assert.equal((await cy('POST', '/api/invite/accept', { consent: true, token: app.token(inviteA.body.invite.link) })).status, 200);
+    assert.equal((await cy('POST', '/api/invite/accept', { consent: true, token: app.token(inviteB.body.invite.link) })).status, 200);
     assert.equal((await cy('GET', '/api/me')).body.team.patients.length, 2);
     assert.equal((await cy('POST', '/api/team/leave', {})).status, 200);
     assert.equal((await cy('GET', '/api/me')).body.team.patients.length, 1);

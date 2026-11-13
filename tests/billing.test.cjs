@@ -65,7 +65,7 @@ async function boot({ payments = true } = {}) {
     };
     return call;
   };
-  const signUp = async (name, address) => { const c = client(); assert.equal((await c('POST', '/api/signup', { name, email: address, password: 'password123' })).status, 201); return c; };
+  const signUp = async (name, address) => { const c = client(); assert.equal((await c('POST', '/api/signup', { name, email: address, password: 'Care-plan-2026' })).status, 201); return c; };
   let people = 0;
   const add = (admin, role = 'viewer', phone = '') => admin('POST', '/api/team/members', { name: 'Person ' + (++people), email: `p${people}@example.com`, phone, role });
   const ownerOf = async c => (await c('GET', '/api/me')).body.team.patient;
@@ -117,7 +117,7 @@ test('only the family’s admins see or pay for the plan; caregivers and viewers
     const george = await app.signUp('George', 'george@example.com');
     const invite = await george('POST', '/api/team/members', { name: 'Maria', email: 'maria@example.com', role: 'caregiver' });
     const maria = await app.signUp('Maria', 'maria@example.com');
-    await maria('POST', '/api/invite/accept', { token: invite.body.invite.link.split('#t=')[1] });
+    await maria('POST', '/api/invite/accept', { consent: true, token: invite.body.invite.link.split('#t=')[1] });
     for (const [method, url] of [['GET', '/api/plan'], ['POST', '/api/plan/checkout'], ['POST', '/api/plan/trial'], ['POST', '/api/plan/portal']]) {
       assert.equal((await maria(method, url, method === 'POST' ? { tier: 'family' } : undefined)).status, 403, url);
     }
@@ -169,7 +169,7 @@ test('a lapsed plan keeps the team seeing everything but adds nobody, and the ca
     const maria = await app.signUp('Maria', 'maria@example.com');
     for (const fam of [rose, june]) {
       const r = await fam('POST', '/api/team/members', { name: 'Maria', email: 'maria@example.com', role: 'caregiver' });
-      await maria('POST', '/api/invite/accept', { token: r.body.invite.link.split('#t=')[1] });
+      await maria('POST', '/api/invite/accept', { consent: true, token: r.body.invite.link.split('#t=')[1] });
     }
     const roseId = await app.ownerOf(rose);
     // Rose's trial ended without paying.

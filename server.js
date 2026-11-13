@@ -26,6 +26,7 @@ const { createEmail, emailConfig } = require('./server/email');
 const { createSms, smsConfig } = require('./server/sms');
 const { createCheckins } = require('./server/checkins');
 const { createBilling, createStripe, stripeConfig, planConfig } = require('./server/billing');
+const { createHealth } = require('./server/health');
 
 const production = process.env.NODE_ENV === 'production';
 const databaseUrl = process.env.DATABASE_URL || '';
@@ -64,7 +65,11 @@ const reminders = createReminders({ store, push, email, sms, data });
 // The every-minute reminder dispatch only runs when push, email or texts are set up.
 // Ada's check-ins after symptoms, and the request for help to the care team.
 const checkins = createCheckins({ store, data, reminders, sms });
-defineJobs(jobs, { store, storage, data, reminders: push.available() || email.available() || sms.available() ? reminders : null, checkins });
+const remindersOn = push.available() || email.available() || sms.available();
+defineJobs(jobs, { store, storage, data, reminders: remindersOn ? reminders : null, checkins });
+if (production && !remindersOn) console.warn('No reminders are sent: set VAPID_* (push), RESEND_API_KEY (email) or TWILIO_* (texts).');
+// /api/health answers 503 when the reminder check stops running, and ALERT_EMAIL (or SUPPORT_EMAIL) gets an email.
+const health = createHealth({ jobs, remindersOn, email, alertTo: process.env.ALERT_EMAIL || process.env.SUPPORT_EMAIL || '' });
 const port = Number(process.env.PORT || 4174);
 // Render routes traffic to 0.0.0.0; locally we stay on localhost only.
 const host = process.env.HOST || (production ? '0.0.0.0' : '127.0.0.1');
@@ -85,7 +90,9 @@ store.init().then(async () => {
   const migrated = await data.migrateAll();
   if (migrated) console.log(`Moved ${migrated} account${migrated === 1 ? '' : 's'} to the items tables.`);
   await jobs.start();
-  const server = http.createServer(createApp({ store, data, production, policies, classifier: createClassifier(), receipts: createReceiptReader(), discharge: createDischargeReader(), labels: createLabelReader(), vitals: createVitalsReader(), assistant: createAssistant(), places: createPlaces({ store }), review, push, reminders, email, supportEmail: process.env.SUPPORT_EMAIL || '', inbox, oauth, publicUrl: oauthSettings.publicUrl, inboundSecret: process.env.RESEND_WEBHOOK_SECRET || '', sms, billing, checkins })).listen(port, host, () =>
+  const watch = setInterval(() => health.check(), 60 * 1000);
+  watch.unref();
+  const server = http.createServer(createApp({ store, data, production, policies, classifier: createClassifier(), receipts: createReceiptReader(), discharge: createDischargeReader(), labels: createLabelReader(), vitals: createVitalsReader(), assistant: createAssistant(), places: createPlaces({ store }), review, push, reminders, email, supportEmail: process.env.SUPPORT_EMAIL || '', inbox, oauth, publicUrl: oauthSettings.publicUrl, inboundSecret: process.env.RESEND_WEBHOOK_SECRET || '', sms, billing, checkins, health })).listen(port, host, () =>
     console.log(`Adltrack running on http://${host === '0.0.0.0' ? 'localhost' : host}:${port} (${databaseUrl ? 'Postgres' : 'local file store'}, ${storage.kind === 's3' ? 'S3 file storage' : 'local file storage'})`));
   const shutdown = () => { server.close(); jobs.stop().finally(() => store.close().finally(() => process.exit(0))); };
   process.on('SIGTERM', shutdown);

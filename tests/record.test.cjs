@@ -24,7 +24,7 @@ test('the doctor record shows meds, the last 30 days and only the documents mark
   const { client, close } = await setup();
   try {
     const george = client(), ann = client(), doctor = client();
-    assert.equal((await george('POST', '/api/signup', { name: 'George', email: 'george@example.com', password: 'password123' })).status, 201);
+    assert.equal((await george('POST', '/api/signup', { name: 'George', email: 'george@example.com', password: 'Care-plan-2026' })).status, 201);
     const lab = (await george('POST', '/api/files/document', { data: PNG })).body, card = (await george('POST', '/api/files/document', { data: PNG })).body;
     for (const item of [
       { id: 'm1', med: true, status: 'deciding', name: 'Furosemide 20 mg', instructions: 'Take 1 tablet every morning', times: ['08:00'], pharmacy: { name: 'CVS Pharmacy' }, prescriber: { name: 'Dr. A Patel' }, doses: [{ day: ago(1).slice(0, 10), kind: 'taken', slot: '08:00', at: ago(1) }, { day: ago(2).slice(0, 10), kind: 'skipped', slot: '08:00', at: ago(2) }, { day: ago(40).slice(0, 10), kind: 'taken', slot: '08:00', at: ago(40) }] },
@@ -40,8 +40,8 @@ test('the doctor record shows meds, the last 30 days and only the documents mark
     assert.deepEqual((await george('GET', '/api/record')).body, { on: false });
     // Only an admin turns it on; a viewer on the team sees the link but can't change it.
     const add = await george('POST', '/api/team/members', { name: 'Ann', email: 'ann@example.com', role: 'viewer', perms: {} });
-    await ann('POST', '/api/signup', { name: 'Ann', email: 'ann@example.com', password: 'password123' });
-    await ann('POST', '/api/invite/accept', { token: add.body.invite.link.split('#t=')[1] });
+    await ann('POST', '/api/signup', { name: 'Ann', email: 'ann@example.com', password: 'Care-plan-2026' });
+    await ann('POST', '/api/invite/accept', { consent: true, token: add.body.invite.link.split('#t=')[1] });
     assert.equal((await ann('PUT', '/api/record', {})).status, 403);
     const on = (await george('PUT', '/api/record', {})).body, token = on.link.split('#')[1];
     assert.equal(on.on, true); assert.equal(on.pin, false); assert.match(on.link, /\/record\.html#[A-Za-z0-9_-]{32}$/);

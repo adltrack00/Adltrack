@@ -51,7 +51,7 @@ async function boot() {
     return call;
   };
   const phone = async c => { c.sub = subscription(); assert.equal((await c('POST', '/api/push/subscribe', { subscription: c.sub, timeZone: TZ })).status, 200); return c; };
-  const signUp = async (name) => { const c = client(); assert.equal((await c('POST', '/api/signup', { name, email: name.toLowerCase() + '@example.com', password: 'password123' })).status, 201); c.id = (await c('GET', '/api/me')).body.team.patient; return phone(c); };
+  const signUp = async (name) => { const c = client(); assert.equal((await c('POST', '/api/signup', { name, email: name.toLowerCase() + '@example.com', password: 'Care-plan-2026' })).status, 201); c.id = (await c('GET', '/api/me')).body.team.patient; return phone(c); };
   /* A family: its admin, the patient's name on the plan's profile, and one medication at 8:00 AM. */
   const family = async (admin, patient, medName) => {
     const c = await signUp(admin);
@@ -63,7 +63,7 @@ async function boot() {
     const added = await fam('POST', '/api/team/members', { name: person.who, email: person.who.toLowerCase() + '@example.com', role, perms });
     assert.equal(added.status, 201, JSON.stringify(added.body));
     const token = added.body.invite.link.split('#t=')[1];
-    assert.equal((await person('POST', '/api/invite/accept', { token })).status, 200);
+    assert.equal((await person('POST', '/api/invite/accept', { consent: true, token })).status, 200);
   };
   const person = async name => { const c = await signUp(name); c.who = name; return c; };
   // Runs the every-minute dispatch at a local time, then the jobs it queued; returns what was pushed, by phone.

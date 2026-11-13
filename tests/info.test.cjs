@@ -48,11 +48,11 @@ test('everyone on the care team sees the patient information; a family viewer ca
   const client = () => { let cookie = ''; return async (method, url, body) => { const res = await fetch(base + url, { method, headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(cookie ? { Cookie: cookie } : {}) }, body: body ? JSON.stringify(body) : undefined }); const set = res.headers.get('set-cookie'); if (set) cookie = set.split(';')[0]; return { status: res.status, body: await res.json().catch(() => null) }; }; };
   try {
     const george = client(), ann = client();
-    assert.equal((await george('POST', '/api/signup', { name: 'George', email: 'george@example.com', password: 'password123' })).status, 201);
+    assert.equal((await george('POST', '/api/signup', { name: 'George', email: 'george@example.com', password: 'Care-plan-2026' })).status, 201);
     assert.equal((await george('PUT', '/api/settings', { settings: {}, profile: { name: 'Rose', info: ROSE } })).status, 200);
     const add = await george('POST', '/api/team/members', { name: 'Ann', email: 'ann@example.com', role: 'viewer', perms: {} });
-    assert.equal((await ann('POST', '/api/signup', { name: 'Ann', email: 'ann@example.com', password: 'password123' })).status, 201);
-    assert.equal((await ann('POST', '/api/invite/accept', { token: add.body.invite.link.split('#t=')[1] })).status, 200);
+    assert.equal((await ann('POST', '/api/signup', { name: 'Ann', email: 'ann@example.com', password: 'Care-plan-2026' })).status, 201);
+    assert.equal((await ann('POST', '/api/invite/accept', { consent: true, token: add.body.invite.link.split('#t=')[1] })).status, 200);
     assert.deepEqual((await ann('GET', '/api/data')).body.data.profile.info, ROSE);
     assert.equal((await ann('PUT', '/api/settings', { settings: {}, profile: { name: 'Rose', info: { ...ROSE, code: 'full' } } })).status, 403);
     assert.equal((await george('GET', '/api/data')).body.data.profile.info.code, 'dnr');
