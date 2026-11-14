@@ -1,0 +1,90 @@
+# Copies the web app into the iOS app repo (adltrack00/Adltrack-ios)
+# every time something lands on main.
+#
+# iOS-only files in Adltrack-ios are never touched:
+#   ios/, android/, capacitor.config.*, node_modules/, .github/, .sync-keep
+#   plus anything listed (one path per line) in Adltrack-ios/.sync-keep
+#
+# Needs one secret on THIS repo: IOS_REPO_TOKEN, a fine-grained token with
+# Contents: Read and write on adltrack00/Adltrack-ios only.
+
+name: Sync web app to iOS repo
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: sync-ios
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the token is set
+        env:
+          TOKEN: ${{ secrets.IOS_REPO_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Add the IOS_REPO_TOKEN secret (Settings > Secrets and variables > Actions) so the web app can be copied to Adltrack-ios."
+            exit 1
+          fi
+
+      - name: Get the web app
+        uses: actions/checkout@v4
+        with:
+          path: web
+
+      - name: Get the iOS repo
+        uses: actions/checkout@v4
+        with:
+          repository: adltrack00/Adltrack-ios
+          token: ${{ secrets.IOS_REPO_TOKEN }}
+          path: ios-repo
+          fetch-depth: 1
+
+      - name: Copy web files, leaving iOS-only files alone
+        run: |
+          set -euo pipefail
+          excludes=(
+            --exclude=/.git
+            --exclude=/.github
+            --exclude=/ios
+            --exclude=/android
+            --exclude='/capacitor.config.*'
+            --exclude=/node_modules
+            --exclude=/.sync-keep
+          )
+          if [ -f ios-repo/.sync-keep ]; then
+            while IFS= read -r line || [ -n "$line" ]; do
+              line="${line%%#*}"
+              line="$(echo "$line" | xargs)"
+              [ -z "$line" ] && continue
+              excludes+=("--exclude=/${line#/}")
+            done < ios-repo/.sync-keep
+          fi
+          rsync -a --delete "${excludes[@]}" web/ ios-repo/
+
+      - name: Commit and push to Adltrack-ios
+        working-directory: ios-repo
+        env:
+          WEB_SHA: ${{ github.sha }}
+          WEB_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Adltrack-ios already matches the web app. Nothing to copy."
+            exit 0
+          fi
+          git config user.name "adltrack-sync"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          title="$(printf '%s' "${WEB_MSG:-Manual sync}" | head -n1)"
+          git commit -q -m "Sync web app: ${title}" -m "Copied from adltrack00/Adltrack@${WEB_SHA}"
+          git push origin HEAD
+          git show --stat --oneline HEAD | head -40
