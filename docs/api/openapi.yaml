@@ -1,0 +1,2578 @@
+openapi: 3.1.0
+info:
+  title: Adltrack API
+  version: 0.2.0
+  summary: The Adltrack server's HTTP API, used by the web app and the planned iPhone and Android apps.
+  description: |
+    Describes the code on main as of 2026-11-14 (commit 9e5fd53). The readable guide is docs/api/README.md.
+
+    Rules every request follows:
+    - Sign-in is a session cookie, `rl_session` (HttpOnly, 30 days), set by signup, login and password reset.
+    - Send `X-Patient: <owner id>` to say which family's care plan you mean (ids from `GET /api/me`, `team.patients[].id`).
+    - Every write (POST, PUT, DELETE, except webhooks) must send `Content-Type: application/json`, or it gets 415. If an
+      `Origin` header is sent, its host must match the request's host, or it gets 403.
+    - Errors are always `{ "error": "<sentence to show>" }`.
+    - Photos and PDFs are sent inside JSON as data URLs (`data:image/jpeg;base64,...`), up to 10 MB each, and come back as
+      private `/api/files/<uuid>` URLs.
+    - AI routes answer 200 with a null result and a `reason` (unavailable, limit, failed) when the AI can't help.
+
+    Permission names used in each route's description (x-permission): any, tasks, addTasks, meds, care (tasks or meds),
+    admin, item-rules, settings-rules. See section 3 of the guide.
+servers:
+  - url: http://127.0.0.1:4174
+    description: Local development (npm start)
+  - url: https://{host}
+    description: Production on Render
+    variables:
+      host:
+        default: example.onrender.com
+security:
+  - session: []
+tags:
+  - name: Public
+    description: No sign-in needed.
+  - name: Account
+  - name: Care team
+  - name: Plan
+    description: The family's subscription, admins only.
+  - name: Care plan
+    description: Items, settings and the whole plan.
+  - name: Files
+  - name: Scanning and AI
+  - name: Check-ins
+  - name: Notifications
+  - name: Doctor record
+  - name: Webhooks
+    description: Called by Stripe, Resend and Microsoft, not by the app.
+  - name: Returnly
+    description: Inherited from the Returnly app. Still live, not needed by the Adltrack mobile apps.
+
+paths:
+  # ---------------------------------------------------------------- Public
+  /api/health:
+    get:
+      tags: [Public]
+      summary: Liveness check
+      security: []
+      responses:
+        '200':
+          description: Running
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Ok' }
+
+  /api/contact:
+    get:
+      tags: [Public]
+      summary: Support email address
+      security: []
+      responses:
+        '200':
+          description: The address, or null when not set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  email: { type: [string, 'null'] }
+
+  /api/signup:
+    post:
+      tags: [Public]
+      summary: Make an account and sign in
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 40 }
+                email: { type: string, format: email, maxLength: 254 }
+                password: { type: string, minLength: 8, maxLength: 200 }
+      responses:
+        '201':
+          description: Signed in. Sets the rl_session cookie. data is null for a new account.
+          headers:
+            Set-Cookie: { $ref: '#/components/headers/SetSession' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionStart' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooMany' }
+
+  /api/login:
+    post:
+      tags: [Public]
+      summary: Sign in with email and password
+      description: 20 tries per 15 minutes per IP; 10 wrong passwords lock the email for 15 minutes.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string }
+                password: { type: string }
+      responses:
+        '200':
+          description: Signed in. Sets the rl_session cookie.
+          headers:
+            Set-Cookie: { $ref: '#/components/headers/SetSession' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionStart' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooMany' }
+
+  /api/logout:
+    post:
+      tags: [Public]
+      summary: End this session
+      security: []
+      responses:
+        '200':
+          description: Signed out. Clears the cookie.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Ok' }
+
+  /api/password/forgot:
+    post:
+      tags: [Public]
+      summary: Email a password reset link (valid one hour)
+      description: Answers the same whether or not the email has an account. At most 3 emails per address per hour.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string }
+      responses:
+        '200':
+          description: Sent if the account exists
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Ok' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '429': { $ref: '#/components/responses/TooMany' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+
+  /api/password/reset:
+    post:
+      tags: [Public]
+      summary: Set a new password from the reset link
+      description: Signs out every other device and signs this one in.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token: { type: string, maxLength: 100 }
+                password: { type: string, minLength: 8, maxLength: 200 }
+      responses:
+        '200':
+          description: Signed in with the new password
+          headers:
+            Set-Cookie: { $ref: '#/components/headers/SetSession' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionStart' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '429': { $ref: '#/components/responses/TooMany' }
+
+  /api/auth/providers:
+    get:
+      tags: [Public]
+      summary: Which social sign-ins are set up
+      security: []
+      responses:
+        '200':
+          description: Flags
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  google: { type: boolean }
+                  apple: { type: boolean }
+
+  /api/auth/{provider}/start:
+    get:
+      tags: [Public]
+      summary: Start Google or Apple sign-in (browser redirect)
+      security: []
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema: { type: string, enum: [google, apple] }
+      responses:
+        '302':
+          description: Redirect to the provider, with a 10-minute rl_oauth cookie binding the callback to this browser. To /signin.html?error=unavailable|limit when it can't start.
+
+  /api/auth/google/callback:
+    get:
+      tags: [Public]
+      summary: Google sign-in callback
+      security: []
+      parameters:
+        - { name: code, in: query, schema: { type: string } }
+        - { name: state, in: query, schema: { type: string } }
+      responses:
+        '302':
+          description: To /signin.html?signed-in=google with the session cookie, or /signin.html?error=expired|cancelled|email|failed
+
+  /api/auth/apple/callback:
+    post:
+      tags: [Public]
+      summary: Apple sign-in callback (form post from Apple)
+      security: []
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                code: { type: string }
+                state: { type: string }
+                user: { type: string, description: JSON with name.firstName, sent the first time only }
+      responses:
+        '302':
+          description: To /signin.html?signed-in=apple with the session cookie, or /signin.html?error=...
+
+  /api/invite/info:
+    post:
+      tags: [Public]
+      summary: What an invite link shows before signing in
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TokenBody' }
+      responses:
+        '200':
+          description: Who invited this person and as what
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  inviter: { type: string }
+                  name: { type: string }
+                  email: { type: string }
+                  role: { $ref: '#/components/schemas/Role' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '429': { $ref: '#/components/responses/TooMany' }
+
+  /api/email/act:
+    post:
+      tags: [Public, Returnly]
+      summary: A button in a reminder email (signed link)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TokenBody' }
+      responses:
+        '200':
+          description: Done
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  action: { type: string, enum: [snooze, sent, keep] }
+                  name: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooMany' }
+
+  /api/email/unsubscribe:
+    post:
+      tags: [Public]
+      summary: Turn off one kind of reminder email
+      description: JSON with the token, or the mail app's one-click post (RFC 8058) with the token as ?t=.
+      security: []
+      parameters:
+        - { name: t, in: query, required: false, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TokenBody' }
+      responses:
+        '200':
+          description: Turned off
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  kind: { type: string, enum: [daily, unopened] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '429': { $ref: '#/components/responses/TooMany' }
+
+  /api/record/open:
+    post:
+      tags: [Public, Doctor record]
+      summary: Open the doctor record from the For EMS code
+      description: No account. 120 per 15 min per IP; 10 wrong PINs per 15 min per link. Each opening is logged for the family.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecordUnlock' }
+      responses:
+        '200':
+          description: The record
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  record: { $ref: '#/components/schemas/DoctorRecord' }
+        '401': { $ref: '#/components/responses/NeedPin' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooMany' }
+
+  /api/record/file:
+    post:
+      tags: [Public, Doctor record]
+      summary: One page of a shared document, or the patient photo, from the doctor record
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/RecordUnlock'
+                - type: object
+                  properties:
+                    doc: { type: string, description: Document id from record.documents }
+                    page: { type: integer, minimum: 0 }
+                    photo: { type: boolean, description: true for the patient's photo }
+      responses:
+        '200': { $ref: '#/components/responses/FileBody' }
+        '401': { $ref: '#/components/responses/NeedPin' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooMany' }
+
+  # ---------------------------------------------------------------- Account
+  /api/me:
+    get:
+      tags: [Account]
+      summary: Who is signed in, and which family's plan they're on
+      x-permission: any
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      responses:
+        '200':
+          description: The account and team
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/account:
+    delete:
+      tags: [Account]
+      summary: Delete the account, its own plan and every file
+      x-permission: any
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string, description: The password, or the account's email for a Google or Apple account }
+      responses:
+        '200':
+          description: Deleted and signed out
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Ok' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ---------------------------------------------------------------- Care team
+  /api/team:
+    get:
+      tags: [Care team]
+      summary: The care team
+      x-permission: any
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      responses:
+        '200':
+          description: The team as this person sees it (emails, phones and plan for admins only)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TeamView' }
+
+  /api/team/members:
+    post:
+      tags: [Care team]
+      summary: Add someone and send the invite
+      description: Sends by email and text when set up; the link always comes back. Starts the free trial for a family with no plan. 60 per 15 min.
+      x-permission: admin
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, role]
+              properties:
+                name: { type: string, maxLength: 60 }
+                email: { type: string }
+                phone: { type: string, description: 'Mobile number, e.g. (555) 123-4567' }
+                role: { $ref: '#/components/schemas/Role' }
+                perms: { $ref: '#/components/schemas/Perms' }
+      responses:
+        '201':
+          description: Added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  member: { $ref: '#/components/schemas/Member' }
+                  invite: { $ref: '#/components/schemas/Invite' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '402': { $ref: '#/components/responses/PaymentRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooMany' }
+
+  /api/team/members/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Patient'
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      tags: [Care team]
+      summary: Change someone's name, phone, role or ticks
+      x-permission: admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, maxLength: 60 }
+                phone: { type: string }
+                role: { $ref: '#/components/schemas/Role' }
+                perms: { $ref: '#/components/schemas/Perms' }
+      responses:
+        '200':
+          description: Changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  member: { $ref: '#/components/schemas/Member' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Care team]
+      summary: Remove someone (not the owner)
+      x-permission: admin
+      responses:
+        '200':
+          description: Removed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Ok' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/team/members/{id}/invite:
+    post:
+      tags: [Care team]
+      summary: Send the invite again with a new link
+      x-permission: admin
+      parameters:
+        - $ref: '#/components/parameters/Patient'
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invite: { $ref: '#/components/schemas/Invite' }
+        '402': { $ref: '#/components/responses/PaymentRequired' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooMany' }
+
+  /api/team/leave:
+    post:
+      tags: [Care team]
+      summary: Leave the family named in X-Patient
+      x-permission: any
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      responses:
+        '200':
+          description: Left
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Ok' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/invite/accept:
+    post:
+      tags: [Care team]
+      summary: Join a family from an invite link
+      x-permission: any
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TokenBody' }
+      responses:
+        '200':
+          description: Joined. Send patient as X-Patient from now on.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/TeamView'
+                  - type: object
+                    properties:
+                      patient: { type: string, format: uuid }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '429': { $ref: '#/components/responses/TooMany' }
+
+  # ---------------------------------------------------------------- Plan
+  /api/plan:
+    get:
+      tags: [Plan]
+      summary: The family's plan
+      x-permission: admin
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      responses:
+        '200':
+          description: The plan
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlanView' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/plan/trial:
+    post:
+      tags: [Plan]
+      summary: Start the free trial
+      x-permission: admin
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      responses:
+        '200':
+          description: The plan
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlanView' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/plan/checkout:
+    post:
+      tags: [Plan]
+      summary: Stripe Checkout page for a plan
+      description: Stripe sends the person back to /app.html?plan=paid&session={id} or /app.html?plan=cancelled.
+      x-permission: admin
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TierBody' }
+      responses:
+        '200': { $ref: '#/components/responses/Url' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+
+  /api/plan/confirm:
+    post:
+      tags: [Plan]
+      summary: Confirm a finished Stripe Checkout
+      x-permission: admin
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [session]
+              properties:
+                session: { type: string, pattern: '^cs_[A-Za-z0-9_]+$' }
+      responses:
+        '200':
+          description: The plan
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlanView' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+
+  /api/plan/change:
+    post:
+      tags: [Plan]
+      summary: Move a paid family to another plan
+      x-permission: admin
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TierBody' }
+      responses:
+        '200':
+          description: The plan
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlanView' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+
+  /api/plan/portal:
+    post:
+      tags: [Plan]
+      summary: Stripe billing page (card, invoices, cancel)
+      x-permission: admin
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      responses:
+        '200': { $ref: '#/components/responses/Url' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+
+  # ---------------------------------------------------------------- Care plan
+  /api/data:
+    get:
+      tags: [Care plan]
+      summary: The whole care plan
+      x-permission: any
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      responses:
+        '200':
+          description: The plan, or null if nothing was ever saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    oneOf:
+                      - $ref: '#/components/schemas/CarePlan'
+                      - type: 'null'
+                  space: { $ref: '#/components/schemas/Space' }
+    put:
+      tags: [Care plan]
+      summary: Replace the whole plan (older apps only)
+      description: Use the per-item routes instead. Body max 12 MB.
+      x-permission: admin and tasks
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [purchases]
+              properties:
+                purchases:
+                  type: array
+                  maxItems: 5000
+                  items: { $ref: '#/components/schemas/Item' }
+                settings: { $ref: '#/components/schemas/Settings' }
+                profile: { $ref: '#/components/schemas/Profile' }
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updatedAt: { type: string, format: date-time }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/changes:
+    get:
+      tags: [Care plan]
+      summary: When the plan last changed (poll every few seconds while open)
+      x-permission: any
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      responses:
+        '200':
+          description: Version
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updatedAt: { type: [string, 'null'], format: date-time }
+                  space: { $ref: '#/components/schemas/Space' }
+
+  /api/items:
+    get:
+      tags: [Care plan]
+      summary: Every item
+      x-permission: any
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      responses:
+        '200':
+          description: Items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Item' }
+                  updatedAt: { type: [string, 'null'], format: date-time }
+    post:
+      tags: [Care plan]
+      summary: Add one item
+      description: A new task needs addTasks; a new incident, symptoms or activity needs care; anything else needs meds. A new incident alerts the whole team. Body max 12 MB.
+      x-permission: item-rules
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Item' }
+      responses:
+        '201': { $ref: '#/components/responses/ItemSaved' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/items/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Patient'
+      - { name: id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 100 } }
+    put:
+      tags: [Care plan]
+      summary: Save one whole item
+      description: Each changed field is checked against the person's ticks. Send _seen so marks someone else just saved are kept. Body max 12 MB.
+      x-permission: item-rules
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/Item'
+                - type: object
+                  properties:
+                    _seen:
+                      type: array
+                      description: Marks this device had seen, each "<at>|<day>|<slot or key>|<kind>"
+                      items: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/ItemSaved' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    delete:
+      tags: [Care plan]
+      summary: Delete one item and its photos
+      x-permission: meds
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  updatedAt: { type: string, format: date-time }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/items/{id}/label:
+    parameters:
+      - $ref: '#/components/parameters/Patient'
+      - { name: id, in: path, required: true, schema: { type: string } }
+    put:
+      tags: [Care plan, Returnly]
+      summary: Attach a separate file to an item (Returnly's return label)
+      x-permission: meds
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DataBody' }
+      responses:
+        '200': { $ref: '#/components/responses/ItemSaved' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Care plan, Returnly]
+      summary: Remove the attached file
+      x-permission: meds
+      responses:
+        '200': { $ref: '#/components/responses/ItemSaved' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/settings:
+    put:
+      tags: [Care plan]
+      summary: Save the settings and the profile
+      description: Vital signs need tasks; any other setting or the profile needs meds; notifications alone needs nothing. settings.checkins is always kept as the server has it. Body max 12 MB.
+      x-permission: settings-rules
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                settings: { $ref: '#/components/schemas/Settings' }
+                profile: { $ref: '#/components/schemas/Profile' }
+                seenVitals:
+                  type: array
+                  description: The vitalsLog "at" times this device had seen
+                  items: { type: string }
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  settings: { $ref: '#/components/schemas/Settings' }
+                  profile: { $ref: '#/components/schemas/Profile' }
+                  updatedAt: { type: string, format: date-time }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  # ---------------------------------------------------------------- Files
+  /api/files/proof:
+    post:
+      tags: [Files]
+      summary: Save a photo for a dose, task, vitals or report entry
+      description: for=task needs addTasks; incident, symptom or activity need care; no for (a dose or vitals photo) needs tasks. Body max 14 MB.
+      x-permission: depends on for
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data: { $ref: '#/components/schemas/ImageDataUrl' }
+                for: { type: string, enum: [task, incident, symptom, activity] }
+      responses:
+        '201':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url: { $ref: '#/components/schemas/FileUrl' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { $ref: '#/components/responses/TooLarge' }
+
+  /api/files/document:
+    post:
+      tags: [Files]
+      summary: Save a page of a document (photo or PDF)
+      x-permission: meds
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DataBody' }
+      responses:
+        '201':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url: { $ref: '#/components/schemas/FileUrl' }
+                  type: { type: string, enum: [image/jpeg, image/png, image/webp, application/pdf] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { $ref: '#/components/responses/TooLarge' }
+
+  /api/files/{id}:
+    get:
+      tags: [Files]
+      summary: Read a stored file
+      description: Only for people on that family's team; anyone else gets 404. Cached privately for a year (files never change).
+      x-permission: any
+      parameters:
+        - $ref: '#/components/parameters/Patient'
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { $ref: '#/components/responses/FileBody' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ---------------------------------------------------------------- Scanning and AI
+  /api/discharge/read:
+    post:
+      tags: [Scanning and AI]
+      summary: Read hospital discharge papers into a draft
+      description: Pages are kept privately on the scan. 60 per hour per user. Body max 60 MB.
+      x-permission: meds
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [purchaseId, pages]
+              properties:
+                purchaseId: { type: string, description: Id the app makes for this scan }
+                pages:
+                  type: array
+                  minItems: 1
+                  maxItems: 8
+                  items: { $ref: '#/components/schemas/DataUrl' }
+      responses:
+        '200':
+          description: The draft, or papers null with a reason
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  purchaseId: { type: string }
+                  files:
+                    type: array
+                    items: { $ref: '#/components/schemas/FileUrl' }
+                  papers: { type: [object, 'null'], description: The cleaned reading (problem, hospital, discharged, medications, pharmacy, appointments, warningSigns, contacts, notes) }
+                  draft: { $ref: '#/components/schemas/DischargeDraft' }
+                  reason: { $ref: '#/components/schemas/AiReason' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/TooLarge' }
+
+  /api/label/read:
+    post:
+      tags: [Scanning and AI]
+      summary: Read a pharmacy bottle label and check it against the papers
+      description: The photos aren't saved here. 60 per hour per user. Body max 30 MB.
+      x-permission: meds
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [photos]
+              properties:
+                photos:
+                  type: array
+                  minItems: 1
+                  maxItems: 3
+                  items: { $ref: '#/components/schemas/ImageDataUrl' }
+                source: { type: string, enum: [bottle, leaflet], default: bottle }
+                med:
+                  type: object
+                  description: What the discharge papers say, to compare with
+                  properties:
+                    name: { type: string }
+                    instructions: { type: string }
+                    dose: { type: string }
+                    route: { type: string }
+                    frequency: { type: string }
+      responses:
+        '200':
+          description: The reading, or label null with a reason
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  label: { oneOf: [{ $ref: '#/components/schemas/Label' }, { type: 'null' }] }
+                  check:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field: { type: string, enum: [Medication, Strength, Directions] }
+                        papers: { type: string }
+                        bottle: { type: string }
+                        match: { type: [boolean, 'null'] }
+                  reason: { $ref: '#/components/schemas/AiReason' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/vitals/read:
+    post:
+      tags: [Scanning and AI]
+      summary: Read a blood pressure cuff or thermometer photo
+      x-permission: tasks
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [photo]
+              properties:
+                photo: { $ref: '#/components/schemas/ImageDataUrl' }
+      responses:
+        '200':
+          description: The numbers (empty strings when not read; temperature in °F)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reading:
+                    type: [object, 'null']
+                    properties:
+                      sys: { type: string }
+                      dia: { type: string }
+                      pulse: { type: string }
+                      temp: { type: string }
+                      problem: { type: string, enum: ['', blurry, dark, glare, not_device] }
+                  reason: { $ref: '#/components/schemas/AiReason' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/assistant:
+    post:
+      tags: [Scanning and AI]
+      summary: Ask Ada, the in-app assistant
+      description: Claude Haiku 5.5. Returns only a plan for the app; nothing is saved and no medical advice is given. 120 per hour per user. Body max 200 KB.
+      x-permission: any
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AssistantRequest' }
+      responses:
+        '200':
+          description: The answer, or null with a reason
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  answer: { oneOf: [{ $ref: '#/components/schemas/AssistantAnswer' }, { type: 'null' }] }
+                  reason: { $ref: '#/components/schemas/AiReason' }
+
+  /api/places/pharmacies:
+    post:
+      tags: [Scanning and AI]
+      summary: Nearest branches of a pharmacy (Google Places)
+      description: The location is used for this request only. 30 per hour per user.
+      x-permission: any
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lat, lng]
+              properties:
+                name: { type: string, maxLength: 100, description: Leave out for the three nearest pharmacies }
+                lat: { type: number }
+                lng: { type: number }
+      responses:
+        '200': { $ref: '#/components/responses/Places' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  # ---------------------------------------------------------------- Check-ins
+  /api/checkins:
+    get:
+      tags: [Check-ins]
+      summary: The family's check-ins
+      x-permission: any
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      responses:
+        '200':
+          description: The last 40
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  checkins:
+                    type: array
+                    items: { $ref: '#/components/schemas/Checkin' }
+    post:
+      tags: [Check-ins]
+      summary: Start check-ins after symptoms or a high or low blood pressure
+      x-permission: care
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                kind: { type: string, enum: [symptom, bp], default: symptom }
+                about: { type: string, maxLength: 200, description: The symptoms, for kind symptom }
+                bp: { type: string, example: 152/95, description: 'For kind bp: 140+/90+ or under 90/60' }
+                symptomId: { type: string, description: The symptoms item's id }
+      responses:
+        '201': { $ref: '#/components/responses/CheckinOne' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/checkins/{id}:
+    post:
+      tags: [Check-ins]
+      summary: Answer a check-in (only the person it's for)
+      x-permission: the person it's for
+      parameters:
+        - $ref: '#/components/parameters/Patient'
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - title: Still having it, or better
+                  type: object
+                  required: [still]
+                  properties:
+                    still: { type: boolean }
+                    score: { type: integer, minimum: 1, maximum: 10, description: Needed when still is true }
+                - title: Can't get to the ER
+                  type: object
+                  required: [help]
+                  properties:
+                    help: { const: true }
+                - title: Went to the ER, or didn't
+                  type: object
+                  required: [end]
+                  properties:
+                    end: { type: string, enum: [went, not] }
+      responses:
+        '200': { $ref: '#/components/responses/CheckinOne' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/checkins/{id}/reply:
+    post:
+      tags: [Check-ins]
+      summary: Answer someone's request for help
+      x-permission: any
+      parameters:
+        - $ref: '#/components/parameters/Patient'
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [coming]
+              properties:
+                coming: { type: boolean }
+      responses:
+        '200': { $ref: '#/components/responses/CheckinOne' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ---------------------------------------------------------------- Notifications
+  /api/push/key:
+    get:
+      tags: [Notifications]
+      summary: The VAPID public key for Web Push
+      x-permission: any
+      responses:
+        '200':
+          description: Key, or null when push isn't set up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  key: { type: [string, 'null'] }
+
+  /api/push/subscribe:
+    post:
+      tags: [Notifications]
+      summary: Save this device's Web Push subscription
+      description: Only browser push services are accepted (fcm.googleapis.com, android.googleapis.com, updates.push.services.mozilla.com, *.push.apple.com, notify.windows.com). Native APNs/FCM tokens are not supported yet.
+      x-permission: any
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subscription]
+              properties:
+                subscription:
+                  type: object
+                  required: [endpoint, keys]
+                  properties:
+                    endpoint: { type: string, format: uri, maxLength: 1000 }
+                    keys:
+                      type: object
+                      properties:
+                        p256dh: { type: string }
+                        auth: { type: string }
+                timeZone: { type: string, example: America/New_York }
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Ok' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+
+  /api/push/unsubscribe:
+    post:
+      tags: [Notifications]
+      summary: Remove this device's subscription
+      x-permission: any
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EndpointBody' }
+      responses:
+        '200':
+          description: Removed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Ok' }
+
+  /api/push/test:
+    post:
+      tags: [Notifications]
+      summary: Send a test notification to this device
+      x-permission: any
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EndpointBody' }
+      responses:
+        '200':
+          description: Whether it went
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sent: { type: boolean }
+        '429': { $ref: '#/components/responses/TooMany' }
+
+  /api/reminders/claim:
+    post:
+      tags: [Notifications]
+      summary: Claim today's reminder for the open app (once a day, shared with push)
+      x-permission: any
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [date]
+              properties:
+                date: { type: string, format: date, description: The device's date, within a day of the server's }
+                time: { type: string, pattern: '^\d{2}:\d{2}$' }
+      responses:
+        '200':
+          description: The reminders to show (one per family), or none
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reminder: { oneOf: [{ $ref: '#/components/schemas/Notification' }, { type: 'null' }] }
+                  reminders:
+                    type: array
+                    items: { $ref: '#/components/schemas/Notification' }
+                  quiet: { type: boolean }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/reminders/dose:
+    post:
+      tags: [Notifications]
+      summary: Taken, Skipped or Snooze 15 minutes from a dose notification
+      x-permission: tasks
+      parameters: [{ $ref: '#/components/parameters/Patient' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action, date, time, ids]
+              properties:
+                action: { type: string, enum: [taken, skipped, snooze15] }
+                date: { type: string, format: date }
+                time: { type: string, pattern: '^\d{2}:\d{2}$' }
+                ids:
+                  type: array
+                  minItems: 1
+                  maxItems: 20
+                  items: { type: string }
+      responses:
+        '200':
+          description: The saved medications (empty for snooze)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Item' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/reminders/action:
+    post:
+      tags: [Notifications, Returnly]
+      summary: Older notification buttons (snooze, sent, keep)
+      x-permission: care
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action, itemId]
+              properties:
+                action: { type: string, enum: [snooze, sent, keep] }
+                itemId: { type: string }
+                today: { type: string, format: date }
+      responses:
+        '200':
+          description: The saved item
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  item: { $ref: '#/components/schemas/Item' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/reminders/opened:
+    post:
+      tags: [Notifications]
+      summary: The daily reminder was opened (no follow-up email)
+      x-permission: any
+      responses:
+        '200':
+          description: Noted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Ok' }
+
+  /api/alerts/prefs:
+    get:
+      tags: [Notifications]
+      summary: This person's alert choices
+      x-permission: any
+      responses:
+        '200': { $ref: '#/components/responses/AlertPrefs' }
+    put:
+      tags: [Notifications]
+      summary: Change this person's alert choices
+      x-permission: any
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AlertPrefs' }
+      responses:
+        '200': { $ref: '#/components/responses/AlertPrefs' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+
+  /api/email/prefs:
+    get:
+      tags: [Notifications]
+      summary: Which reminder emails are on
+      x-permission: any
+      responses:
+        '200': { $ref: '#/components/responses/EmailPrefs' }
+    put:
+      tags: [Notifications]
+      summary: Turn reminder emails on or off
+      x-permission: any
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                daily: { type: boolean }
+                unopened: { type: boolean }
+      responses:
+        '200': { $ref: '#/components/responses/EmailPrefs' }
+
+  /api/notices:
+    get:
+      tags: [Notifications, Returnly]
+      summary: Notices to show once
+      x-permission: any
+      responses:
+        '200':
+          description: Notices
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notices: { type: array, items: { type: object } }
+
+  /api/notices/read:
+    post:
+      tags: [Notifications, Returnly]
+      summary: Mark notices read
+      x-permission: any
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids:
+                  type: array
+                  maxItems: 50
+                  items: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Done
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Ok' }
+
+  # ---------------------------------------------------------------- Doctor record (family side)
+  /api/record:
+    parameters: [{ $ref: '#/components/parameters/Patient' }]
+    get:
+      tags: [Doctor record]
+      summary: Whether the doctor record is on, and its link
+      x-permission: any
+      responses:
+        '200': { $ref: '#/components/responses/RecordStatus' }
+    put:
+      tags: [Doctor record]
+      summary: Turn it on, or make a new code (the old one stops working)
+      x-permission: admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pin: { type: string, pattern: '^(\d{4,6})?$', description: '4 to 6 digits, or empty for no PIN' }
+      responses:
+        '200': { $ref: '#/components/responses/RecordStatus' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    delete:
+      tags: [Doctor record]
+      summary: Turn it off
+      x-permission: admin
+      responses:
+        '200': { $ref: '#/components/responses/RecordStatus' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  # ---------------------------------------------------------------- Webhooks
+  /api/stripe/webhook:
+    post:
+      tags: [Webhooks]
+      summary: Stripe events for family plans
+      description: Checked with the Stripe-Signature header and STRIPE_WEBHOOK_SECRET; at most 5 minutes old.
+      security: []
+      parameters:
+        - { name: Stripe-Signature, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200':
+          description: Received
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  received: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/inbound/email:
+    post:
+      tags: [Webhooks, Returnly]
+      summary: Resend email.received (forwarded order emails)
+      description: Svix signature (svix-id, svix-timestamp, svix-signature) with RESEND_WEBHOOK_SECRET.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200':
+          description: Accepted or ignored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accepted: { type: boolean }
+                  reason: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/inbox/outlook/notify:
+    post:
+      tags: [Webhooks, Returnly]
+      summary: Microsoft Graph mail notifications
+      security: []
+      parameters:
+        - { name: validationToken, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: The validationToken echoed as text/plain (subscription handshake)
+          content:
+            text/plain:
+              schema: { type: string }
+        '202':
+          description: Notification taken
+
+  # ---------------------------------------------------------------- Returnly
+  /api/retailers:
+    get:
+      tags: [Returnly]
+      summary: Store return policies, or the one matching a name
+      security: []
+      parameters:
+        - { name: match, in: query, schema: { type: string, maxLength: 200 } }
+      responses:
+        '200': { $ref: '#/components/responses/AnyJson' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/retailers/{id}:
+    get:
+      tags: [Returnly]
+      summary: One store's policy and its versions
+      security: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[a-z0-9-]+$' } }
+      responses:
+        '200': { $ref: '#/components/responses/AnyJson' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/policy:
+    post:
+      tags: [Returnly]
+      summary: Apply a store's return policy to one item
+      x-permission: any
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                item: { type: object }
+                answers: { type: object }
+                retailerId: { type: string }
+                category: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/AnyJson' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/policy/report:
+    post:
+      tags: [Returnly]
+      summary: Report a policy as wrong
+      x-permission: any
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [store]
+              properties:
+                store: { type: string }
+                retailerId: { type: string }
+                itemName: { type: string }
+                policyVersion: { type: integer }
+                policyLine: { type: string }
+                note: { type: string }
+      responses:
+        '201':
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Ok' }
+        '429': { $ref: '#/components/responses/TooMany' }
+  /api/places/nearest:
+    post:
+      tags: [Returnly]
+      summary: Nearest drop-off for a store's returns
+      x-permission: any
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                retailerId: { type: string }
+                method: { type: integer }
+                lat: { type: number }
+                lng: { type: number }
+      responses:
+        '200': { $ref: '#/components/responses/Places' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /api/receipts/read:
+    post:
+      tags: [Returnly]
+      summary: Read a shopping receipt (up to 4 pages)
+      x-permission: meds
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                purchaseId: { type: string }
+                pages: { type: array, maxItems: 4, items: { $ref: '#/components/schemas/DataUrl' } }
+                today: { type: string, format: date }
+      responses:
+        '200': { $ref: '#/components/responses/AnyJson' }
+  /api/purchases:
+    get:
+      tags: [Returnly]
+      summary: Purchases and their receipt files
+      x-permission: any
+      responses:
+        '200': { $ref: '#/components/responses/AnyJson' }
+  /api/purchases/{id}/receipt:
+    put:
+      tags: [Returnly]
+      summary: Attach a receipt to a purchase
+      x-permission: meds
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DataBody' }
+      responses:
+        '200': { $ref: '#/components/responses/AnyJson' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/inbox:
+    get:
+      tags: [Returnly]
+      summary: Order-email import status
+      responses:
+        '200': { $ref: '#/components/responses/AnyJson' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/inbox/address:
+    post:
+      tags: [Returnly]
+      summary: New forwarding address
+      responses:
+        '200': { $ref: '#/components/responses/AnyJson' }
+  /api/inbox/senders:
+    post:
+      tags: [Returnly]
+      summary: Accept a forwarding sender
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/AnyJson' }
+  /api/inbox/{provider}/start:
+    get:
+      tags: [Returnly]
+      summary: Connect Gmail or Outlook (redirect)
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, enum: [gmail, outlook] } }
+      responses:
+        '302': { description: Redirect to the provider }
+  /api/inbox/{provider}/callback:
+    get:
+      tags: [Returnly]
+      summary: Gmail or Outlook callback
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, enum: [gmail, outlook] } }
+      responses:
+        '302': { description: 'To /app.html?inbox=... or /app.html?inbox_error=...' }
+  /api/inbox/{provider}/disconnect:
+    post:
+      tags: [Returnly]
+      summary: Disconnect Gmail or Outlook
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, enum: [gmail, outlook] } }
+      responses:
+        '200': { $ref: '#/components/responses/AnyJson' }
+  /api/admin/review:
+    get:
+      tags: [Returnly]
+      summary: Policy review overview (site admins only; others get 404)
+      responses:
+        '200': { $ref: '#/components/responses/AnyJson' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/admin/stores/approve:
+    post:
+      tags: [Returnly]
+      summary: Approve a looked-up store policy (site admins)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                key: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/AnyJson' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/admin/reports/{id}/resolve:
+    post:
+      tags: [Returnly]
+      summary: Mark a policy report reviewed (site admins)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { $ref: '#/components/responses/AnyJson' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/admin/flags/{id}:
+    post:
+      tags: [Returnly]
+      summary: Approve or dismiss a flagged policy change (site admins)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action: { type: string, enum: [approve, dismiss] }
+                window: {}
+                basis: {}
+                outcome: {}
+      responses:
+        '200': { $ref: '#/components/responses/AnyJson' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: rl_session
+      description: Set by signup, login and password reset. HttpOnly, SameSite=Lax, Secure in production, 30 days.
+
+  parameters:
+    Patient:
+      name: X-Patient
+      in: header
+      required: false
+      description: Owner id of the family's care plan to use. Defaults to the person's first family, or their own plan.
+      schema: { type: string, format: uuid }
+
+  headers:
+    SetSession:
+      description: rl_session=<token>; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000[; Secure]
+      schema: { type: string }
+
+  responses:
+    BadRequest:
+      description: Missing or not valid; the message says what
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Not signed in, wrong password, or bad signature
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    PaymentRequired:
+      description: The family's plan ended or the team is full
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Not allowed for this person's role or ticks
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Not found (also for things the person may not see)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: Already exists
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    TooLarge:
+      description: Body too big, or a file over 10 MB
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    TooMany:
+      description: Too many attempts; try again later
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unavailable:
+      description: A service this route needs isn't set up on the server
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NeedPin:
+      description: A PIN is needed, or the one sent is wrong
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Error'
+              - type: object
+                properties:
+                  needPin: { const: true }
+    FileBody:
+      description: The file itself
+      content:
+        image/jpeg: { schema: { type: string, format: binary } }
+        image/png: { schema: { type: string, format: binary } }
+        image/webp: { schema: { type: string, format: binary } }
+        application/pdf: { schema: { type: string, format: binary } }
+    Url:
+      description: A Stripe page to open
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              url: { type: string, format: uri }
+    ItemSaved:
+      description: The saved item
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              item: { $ref: '#/components/schemas/Item' }
+              updatedAt: { type: [string, 'null'], format: date-time }
+    CheckinOne:
+      description: The check-in
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              checkin: { $ref: '#/components/schemas/Checkin' }
+    AlertPrefs:
+      description: The choices
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              prefs: { $ref: '#/components/schemas/AlertPrefs' }
+    EmailPrefs:
+      description: Which emails are on
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              available: { type: boolean }
+              daily: { type: boolean }
+              unopened: { type: boolean }
+    RecordStatus:
+      description: The doctor record's state
+      content:
+        application/json:
+          schema:
+            type: object
+            required: ['on']
+            properties:
+              'on': { type: boolean }
+              link: { type: string, format: uri, description: '.../record.html#<token>, the code on the EMS sheet' }
+              pin: { type: boolean }
+              createdAt: { type: string, format: date-time }
+              views: { type: array, items: { type: string, format: date-time } }
+    Places:
+      description: Up to three places, closest first, or none with a reason
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              places:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string }
+                    name: { type: string }
+                    partner: { type: string }
+                    address: { type: string }
+                    miles: { type: number }
+                    openNow: { type: [boolean, 'null'] }
+                    hours: { type: array, items: { type: string } }
+                    directions: { type: string, format: uri }
+              reason: { $ref: '#/components/schemas/AiReason' }
+    AnyJson:
+      description: JSON (see server/app.js)
+      content:
+        application/json:
+          schema: { type: object }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string, description: A sentence that can be shown as it is }
+    Ok:
+      type: object
+      properties:
+        ok: { const: true }
+    TokenBody:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string }
+    TierBody:
+      type: object
+      required: [tier]
+      properties:
+        tier: { type: string, enum: [solo, family, team] }
+    EndpointBody:
+      type: object
+      required: [endpoint]
+      properties:
+        endpoint: { type: string }
+    DataUrl:
+      type: string
+      description: 'data:<image/jpeg|image/png|image/webp|application/pdf>;base64,... Up to 10 MB. First bytes must match the type.'
+      pattern: '^data:(image/(jpeg|png|webp)|application/pdf);base64,'
+    ImageDataUrl:
+      type: string
+      description: 'data:<image/jpeg|image/png|image/webp>;base64,... Up to 10 MB.'
+      pattern: '^data:image/(jpeg|png|webp);base64,'
+    DataBody:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/DataUrl' }
+    FileUrl:
+      type: string
+      pattern: '^/api/files/[0-9a-f-]{36}$'
+      example: /api/files/3f2b9c1e-8a4d-4e0f-9b1a-2c3d4e5f6a7b
+    Space:
+      type: string
+      description: Short hash of the family's owner id. If it changes, drop the local copy and load again.
+      example: a1b2c3d4e5f60718
+    AiReason:
+      type: string
+      enum: [unavailable, limit, failed]
+      description: Only present when the result is null
+    Role:
+      type: string
+      enum: [admin, caregiver, viewer]
+    Perms:
+      type: object
+      description: 'admin: addTasks and meds always true, tasks ticked. caregiver: tasks always true, addTasks and meds ticked. viewer: all false.'
+      properties:
+        tasks: { type: boolean }
+        addTasks: { type: boolean }
+        meds: { type: boolean }
+    PublicUser:
+      type: object
+      properties:
+        email: { type: string }
+        name: { type: string }
+        admin: { type: boolean, description: Site admin (ADMIN_EMAILS), not a family admin }
+    SessionStart:
+      type: object
+      properties:
+        user: { $ref: '#/components/schemas/PublicUser' }
+        data:
+          oneOf:
+            - $ref: '#/components/schemas/CarePlan'
+            - type: 'null'
+        space: { $ref: '#/components/schemas/Space' }
+    Me:
+      type: object
+      properties:
+        user:
+          allOf:
+            - $ref: '#/components/schemas/PublicUser'
+            - type: object
+              properties:
+                passwordless: { type: boolean, description: Made with Google or Apple }
+        team:
+          type: object
+          properties:
+            role: { $ref: '#/components/schemas/Role' }
+            perms: { $ref: '#/components/schemas/Perms' }
+            owner: { type: boolean }
+            changedBy: { type: string }
+            patient: { type: string, format: uuid }
+            patients:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  name: { type: string }
+                  photo: { type: string }
+                  by: { type: string }
+        space: { $ref: '#/components/schemas/Space' }
+    Member:
+      type: object
+      properties:
+        id: { type: string, description: 'uuid, or "owner" before anyone is added' }
+        name: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        perms: { $ref: '#/components/schemas/Perms' }
+        status: { type: string, enum: [invited, joined] }
+        owner: { type: boolean }
+        you: { type: boolean }
+        email: { type: string, description: Admins only }
+        phone: { type: string, description: Admins only, E.164 }
+        invitedAt: { type: string, format: date-time, description: Admins only }
+    Invite:
+      type: object
+      properties:
+        link: { type: string, format: uri, description: '.../join.html#t=<token>, valid 14 days' }
+        emailed: { type: boolean }
+        texted: { type: boolean }
+    TeamView:
+      type: object
+      properties:
+        me:
+          type: object
+          properties:
+            role: { $ref: '#/components/schemas/Role' }
+            perms: { $ref: '#/components/schemas/Perms' }
+            owner: { type: boolean }
+        members:
+          type: array
+          items: { $ref: '#/components/schemas/Member' }
+        plan:
+          type: object
+          description: Admins only
+          properties:
+            status: { type: string, enum: [none, trial, paid, lapsed] }
+            canAdd: { type: boolean }
+            tier: { type: [string, 'null'] }
+    PlanView:
+      type: object
+      properties:
+        tiers:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, enum: [solo, family, team] }
+              name: { type: string }
+              amount: { type: integer, description: Cents per month }
+              people: { type: integer }
+        currency: { type: string, example: usd }
+        interval: { type: string, example: month }
+        trialDays: { type: integer }
+        status: { type: string, enum: [none, trial, paid, lapsed] }
+        tier: { type: [string, 'null'] }
+        people: { type: integer }
+        trialEnds: { type: [string, 'null'], format: date-time }
+        periodEnd: { type: [string, 'null'], format: date-time }
+        cancelAtEnd: { type: boolean }
+        card: { type: boolean }
+        payments: { type: boolean, description: Whether Stripe is set up }
+        texts: { type: integer, description: Texts sent this month }
+        receipts:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              at: { type: string, format: date-time }
+              amount: { type: integer }
+              currency: { type: string }
+              url: { type: string }
+    CarePlan:
+      type: object
+      properties:
+        purchases:
+          type: array
+          description: Every item (medications, appointments, tasks, documents, report entries)
+          items: { $ref: '#/components/schemas/Item' }
+        settings: { $ref: '#/components/schemas/Settings' }
+        profile: { $ref: '#/components/schemas/Profile' }
+        updatedAt: { type: string, format: date-time }
+    Item:
+      type: object
+      description: |
+        Free-form: the server keeps every field the app sends. One flag says the kind: med, appt, task, incident,
+        symptom, activity or doc. The fields listed are the ones the web app uses; see section 2.1 of the guide.
+      required: [id]
+      additionalProperties: true
+      properties:
+        id: { type: string, minLength: 1, maxLength: 100 }
+        purchaseId: { type: string, maxLength: 100, description: Made by the server when left out }
+        name: { type: string }
+        photo: { type: string, description: 'A data URL to store, or its /api/files/ URL to keep it' }
+        med: { type: boolean }
+        appt: { type: boolean }
+        task: { type: boolean }
+        incident: { type: boolean }
+        symptom: { type: boolean }
+        activity: { type: boolean }
+        doc: { type: boolean }
+        status: { type: string, description: 'Medication: kept (not confirmed), deciding (being taken), received (finished)' }
+        times: { type: array, items: { type: string, pattern: '^\d{2}:\d{2}$' } }
+        asNeeded: { type: boolean }
+        offTasks: { type: boolean }
+        pickup: { type: boolean }
+        dose: { type: string }
+        instructions: { type: string }
+        route: { type: string }
+        frequency: { type: string }
+        warnings: {}
+        pharmacy:
+          type: object
+          properties:
+            name: { type: string }
+            address: { type: string }
+            phone: { type: string }
+        prescriber:
+          type: object
+          properties:
+            name: { type: string }
+            phone: { type: string }
+        doses:
+          type: array
+          items: { $ref: '#/components/schemas/Dose' }
+        marks:
+          type: array
+          items: { $ref: '#/components/schemas/Mark' }
+        with: { type: string }
+        place: { type: string }
+        phone: { type: string }
+        date: { type: string, format: date }
+        time: { type: string }
+        repeat: { type: string, enum: [once, daily, weekly] }
+        until: { type: string, format: date }
+        at: { type: string, format: date-time }
+        note: { type: string }
+        kind: { type: string, description: 'Incident: fall, refused, injury, behaviour, other' }
+        witnesses: { type: string }
+        told: { type: string }
+        by: { type: string }
+        addedBy: { type: string }
+        addedAt: { type: string, format: date-time }
+        category: { type: string, description: 'Document: discharge, insurance, prescriptions, results, visits, legal, other' }
+        files:
+          type: array
+          items:
+            type: object
+            properties:
+              url: { $ref: '#/components/schemas/FileUrl' }
+              type: { type: string }
+        photos:
+          type: array
+          items: { $ref: '#/components/schemas/FileUrl' }
+    Dose:
+      type: object
+      properties:
+        at: { type: string, format: date-time, description: When it was marked }
+        day: { type: string, format: date }
+        slot: { type: string, pattern: '^\d{2}:\d{2}$' }
+        kind: { type: string, enum: [taken, skipped] }
+        by: { type: string }
+        note: { type: string }
+        photos: { type: array, items: { $ref: '#/components/schemas/FileUrl' } }
+    Mark:
+      type: object
+      properties:
+        at: { type: string, format: date-time }
+        day: { type: string, format: date }
+        key: { type: string }
+        kind: { type: string }
+        by: { type: string }
+        photos: { type: array, items: { $ref: '#/components/schemas/FileUrl' } }
+    Settings:
+      type: object
+      additionalProperties: true
+      properties:
+        vitals:
+          type: object
+          properties:
+            bp: { type: string }
+            heart: { type: string }
+            temp: { type: string }
+            pain: { type: string }
+            at: { type: string, format: date-time }
+        vitalsLog:
+          type: array
+          maxItems: 400
+          items:
+            type: object
+            properties:
+              at: { type: string, format: date-time }
+              bp: { type: string }
+              heart: { type: string }
+              temp: { type: string }
+              pain: { type: string }
+              by: { type: string }
+              photos: { type: array, items: { $ref: '#/components/schemas/FileUrl' } }
+        checkins:
+          type: array
+          readOnly: true
+          description: Written only by the server
+          items: { type: object }
+        recordDocs:
+          type: array
+          description: Document ids marked Visible to doctor
+          items: { type: string }
+        notifications: {}
+        daily: { type: boolean }
+        time: { type: string }
+        gentle: { type: boolean }
+        timeZone: { type: string }
+    Profile:
+      type: object
+      additionalProperties: true
+      properties:
+        name: { type: string }
+        photo: { type: string, description: 'A data URL to store, or its /api/files/ URL' }
+        info: { type: object, description: Patient information fields (info.js INFO_CARDS) }
+    AlertPrefs:
+      type: object
+      properties:
+        doses: { type: boolean }
+        missed: { type: boolean }
+        endOfDay: { type: boolean }
+        endOfDayTime: { type: string, example: '20:00' }
+        quietStart: { type: string, description: 'HH:MM, or empty to clear' }
+        quietEnd: { type: string }
+    Notification:
+      type: object
+      properties:
+        title: { type: string }
+        body: { type: string }
+        itemId: { type: [string, 'null'] }
+        url: { type: string }
+        actions:
+          type: array
+          items:
+            type: object
+            properties:
+              action: { type: string }
+              title: { type: string }
+        tag: { type: string }
+    Checkin:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [symptom, bp] }
+        about: { type: string }
+        bp: { type: string }
+        symptomId: { type: [string, 'null'] }
+        name: { type: string, description: Who logged it }
+        patient: { type: string }
+        self: { type: boolean }
+        mine: { type: boolean, description: Whether it's this person's to answer }
+        startedAt: { type: string, format: date-time }
+        next: { type: [string, 'null'], format: date-time }
+        askedAt: { type: [string, 'null'], format: date-time }
+        answers:
+          type: array
+          items:
+            type: object
+            properties:
+              at: { type: string, format: date-time }
+              still: { type: boolean }
+              score: { type: integer }
+        help:
+          type: [object, 'null']
+          properties:
+            at: { type: string, format: date-time }
+            score: { type: [integer, 'null'] }
+            again: { type: [string, 'null'], format: date-time }
+            replies:
+              type: array
+              items:
+                type: object
+                properties:
+                  name: { type: string }
+                  coming: { type: boolean }
+                  at: { type: string, format: date-time }
+                  mine: { type: boolean }
+        end:
+          type: [object, 'null']
+          properties:
+            at: { type: string, format: date-time }
+            er: { type: string, enum: [went, not, replaced, quiet] }
+    RecordUnlock:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string, pattern: '^[A-Za-z0-9_-]{32,64}$', description: From record.html#<token> }
+        pin: { type: string, pattern: '^\d{4,6}$' }
+    DoctorRecord:
+      type: object
+      properties:
+        name: { type: string }
+        photo: { type: boolean }
+        info: { type: object }
+        line: { type: string }
+        code: { type: string }
+        papers: { type: string }
+        allergies: {}
+        rows:
+          type: array
+          items:
+            type: object
+            properties:
+              label: { type: string }
+              value: { type: array, items: { type: string } }
+        meds:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              how: { type: string }
+              times: { type: array, items: { type: string } }
+              unconfirmed: { type: boolean }
+              pharmacy: { type: string }
+              prescriber: { type: string }
+              warnings: { type: string }
+              taken: { type: integer, description: Last 30 days }
+              skipped: { type: integer }
+        vitals: { type: array, items: { type: object } }
+        symptoms: { type: array, items: { $ref: '#/components/schemas/RecordNote' } }
+        incidents: { type: array, items: { $ref: '#/components/schemas/RecordNote' } }
+        documents:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              name: { type: string }
+              category: { type: string }
+              date: { type: string }
+              pages:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type: { type: string, enum: [image, application/pdf] }
+        since: { type: string, format: date }
+        at: { type: string, format: date-time }
+    RecordNote:
+      type: object
+      properties:
+        at: { type: string, format: date-time }
+        name: { type: string }
+        note: { type: string }
+    DischargeDraft:
+      type: object
+      properties:
+        products:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              dose: { type: string }
+              route: { type: string }
+              frequency: { type: string }
+              times: { type: array, items: { type: string } }
+              instructions: { type: string }
+              duration: { type: string }
+              medStatus: { type: string, enum: [new, changed, continue, unknown] }
+              prescriber:
+                type: object
+                properties:
+                  name: { type: string }
+                  phone: { type: string }
+              pharmacy:
+                type: [object, 'null']
+                properties:
+                  name: { type: string }
+                  address: { type: string }
+                  phone: { type: string }
+              page: { type: integer }
+              price: { type: string }
+        discharge:
+          type: object
+          properties:
+            hospital: { type: string }
+            discharged: { type: string }
+            appointments:
+              type: array
+              items:
+                type: object
+                properties:
+                  with: { type: string }
+                  place: { type: string }
+                  date: { type: string }
+                  time: { type: string }
+                  phone: { type: string }
+                  note: { type: string }
+            warningSigns:
+              type: array
+              items:
+                type: object
+                properties:
+                  text: { type: string }
+                  heading: { type: string }
+                  urgent: { type: boolean }
+            contacts:
+              type: array
+              items:
+                type: object
+                properties:
+                  name: { type: string }
+                  phone: { type: string }
+        notes: { type: array, items: { type: string } }
+    Label:
+      type: object
+      properties:
+        problem: { type: [string, 'null'], enum: [blurry, dark, cropped, not_label, null] }
+        name: { type: string }
+        strength: { type: string }
+        form: { type: string }
+        directions: { type: string }
+        pillLooks: { type: string }
+        pharmacy:
+          type: object
+          properties:
+            name: { type: string }
+            address: { type: string }
+            phone: { type: string }
+        prescriber: { type: string }
+        quantity: { type: [integer, 'null'] }
+        refills: { type: [integer, 'null'] }
+        refillBy: { type: string }
+        filled: { type: string }
+        discardAfter: { type: string }
+        warnings: { type: array, items: { type: string } }
+        mainPhoto: { type: [integer, 'null'], description: Index of the clearest photo }
+        note: { type: string, description: What to do when something couldn't be read }
+    AssistantRequest:
+      type: object
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          description: Last 8 are used; the last must be from the user
+          items:
+            type: object
+            properties:
+              role: { type: string, enum: [user, assistant] }
+              text: { type: string, maxLength: 600 }
+        plan:
+          type: object
+          properties:
+            medications: { type: array, maxItems: 80, items: { type: object } }
+            appointments: { type: array, maxItems: 60, items: { type: object } }
+            tasks: { type: array, maxItems: 60, items: { type: object } }
+            documents: { type: array, maxItems: 100, items: { type: object } }
+            contacts: { type: array, maxItems: 40, items: { type: object } }
+        today: { type: string, format: date }
+        weekday: { type: string }
+        name: { type: string, description: The assistant's name, default Ada }
+        patient: { type: string }
+    AssistantAnswer:
+      type: object
+      properties:
+        kind: { type: string, enum: [find, open, task, appointment, medication, document, vitals, dose, activity, symptom, incident, answer, medical, other] }
+        reply: { type: string }
+        ids: { type: array, items: { type: string } }
+        open: { type: string, description: A page name the app knows, or empty }
+        task:
+          type: [object, 'null']
+          properties:
+            what: { type: string }
+            note: { type: string }
+            date: { type: string }
+            time: { type: string }
+            repeat: { type: string, enum: [once, daily, weekly] }
+        appointment:
+          type: [object, 'null']
+          properties:
+            with: { type: string }
+            place: { type: string }
+            date: { type: string }
+            time: { type: string }
+            note: { type: string }
+        fields:
+          type: [object, 'null']
+          properties:
+            name: { type: string }
+            category: { type: string }
+            sys: { type: string }
+            dia: { type: string }
+            pulse: { type: string }
+            temp: { type: string }
+            pain: { type: string }
+            med_id: { type: string }
+            slot: { type: string }
+            mark: { type: string }
+            note: { type: string }
+            witnesses: { type: string }
+            incident: { type: string }
